@@ -305,6 +305,16 @@
     flex: 0 0 80px;
 }
 
+.frontmatter-linter-constraint-row select {
+    flex: 1;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    color: var(--text-normal);
+    font-size: 0.85em;
+}
+
 .frontmatter-linter-buttons-row {
     display: flex;
     gap: 8px;
@@ -559,5 +569,51 @@
 }
 
 .frontmatter-linter-view-unknown_field .frontmatter-linter-view-icon {
+    color: var(--text-muted);
+}
+
+/* Custom Types List (Settings) */
+.frontmatter-linter-custom-types-list {
+    margin: 12px 0;
+}
+
+.frontmatter-linter-no-types {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+}
+
+.frontmatter-linter-custom-type-item {
+    padding: 12px;
+    margin: 8px 0;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.frontmatter-linter-custom-type-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.frontmatter-linter-custom-type-name {
+    flex: 1;
+    font-weight: 600;
+}
+
+.frontmatter-linter-custom-type-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.frontmatter-linter-custom-type-info {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    padding-left: 0;
+    font-size: 0.9em;
     color: var(--text-muted);
 }

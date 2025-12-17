@@ -1,4 +1,4 @@
-import { FieldType, SchemaField, SchemaMapping, Violation } from "../types";
+import { FieldType, SchemaField, SchemaMapping, Violation, CustomType, isPrimitiveType } from "../types";
 
 // Date regex for ISO format YYYY-MM-DD
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,9 +21,9 @@ function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
  * Find the matching variant for a value in a union type
  * Returns the first field variant whose type matches the value
  */
-function findMatchingVariant(value: unknown, variants: SchemaField[]): SchemaField | null {
+function findMatchingVariant(value: unknown, variants: SchemaField[], customTypes: CustomType[]): SchemaField | null {
     for (const variant of variants) {
-        if (checkTypeMatch(value, variant.type)) {
+        if (checkTypeMatch(value, variant.type, customTypes)) {
             return variant;
         }
         // Also check allowEmpty
@@ -39,34 +39,126 @@ function findMatchingVariant(value: unknown, variants: SchemaField[]): SchemaFie
 /**
  * Check if a value matches the expected field type
  */
-export function checkTypeMatch(value: unknown, expectedType: FieldType): boolean {
+export function checkTypeMatch(value: unknown, expectedType: FieldType, customTypes: CustomType[]): boolean {
     if (value === null || value === undefined) {
         return false;
     }
 
-    switch (expectedType) {
-        case "string":
-            return typeof value === "string";
-        case "number":
-            return typeof value === "number";
-        case "boolean":
-            return typeof value === "boolean";
-        case "date":
-            // Date can be a string in ISO format or a Date object
-            if (typeof value === "string") {
-                return ISO_DATE_REGEX.test(value);
-            }
-            return value instanceof Date;
-        case "array":
-            return Array.isArray(value);
-        case "object":
-            return typeof value === "object" && !Array.isArray(value);
-        case "unknown":
-            // Unknown type accepts anything
-            return true;
-        default:
-            return false;
+    // Check if it's a primitive type
+    if (isPrimitiveType(expectedType)) {
+        switch (expectedType) {
+            case "string":
+                return typeof value === "string";
+            case "number":
+                return typeof value === "number";
+            case "boolean":
+                return typeof value === "boolean";
+            case "date":
+                // Date can be a string in ISO format or a Date object
+                if (typeof value === "string") {
+                    return ISO_DATE_REGEX.test(value);
+                }
+                return value instanceof Date;
+            case "array":
+                return Array.isArray(value);
+            case "object":
+                return typeof value === "object" && !Array.isArray(value);
+            case "unknown":
+                // Unknown type accepts anything
+                return true;
+            default:
+                return false;
+        }
     }
+
+    // Check if it's a custom type
+    const customType = customTypes.find(t => t.name === expectedType);
+    if (customType) {
+        // Value must be an object (not array, not null)
+        if (typeof value !== "object" || value === null || Array.isArray(value)) {
+            return false;
+        }
+        // Custom type validation: check if value has all required fields with correct types
+        return validateCustomType(value as Record<string, unknown>, customType, customTypes);
+    }
+
+    return false;
+}
+
+/**
+ * Validate a value against a custom type definition
+ */
+function validateCustomType(value: Record<string, unknown>, customType: CustomType, customTypes: CustomType[]): boolean {
+    for (const field of customType.fields) {
+        const hasField = Object.prototype.hasOwnProperty.call(value, field.name);
+
+        // Required fields must be present
+        if (field.required && !hasField) {
+            return false;
+        }
+
+        // If field is present, validate it
+        if (hasField) {
+            const fieldValue = value[field.name];
+            if (fieldValue === null || fieldValue === undefined) {
+                // Null/empty check only fails if field is required and doesn't allow empty
+                if (field.required && !field.allowEmpty) {
+                    return false;
+                }
+            } else {
+                // Type check applies to ALL present fields, not just required ones
+                if (!checkTypeMatch(fieldValue, field.type, customTypes)) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+/**
+ * Get detailed validation errors for a custom type mismatch
+ * Returns an array of specific field-level error messages
+ */
+export function getCustomTypeErrors(value: unknown, customType: CustomType, customTypes: CustomType[]): string[] {
+    const errors: string[] = [];
+
+    // Not an object at all
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        errors.push(`expected object, got ${getActualType(value)}`);
+        return errors;
+    }
+
+    const obj = value as Record<string, unknown>;
+
+    for (const field of customType.fields) {
+        const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
+        const fieldValue = hasField ? obj[field.name] : undefined;
+
+        // Check required fields are present
+        if (field.required && !hasField) {
+            errors.push(`missing required field "${field.name}"`);
+            continue;
+        }
+
+        // Skip if field not present (and not required)
+        if (!hasField) continue;
+
+        // Check null/empty values
+        if (fieldValue === null || fieldValue === undefined) {
+            if (field.required && !field.allowEmpty) {
+                errors.push(`"${field.name}" cannot be null/empty`);
+            }
+            continue;
+        }
+
+        // Check type match for ALL present fields (required or optional)
+        if (!checkTypeMatch(fieldValue, field.type, customTypes)) {
+            errors.push(`"${field.name}" expected ${field.type}, got ${getActualType(fieldValue)}`);
+        }
+    }
+
+    return errors;
 }
 
 /**
@@ -87,7 +179,8 @@ export function getActualType(value: unknown): string {
 export function checkMissingRequired(
     frontmatter: Record<string, unknown> | undefined,
     schema: SchemaMapping,
-    filePath: string
+    filePath: string,
+    customTypes: CustomType[]
 ): Violation[] {
     const violations: Violation[] = [];
     const fieldGroups = groupFieldsByName(schema.fields);
@@ -145,7 +238,8 @@ export function checkMissingRequired(
 export function checkTypeMismatches(
     frontmatter: Record<string, unknown> | undefined,
     schema: SchemaMapping,
-    filePath: string
+    filePath: string,
+    customTypes: CustomType[]
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -168,17 +262,33 @@ export function checkTypeMismatches(
         if (value === null || value === undefined) continue;
 
         // Check if value matches any variant
-        const matchingVariant = findMatchingVariant(value, variants);
+        const matchingVariant = findMatchingVariant(value, variants, customTypes);
 
         if (!matchingVariant) {
             // Build expected types string for error message
             const expectedTypes = variants.map(v => v.type).join(" | ");
+
+            // Check if any variant is a custom type and provide detailed errors
+            let detailedMessage = `Type mismatch: ${fieldName} (expected ${expectedTypes}, got ${getActualType(value)})`;
+
+            // If expecting a custom type and we got an object, show specific field errors
+            for (const variant of variants) {
+                const customType = customTypes.find(t => t.name === variant.type);
+                if (customType && typeof value === "object" && value !== null && !Array.isArray(value)) {
+                    const fieldErrors = getCustomTypeErrors(value, customType, customTypes);
+                    if (fieldErrors.length > 0) {
+                        detailedMessage = `Type mismatch: ${fieldName} (expected ${variant.type}): ${fieldErrors.join("; ")}`;
+                        break;
+                    }
+                }
+            }
+
             violations.push({
                 filePath,
                 schemaMapping: schema,
                 field: fieldName,
                 type: "type_mismatch",
-                message: `Type mismatch: ${fieldName} (expected ${expectedTypes}, got ${getActualType(value)})`,
+                message: detailedMessage,
                 expected: expectedTypes,
                 actual: getActualType(value),
             });
@@ -194,7 +304,8 @@ export function checkTypeMismatches(
 export function checkUnknownFields(
     frontmatter: Record<string, unknown> | undefined,
     schema: SchemaMapping,
-    filePath: string
+    filePath: string,
+    customTypes: CustomType[]
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -227,7 +338,8 @@ export function checkUnknownFields(
 export function checkStringConstraints(
     frontmatter: Record<string, unknown> | undefined,
     schema: SchemaMapping,
-    filePath: string
+    filePath: string,
+    customTypes: CustomType[]
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -242,7 +354,7 @@ export function checkStringConstraints(
         if (typeof value !== "string") continue;
 
         // Find the matching string variant
-        const matchingVariant = variants.find(v => v.type === "string" && checkTypeMatch(value, v.type));
+        const matchingVariant = variants.find(v => v.type === "string" && checkTypeMatch(value, v.type, customTypes));
         if (!matchingVariant || !matchingVariant.stringConstraints) continue;
 
         const constraints = matchingVariant.stringConstraints;
@@ -304,7 +416,8 @@ export function checkStringConstraints(
 export function checkNumberConstraints(
     frontmatter: Record<string, unknown> | undefined,
     schema: SchemaMapping,
-    filePath: string
+    filePath: string,
+    customTypes: CustomType[]
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -319,7 +432,7 @@ export function checkNumberConstraints(
         if (typeof value !== "number") continue;
 
         // Find the matching number variant
-        const matchingVariant = variants.find(v => v.type === "number" && checkTypeMatch(value, v.type));
+        const matchingVariant = variants.find(v => v.type === "number" && checkTypeMatch(value, v.type, customTypes));
         if (!matchingVariant || !matchingVariant.numberConstraints) continue;
 
         const constraints = matchingVariant.numberConstraints;
@@ -355,13 +468,14 @@ export function checkNumberConstraints(
 }
 
 /**
- * Check array constraints (minItems, maxItems, contains)
+ * Check array constraints (minItems, maxItems, contains) and element types
  * For union types, only applies constraints from the matching variant
  */
 export function checkArrayConstraints(
     frontmatter: Record<string, unknown> | undefined,
     schema: SchemaMapping,
-    filePath: string
+    filePath: string,
+    customTypes: CustomType[]
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -376,8 +490,28 @@ export function checkArrayConstraints(
         if (!Array.isArray(value)) continue;
 
         // Find the matching array variant
-        const matchingVariant = variants.find(v => v.type === "array" && checkTypeMatch(value, v.type));
-        if (!matchingVariant || !matchingVariant.arrayConstraints) continue;
+        const matchingVariant = variants.find(v => v.type === "array" && checkTypeMatch(value, v.type, customTypes));
+        if (!matchingVariant) continue;
+
+        // Check element types if specified
+        if (matchingVariant.arrayElementType) {
+            for (let i = 0; i < value.length; i++) {
+                const element = value[i];
+                if (!checkTypeMatch(element, matchingVariant.arrayElementType, customTypes)) {
+                    violations.push({
+                        filePath,
+                        schemaMapping: schema,
+                        field: fieldName,
+                        type: "type_mismatch",
+                        message: `Array element type mismatch: ${fieldName}[${i}] (expected ${matchingVariant.arrayElementType}, got ${getActualType(element)})`,
+                        expected: matchingVariant.arrayElementType,
+                        actual: getActualType(element),
+                    });
+                }
+            }
+        }
+
+        if (!matchingVariant.arrayConstraints) continue;
 
         const constraints = matchingVariant.arrayConstraints;
 
@@ -429,49 +563,17 @@ export function checkArrayConstraints(
 }
 
 /**
- * Check object constraints (requiredKeys)
- * For union types, only applies constraints from the matching variant
+ * Check object constraints
+ * Note: Structured objects should use custom types instead of object constraints
+ * This function is kept for backwards compatibility but doesn't do much now
  */
 export function checkObjectConstraints(
     frontmatter: Record<string, unknown> | undefined,
     schema: SchemaMapping,
-    filePath: string
+    filePath: string,
+    customTypes: CustomType[]
 ): Violation[] {
-    const violations: Violation[] = [];
-
-    if (!frontmatter) return violations;
-
-    const fieldGroups = groupFieldsByName(schema.fields);
-
-    for (const [fieldName, variants] of fieldGroups) {
-        if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName)) continue;
-
-        const value = frontmatter[fieldName];
-        if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
-
-        // Find the matching object variant
-        const matchingVariant = variants.find(v => v.type === "object" && checkTypeMatch(value, v.type));
-        if (!matchingVariant || !matchingVariant.objectConstraints) continue;
-
-        const constraints = matchingVariant.objectConstraints;
-        const obj = value as Record<string, unknown>;
-
-        // Check requiredKeys
-        if (constraints.requiredKeys) {
-            for (const requiredKey of constraints.requiredKeys) {
-                if (!Object.prototype.hasOwnProperty.call(obj, requiredKey)) {
-                    violations.push({
-                        filePath,
-                        schemaMapping: schema,
-                        field: fieldName,
-                        type: "object_missing_key",
-                        message: `Object missing key: ${fieldName} is missing required key "${requiredKey}"`,
-                        expected: requiredKey,
-                    });
-                }
-            }
-        }
-    }
-
-    return violations;
+    // Object structure validation is handled by custom types
+    // This function is kept for API compatibility
+    return [];
 }

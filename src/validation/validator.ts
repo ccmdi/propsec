@@ -61,23 +61,24 @@ export class Validator {
 
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
         const violations: Violation[] = [];
+        const customTypes = this.settings().customTypes;
 
         // Check for missing required fields
-        violations.push(...checkMissingRequired(frontmatter, schema, file.path));
+        violations.push(...checkMissingRequired(frontmatter, schema, file.path, customTypes));
 
         // Check for type mismatches
-        violations.push(...checkTypeMismatches(frontmatter, schema, file.path));
+        violations.push(...checkTypeMismatches(frontmatter, schema, file.path, customTypes));
 
         // Check for unknown fields (if enabled)
         if (this.settings().warnOnUnknownFields) {
-            violations.push(...checkUnknownFields(frontmatter, schema, file.path));
+            violations.push(...checkUnknownFields(frontmatter, schema, file.path, customTypes));
         }
 
         // Check constraints
-        violations.push(...checkStringConstraints(frontmatter, schema, file.path));
-        violations.push(...checkNumberConstraints(frontmatter, schema, file.path));
-        violations.push(...checkArrayConstraints(frontmatter, schema, file.path));
-        violations.push(...checkObjectConstraints(frontmatter, schema, file.path));
+        violations.push(...checkStringConstraints(frontmatter, schema, file.path, customTypes));
+        violations.push(...checkNumberConstraints(frontmatter, schema, file.path, customTypes));
+        violations.push(...checkArrayConstraints(frontmatter, schema, file.path, customTypes));
+        violations.push(...checkObjectConstraints(frontmatter, schema, file.path, customTypes));
 
         // Update store
         this.store.setFileViolations(file.path, violations);

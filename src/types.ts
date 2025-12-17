@@ -1,6 +1,7 @@
 // Core type definitions for Frontmatter Linter
 
-export type FieldType =
+// Built-in primitive types
+export type PrimitiveFieldType =
     | "string"
     | "number"
     | "boolean"
@@ -8,6 +9,21 @@ export type FieldType =
     | "array"
     | "object"
     | "unknown";
+
+// FieldType can be a primitive or a custom type name
+export type FieldType = string;
+
+// Helper function to check if a type is a built-in primitive
+export function isPrimitiveType(type: string): type is PrimitiveFieldType {
+    return ["string", "number", "boolean", "date", "array", "object", "unknown"].includes(type);
+}
+
+// Type definition - user-defined reusable types
+export interface CustomType {
+    id: string;        // UUID for stable references
+    name: string;      // Type name (e.g., "exercise", "person")
+    fields: SchemaField[];  // Schema-like field definitions
+}
 
 // Constraint types for different field types
 export interface StringConstraints {
@@ -40,6 +56,14 @@ export interface SchemaField {
     warn?: boolean;
     // Allow null/empty as valid (for "array OR null" scenarios)
     allowEmpty?: boolean;
+
+    // For arrays: specify what type the elements should be
+    arrayElementType?: FieldType;
+
+    // For objects: specify key and value types
+    objectKeyType?: FieldType;      // Usually "string"
+    objectValueType?: FieldType;    // Can be any type
+
     // Optional constraints based on type
     stringConstraints?: StringConstraints;
     numberConstraints?: NumberConstraints;
@@ -60,6 +84,7 @@ export interface SchemaMapping {
 export interface PropsecSettings {
     templatesFolder: string;
     schemaMappings: SchemaMapping[];
+    customTypes: CustomType[];  // User-defined reusable types
     warnOnUnknownFields: boolean;
     validateOnFileOpen: boolean;
     validateOnFileSave: boolean;
@@ -70,6 +95,7 @@ export interface PropsecSettings {
 export const DEFAULT_SETTINGS: PropsecSettings = {
     templatesFolder: "",
     schemaMappings: [],
+    customTypes: [],
     warnOnUnknownFields: true,
     validateOnFileOpen: true,
     validateOnFileSave: true,

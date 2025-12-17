@@ -1,7 +1,8 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import { PropsecSettings, SchemaMapping } from "./types";
+import { PropsecSettings, SchemaMapping, CustomType } from "./types";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
+import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
 
 export class PropsecSettingTab extends PluginSettingTab {
     private settings: PropsecSettings;
@@ -51,6 +52,48 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Separator
         containerEl.createEl("hr");
 
+        // Types section
+        containerEl.createEl("h3", { text: "Types" });
+
+        // Custom types list
+        const customTypesContainer = containerEl.createDiv({
+            cls: "frontmatter-linter-custom-types-list",
+        });
+
+        if (this.settings.customTypes.length === 0) {
+            customTypesContainer.createEl("p", {
+                text: "No types defined. Click the button below to add one.",
+                cls: "frontmatter-linter-no-types",
+            });
+        } else {
+            for (const customType of this.settings.customTypes) {
+                this.renderCustomTypeItem(customTypesContainer, customType);
+            }
+        }
+
+        // Add Custom Type button
+        new Setting(containerEl).addButton((button) =>
+            button
+                .setButtonText("+ Add Type")
+                .setCta()
+                .onClick(() => {
+                    const modal = new CustomTypeEditorModal(
+                        this.app,
+                        null,
+                        this.settings.customTypes,
+                        async (newType) => {
+                            this.settings.customTypes.push(newType);
+                            await this.onSettingsChange();
+                            this.display(); // Refresh the settings view
+                        }
+                    );
+                    modal.open();
+                })
+        );
+
+        // Separator
+        containerEl.createEl("hr");
+
         // Schema Mappings section
         containerEl.createEl("h3", { text: "Schema" });
 
@@ -79,6 +122,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                     const modal = new AddSchemaModal(
                         this.app,
                         this.settings.templatesFolder,
+                        this.settings.customTypes,
                         async (mapping) => {
                             this.settings.schemaMappings.push(mapping);
                             await this.onSettingsChange();
@@ -204,6 +248,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.app,
                 mapping,
                 this.settings.templatesFolder,
+                this.settings.customTypes,
                 async (updatedMapping) => {
                     // Update the mapping in place
                     const index = this.settings.schemaMappings.findIndex(
@@ -250,6 +295,91 @@ export class PropsecSettingTab extends PluginSettingTab {
         infoRow.createEl("span", {
             text: `${mapping.fields.length} fields (${requiredCount} required)`,
             cls: "frontmatter-linter-schema-field-count",
+        });
+    }
+
+    private renderCustomTypeItem(
+        container: HTMLElement,
+        customType: CustomType
+    ): void {
+        const itemEl = container.createDiv({
+            cls: "frontmatter-linter-custom-type-item",
+        });
+
+        // Header row with name and buttons
+        const headerRow = itemEl.createDiv({
+            cls: "frontmatter-linter-custom-type-header",
+        });
+
+        // Type name
+        headerRow.createEl("span", {
+            text: customType.name,
+            cls: "frontmatter-linter-custom-type-name",
+        });
+
+        // Buttons container
+        const buttonsEl = headerRow.createDiv({
+            cls: "frontmatter-linter-custom-type-buttons",
+        });
+
+        // Edit button
+        const editBtn = buttonsEl.createEl("button", { text: "Edit" });
+        editBtn.addEventListener("click", () => {
+            const modal = new CustomTypeEditorModal(
+                this.app,
+                customType,
+                this.settings.customTypes,
+                async (updatedType) => {
+                    // Update the custom type in place
+                    const index = this.settings.customTypes.findIndex(
+                        (t) => t.id === customType.id
+                    );
+                    if (index >= 0) {
+                        this.settings.customTypes[index] = updatedType;
+                        await this.onSettingsChange();
+                        this.display();
+                    }
+                }
+            );
+            modal.open();
+        });
+
+        // Delete button
+        const deleteBtn = buttonsEl.createEl("button", {
+            text: "X",
+            cls: "frontmatter-linter-delete-btn",
+        });
+        deleteBtn.addEventListener("click", async () => {
+            // Check if any schema is using this type
+            const usedInSchemas = this.settings.schemaMappings.filter((mapping) =>
+                mapping.fields.some((field) => field.type === customType.name)
+            );
+
+            if (usedInSchemas.length > 0) {
+                const schemaNames = usedInSchemas.map((m) => m.name).join(", ");
+                alert(
+                    `Cannot delete type "${customType.name}" because it is used in the following schemas: ${schemaNames}`
+                );
+                return;
+            }
+
+            const index = this.settings.customTypes.findIndex(
+                (t) => t.id === customType.id
+            );
+            if (index >= 0) {
+                this.settings.customTypes.splice(index, 1);
+                await this.onSettingsChange();
+                this.display();
+            }
+        });
+
+        // Info row
+        const infoRow = itemEl.createDiv({
+            cls: "frontmatter-linter-custom-type-info",
+        });
+        infoRow.createEl("span", {
+            text: `${customType.fields.length} fields`,
+            cls: "frontmatter-linter-custom-type-field-count",
         });
     }
 }

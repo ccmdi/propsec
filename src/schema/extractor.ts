@@ -117,6 +117,7 @@ export async function extractSchemaFromTemplate(
 
 /**
  * Get a human-readable type name for display
+ * For custom types, returns the type name as-is
  */
 export function getTypeDisplayName(type: FieldType): string {
     switch (type) {
@@ -134,6 +135,9 @@ export function getTypeDisplayName(type: FieldType): string {
             return "Object";
         case "unknown":
             return "Unknown";
+        default:
+            // Custom type - return the name as-is
+            return type;
     }
 }
 

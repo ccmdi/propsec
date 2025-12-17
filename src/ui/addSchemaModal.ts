@@ -1,5 +1,5 @@
 import { App, Modal, TFile, TFolder } from "obsidian";
-import { SchemaMapping, SchemaField } from "../types";
+import { SchemaMapping, SchemaField, CustomType } from "../types";
 import { extractSchemaFromTemplate } from "../schema/extractor";
 import { SchemaEditorModal } from "./schemaEditorModal";
 
@@ -8,6 +8,7 @@ import { SchemaEditorModal } from "./schemaEditorModal";
  */
 export class AddSchemaModal extends Modal {
     private templatesFolder: string;
+    private customTypes: CustomType[];
     private onSave: (mapping: SchemaMapping) => void;
     private selectedTemplate: TFile | null = null;
     private mode: "template" | "scratch" = "template";
@@ -15,10 +16,12 @@ export class AddSchemaModal extends Modal {
     constructor(
         app: App,
         templatesFolder: string,
+        customTypes: CustomType[],
         onSave: (mapping: SchemaMapping) => void
     ) {
         super(app);
         this.templatesFolder = templatesFolder;
+        this.customTypes = customTypes;
         this.onSave = onSave;
     }
 
@@ -200,6 +203,7 @@ export class AddSchemaModal extends Modal {
             this.app,
             newMapping,
             this.templatesFolder,
+            this.customTypes,
             (mapping) => {
                 this.onSave(mapping);
             }
