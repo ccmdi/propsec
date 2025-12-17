@@ -87,9 +87,15 @@
 }
 
 /* Schema Editor Modal */
-.frontmatter-linter-schema-editor {
-    width: 500px;
+.modal:has(.frontmatter-linter-schema-editor) {
+    width: 80vw;
     max-width: 90vw;
+}
+
+.frontmatter-linter-schema-editor h2,
+.frontmatter-linter-add-schema-modal h2,
+.frontmatter-linter-violations-modal h2 {
+    margin-top: 0;
 }
 
 .frontmatter-linter-fields-header {
@@ -98,7 +104,7 @@
 
 .frontmatter-linter-fields-container {
     margin: 12px 0;
-    max-height: 300px;
+    max-height: 50vh;
     overflow-y: auto;
 }
 

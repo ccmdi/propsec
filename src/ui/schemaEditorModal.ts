@@ -25,6 +25,7 @@ export class SchemaEditorModal extends Modal {
     private fieldsContainer: HTMLElement | null = null;
     private expandedFields: Set<number> = new Set();
     private activeConstraintsSection: HTMLElement | null = null;
+    private scrollHandler: (() => void) | null = null;
 
     constructor(
         app: App,
@@ -65,7 +66,7 @@ export class SchemaEditorModal extends Modal {
             .setDesc("Match files by folder or tag. Examples: folder, folder/*, #tag, folder/* or #tag")
             .addText((text) =>
                 text
-                    .setPlaceholder("e.g., Journal/Gym/* or #gym")
+                    .setPlaceholder("e.g., Folder/* or #tag")
                     .setValue(this.mapping.query || "")
                     .onChange((value) => {
                         this.mapping.query = value;
@@ -85,6 +86,14 @@ export class SchemaEditorModal extends Modal {
         this.fieldsContainer = contentEl.createDiv({
             cls: "frontmatter-linter-fields-container",
         });
+
+        // Close constraints overlay on scroll anywhere in modal to avoid detached state
+        this.scrollHandler = () => {
+            if (this.activeConstraintsSection && this.expandedFields.size > 0) {
+                this.closeAllExpanded();
+            }
+        };
+        this.containerEl.addEventListener("scroll", this.scrollHandler, true);
 
         this.renderFields();
 
@@ -166,6 +175,21 @@ export class SchemaEditorModal extends Modal {
         }
     }
 
+    private closeAllExpanded(): void {
+        // Close overlay
+        this.removeConstraintsSection();
+        // Reset all expanded card states
+        for (const index of this.expandedFields) {
+            const card = this.fieldsContainer?.children[index] as HTMLElement;
+            if (card) {
+                card.removeClass("expanded");
+                const btn = card.querySelector(".frontmatter-linter-icon-btn");
+                if (btn) setIcon(btn as HTMLElement, "chevron-right");
+            }
+        }
+        this.expandedFields.clear();
+    }
+
     private renderFieldCard(
         container: HTMLElement,
         field: SchemaField,
@@ -186,7 +210,7 @@ export class SchemaEditorModal extends Modal {
             cls: "frontmatter-linter-field-name",
         });
         nameInput.value = field.name;
-        nameInput.placeholder = "field_name";
+        nameInput.placeholder = "Field name";
         nameInput.addEventListener("input", (e) => {
             field.name = (e.target as HTMLInputElement).value;
         });
@@ -229,6 +253,20 @@ export class SchemaEditorModal extends Modal {
             field.required = (e.target as HTMLInputElement).checked;
         });
         requiredLabel.appendText(" Req");
+
+        // Allow empty checkbox (for "array OR null" scenarios)
+        const allowEmptyLabel = mainRow.createEl("label", {
+            cls: "frontmatter-linter-required-label",
+            attr: { title: "Allow null/empty values" },
+        });
+        const allowEmptyCheckbox = allowEmptyLabel.createEl("input", {
+            type: "checkbox",
+        });
+        allowEmptyCheckbox.checked = field.allowEmpty || false;
+        allowEmptyCheckbox.addEventListener("change", (e) => {
+            field.allowEmpty = (e.target as HTMLInputElement).checked;
+        });
+        allowEmptyLabel.appendText(" Null");
 
         // Expand button (only if type supports constraints)
         const hasConstraints = this.typeSupportsConstraints(field.type);
@@ -472,6 +510,23 @@ export class SchemaEditorModal extends Modal {
             const val = (e.target as HTMLInputElement).value;
             constraints.maxItems = val ? parseInt(val, 10) : undefined;
         });
+
+        // Contains (comma-separated values that must be present)
+        const containsRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        containsRow.createEl("label", { text: "Contains:" });
+        const containsInput = containsRow.createEl("input", {
+            type: "text",
+            placeholder: "value1, value2",
+        });
+        containsInput.value = constraints.contains?.join(", ") || "";
+        containsInput.addEventListener("input", (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            if (val.trim()) {
+                constraints.contains = val.split(",").map((v) => v.trim()).filter((v) => v);
+            } else {
+                constraints.contains = undefined;
+            }
+        });
     }
 
     private renderObjectConstraints(container: HTMLElement, field: SchemaField): void {
@@ -558,6 +613,10 @@ export class SchemaEditorModal extends Modal {
     }
 
     onClose(): void {
+        // Clean up scroll listener
+        if (this.scrollHandler) {
+            this.containerEl.removeEventListener("scroll", this.scrollHandler, true);
+        }
         this.removeConstraintsSection();
         const { contentEl } = this;
         contentEl.empty();

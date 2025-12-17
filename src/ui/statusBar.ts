@@ -7,6 +7,7 @@ export class StatusBarItem {
     private statusBarEl: HTMLElement;
     private store: ViolationStore;
     private onClick: () => void;
+    private colorErrors: boolean = true;
 
     constructor(
         statusBarEl: HTMLElement,
@@ -25,6 +26,14 @@ export class StatusBarItem {
         this.store.onChange(() => this.update());
 
         // Initial update
+        this.update();
+    }
+
+    /**
+     * Set whether to color the status bar red when there are violations
+     */
+    setColorErrors(colorErrors: boolean): void {
+        this.colorErrors = colorErrors;
         this.update();
     }
 
@@ -49,7 +58,11 @@ export class StatusBarItem {
                     : `${totalViolations} violation${totalViolations === 1 ? "" : "s"} in ${fileCount} files`;
             this.statusBarEl.setText(text);
             this.statusBarEl.removeClass("frontmatter-linter-ok");
-            this.statusBarEl.addClass("frontmatter-linter-error");
+            if (this.colorErrors) {
+                this.statusBarEl.addClass("frontmatter-linter-error");
+            } else {
+                this.statusBarEl.removeClass("frontmatter-linter-error");
+            }
         }
     }
 

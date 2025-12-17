@@ -100,7 +100,15 @@ export function checkTypeMismatches(
         const value = frontmatter[field.name];
 
         // Skip null/undefined - these are handled by missing_required check
+        // But if allowEmpty is set, null/empty values are valid
         if (value === null || value === undefined) continue;
+
+        // If allowEmpty is set and value is "empty" (empty string, empty array), skip type check
+        if (field.allowEmpty) {
+            if (value === "" || (Array.isArray(value) && value.length === 0)) {
+                continue;
+            }
+        }
 
         if (!checkTypeMatch(value, field.type)) {
             violations.push({
@@ -273,7 +281,7 @@ export function checkNumberConstraints(
 }
 
 /**
- * Check array constraints (minItems, maxItems)
+ * Check array constraints (minItems, maxItems, contains)
  */
 export function checkArrayConstraints(
     frontmatter: Record<string, unknown> | undefined,
@@ -317,6 +325,23 @@ export function checkArrayConstraints(
                 expected: `<= ${constraints.maxItems}`,
                 actual: String(value.length),
             });
+        }
+
+        // Check contains
+        if (constraints.contains && constraints.contains.length > 0) {
+            const stringValues = value.map((v) => String(v));
+            for (const required of constraints.contains) {
+                if (!stringValues.includes(required)) {
+                    violations.push({
+                        filePath,
+                        schemaMapping: schema,
+                        field: field.name,
+                        type: "array_missing_value",
+                        message: `Array missing value: ${field.name} must contain "${required}"`,
+                        expected: required,
+                    });
+                }
+            }
         }
     }
 

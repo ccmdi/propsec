@@ -24,6 +24,7 @@ export interface NumberConstraints {
 export interface ArrayConstraints {
     minItems?: number;
     maxItems?: number;
+    contains?: string[];  // Array must contain all these values
 }
 
 export interface ObjectConstraints {
@@ -35,6 +36,8 @@ export interface SchemaField {
     name: string;
     type: FieldType;
     required: boolean;
+    // Allow null/empty as valid (for "array OR null" scenarios)
+    allowEmpty?: boolean;
     // Optional constraints based on type
     stringConstraints?: StringConstraints;
     numberConstraints?: NumberConstraints;
@@ -52,22 +55,24 @@ export interface SchemaMapping {
     fields: SchemaField[];
 }
 
-export interface FrontmatterLinterSettings {
+export interface PropsecSettings {
     templatesFolder: string;
     schemaMappings: SchemaMapping[];
     warnOnUnknownFields: boolean;
     validateOnFileOpen: boolean;
     validateOnFileSave: boolean;
     showInStatusBar: boolean;
+    colorStatusBarErrors: boolean;
 }
 
-export const DEFAULT_SETTINGS: FrontmatterLinterSettings = {
+export const DEFAULT_SETTINGS: PropsecSettings = {
     templatesFolder: "",
     schemaMappings: [],
     warnOnUnknownFields: true,
     validateOnFileOpen: true,
     validateOnFileSave: true,
     showInStatusBar: true,
+    colorStatusBarErrors: true,
 };
 
 export type ViolationType =
@@ -81,6 +86,7 @@ export type ViolationType =
     | "number_too_large"
     | "array_too_few"
     | "array_too_many"
+    | "array_missing_value"
     | "object_missing_key";
 
 export interface Violation {

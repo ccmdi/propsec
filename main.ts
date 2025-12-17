@@ -6,7 +6,7 @@ import {
     TAbstractFile,
 } from "obsidian";
 import {
-    FrontmatterLinterSettings,
+    PropsecSettings,
     DEFAULT_SETTINGS,
 } from "./src/types";
 import { ViolationStore } from "./src/validation/store";
@@ -14,10 +14,10 @@ import { Validator } from "./src/validation/validator";
 import { StatusBarItem } from "./src/ui/statusBar";
 import { ViolationsModal } from "./src/ui/violationsModal";
 import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./src/ui/violationsView";
-import { FrontmatterLinterSettingTab } from "./src/settings";
+import { PropsecSettingTab } from "./src/settings";
 
-export default class FrontmatterLinterPlugin extends Plugin {
-    settings: FrontmatterLinterSettings;
+export default class PropsecPlugin extends Plugin {
+    settings: PropsecSettings;
     private store: ViolationStore;
     private validator: Validator;
     private statusBarItem: StatusBarItem | null = null;
@@ -49,6 +49,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
             new ViolationsModal(this.app, this.store).open();
         });
         this.updateStatusBarVisibility();
+        this.updateStatusBarColoring();
 
         // Register commands
         this.addCommand({
@@ -94,7 +95,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
         });
 
         // Register settings tab
-        this.addSettingTab(new FrontmatterLinterPluginSettingTab(this.app, this));
+        this.addSettingTab(new PropsecSettingTabWrapper(this.app, this));
 
         // Register event handlers
         this.registerEvents();
@@ -113,7 +114,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
     }
 
     async loadSettings(): Promise<void> {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<PropsecSettings>);
     }
 
     async saveSettings(): Promise<void> {
@@ -124,17 +125,14 @@ export default class FrontmatterLinterPlugin extends Plugin {
         // Skip if user has already set a templates folder
         if (this.settings.templatesFolder) return;
 
-        //TODO extend types
-        //ts-expect-error - internalPlugins is not typed
-        const coreTemplates = (this.app as any).internalPlugins?.plugins?.templates;
-        if (coreTemplates?.enabled && coreTemplates?.instance?.options?.folder) {
+        const coreTemplates = this.app.internalPlugins.plugins.templates;
+        if (coreTemplates.enabled && coreTemplates.instance.options.folder) {
             this.settings.templatesFolder = coreTemplates.instance.options.folder;
             return;
         }
 
-        //ts-expect-error - plugins is not typed
-        const templater = (this.app as any).plugins?.plugins?.["templater-obsidian"];
-        if (templater?.settings?.templates_folder) {
+        const templater = this.app.plugins.plugins["templater-obsidian"];
+        if (templater.settings.templates_folder) {
             this.settings.templatesFolder = templater.settings.templates_folder;
         }
     }
@@ -142,6 +140,12 @@ export default class FrontmatterLinterPlugin extends Plugin {
     private updateStatusBarVisibility(): void {
         if (this.statusBarEl) {
             this.statusBarEl.style.display = this.settings.showInStatusBar ? "" : "none";
+        }
+    }
+
+    private updateStatusBarColoring(): void {
+        if (this.statusBarItem) {
+            this.statusBarItem.setColorErrors(this.settings.colorStatusBarErrors);
         }
     }
 
@@ -214,6 +218,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
      */
     onSettingsChange(): void {
         this.updateStatusBarVisibility();
+        this.updateStatusBarColoring();
     }
 
     /**
@@ -244,17 +249,17 @@ export default class FrontmatterLinterPlugin extends Plugin {
 /**
  * Settings tab wrapper
  */
-class FrontmatterLinterPluginSettingTab extends PluginSettingTab {
-    plugin: FrontmatterLinterPlugin;
-    private settingsTab: FrontmatterLinterSettingTab | null = null;
+class PropsecSettingTabWrapper extends PluginSettingTab {
+    plugin: PropsecPlugin;
+    private settingsTab: PropsecSettingTab | null = null;
 
-    constructor(app: App, plugin: FrontmatterLinterPlugin) {
+    constructor(app: App, plugin: PropsecPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
 
     display(): void {
-        this.settingsTab = new FrontmatterLinterSettingTab(
+        this.settingsTab = new PropsecSettingTab(
             this.app,
             this.containerEl,
             this.plugin.settings,

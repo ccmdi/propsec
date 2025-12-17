@@ -1,17 +1,17 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import { FrontmatterLinterSettings, SchemaMapping } from "./types";
+import { PropsecSettings, SchemaMapping } from "./types";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 
-export class FrontmatterLinterSettingTab extends PluginSettingTab {
-    private settings: FrontmatterLinterSettings;
+export class PropsecSettingTab extends PluginSettingTab {
+    private settings: PropsecSettings;
     private onSettingsChange: () => Promise<void>;
     private onSchemaChange: (mappingId?: string) => void;
 
     constructor(
         app: App,
         containerEl: HTMLElement,
-        settings: FrontmatterLinterSettings,
+        settings: PropsecSettings,
         onSettingsChange: () => Promise<void>,
         onSchemaChange: (mappingId?: string) => void
     ) {
@@ -36,7 +36,7 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName("Templates Folder")
             .setDesc(
-                "Folder containing your template files. Auto-detected from Obsidian's Templates core plugin if enabled."
+                "Folder containing your template files. Auto-detected from core 'Templates' or community 'Templater' plugin if enabled."
             )
             .addText((text) =>
                 text
@@ -61,7 +61,7 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
 
         if (this.settings.schemaMappings.length === 0) {
             schemaListContainer.createEl("p", {
-                text: "No schema mappings defined. Click the button below to add one.",
+                text: "No schemas defined. Click the button below to add one.",
                 cls: "frontmatter-linter-no-schemas",
             });
         } else {
@@ -73,7 +73,7 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
         // Add Schema button
         new Setting(containerEl).addButton((button) =>
             button
-                .setButtonText("+ Add Schema Mapping")
+                .setButtonText("+ Add Schema")
                 .setCta()
                 .onClick(() => {
                     const modal = new AddSchemaModal(
@@ -143,6 +143,18 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
                     .setValue(this.settings.showInStatusBar)
                     .onChange(async (value) => {
                         this.settings.showInStatusBar = value;
+                        await this.onSettingsChange();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName("Color status bar errors")
+            .setDesc("Highlight violations in red in the status bar")
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.settings.colorStatusBarErrors)
+                    .onChange(async (value) => {
+                        this.settings.colorStatusBarErrors = value;
                         await this.onSettingsChange();
                     })
             );

@@ -27,7 +27,7 @@ export class AddSchemaModal extends Modal {
 
         contentEl.addClass("frontmatter-linter-add-schema-modal");
 
-        contentEl.createEl("h2", { text: "Add Schema Mapping" });
+        contentEl.createEl("h2", { text: "Add Schema" });
         contentEl.createEl("p", { text: "How do you want to create this schema?" });
 
         // Option 1: Start from template

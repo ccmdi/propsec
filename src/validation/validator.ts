@@ -1,5 +1,5 @@
 import { App, TFile, TFolder } from "obsidian";
-import { FrontmatterLinterSettings, SchemaMapping, Violation } from "../types";
+import { PropsecSettings, SchemaMapping, Violation } from "../types";
 import { ViolationStore } from "./store";
 import {
     checkMissingRequired,
@@ -18,12 +18,12 @@ import { fileMatchesQuery } from "../query/matcher";
 export class Validator {
     private app: App;
     private store: ViolationStore;
-    private settings: () => FrontmatterLinterSettings;
+    private settings: () => PropsecSettings;
 
     constructor(
         app: App,
         store: ViolationStore,
-        settings: () => FrontmatterLinterSettings
+        settings: () => PropsecSettings
     ) {
         this.app = app;
         this.store = store;
