@@ -53,7 +53,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
         // Register commands
         this.addCommand({
             id: "validate-all-notes",
-            name: "Validate All Notes",
+            name: "Validate all notes",
             callback: () => {
                 this.validator.validateAll();
             },
@@ -61,7 +61,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
 
         this.addCommand({
             id: "show-violations",
-            name: "Show Violations (Modal)",
+            name: "Show violations modal",
             callback: () => {
                 new ViolationsModal(this.app, this.store).open();
             },
@@ -69,15 +69,15 @@ export default class FrontmatterLinterPlugin extends Plugin {
 
         this.addCommand({
             id: "show-violations-sidebar",
-            name: "Show Violations (Sidebar)",
+            name: "Show violations sidebar",
             callback: () => {
-                this.activateViolationsView();
+                void this.activateViolationsView();
             },
         });
 
         this.addCommand({
             id: "validate-current-note",
-            name: "Validate Current Note",
+            name: "Validate current note",
             checkCallback: (checking: boolean) => {
                 const file = this.app.workspace.getActiveFile();
                 if (file && file.extension === "md") {
@@ -124,14 +124,15 @@ export default class FrontmatterLinterPlugin extends Plugin {
         // Skip if user has already set a templates folder
         if (this.settings.templatesFolder) return;
 
-        // Try core Templates plugin first
+        //TODO extend types
+        //ts-expect-error - internalPlugins is not typed
         const coreTemplates = (this.app as any).internalPlugins?.plugins?.templates;
         if (coreTemplates?.enabled && coreTemplates?.instance?.options?.folder) {
             this.settings.templatesFolder = coreTemplates.instance.options.folder;
             return;
         }
 
-        // Try Templater plugin
+        //ts-expect-error - plugins is not typed
         const templater = (this.app as any).plugins?.plugins?.["templater-obsidian"];
         if (templater?.settings?.templates_folder) {
             this.settings.templatesFolder = templater.settings.templates_folder;
@@ -235,7 +236,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
         }
 
         if (leaf) {
-            workspace.revealLeaf(leaf);
+            await workspace.revealLeaf(leaf);
         }
     }
 }
