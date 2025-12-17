@@ -142,10 +142,7 @@ export class SchemaEditorModal extends Modal {
 
         // Remove any existing constraints overlay
         this.removeConstraintsSection();
-
-        // Preserve scroll positions (both container and modal)
-        const containerScroll = this.fieldsContainer.scrollTop;
-        const modalScroll = this.contentEl.scrollTop;
+        this.expandedFields.clear();
 
         this.fieldsContainer.empty();
 
@@ -157,32 +154,9 @@ export class SchemaEditorModal extends Modal {
             return;
         }
 
-        let expandedCard: HTMLElement | null = null;
-        let expandedField: SchemaField | null = null;
-
         this.mapping.fields.forEach((field, index) => {
-            const card = this.renderFieldCard(this.fieldsContainer!, field, index);
-            if (this.expandedFields.has(index) && this.typeSupportsConstraints(field.type)) {
-                expandedCard = card;
-                expandedField = field;
-            }
+            this.renderFieldCard(this.fieldsContainer!, field, index);
         });
-
-        // Restore scroll positions
-        this.fieldsContainer.scrollTop = containerScroll;
-        this.contentEl.scrollTop = modalScroll;
-
-        // Show overlay after scroll is restored (use requestAnimationFrame to ensure layout is complete)
-        if (expandedCard && expandedField) {
-            const card = expandedCard;
-            const field = expandedField;
-            requestAnimationFrame(() => {
-                // Restore again in case browser reset it
-                this.fieldsContainer!.scrollTop = containerScroll;
-                this.contentEl.scrollTop = modalScroll;
-                this.showConstraintsOverlay(card, field);
-            });
-        }
     }
 
     private removeConstraintsSection(): void {
@@ -237,7 +211,10 @@ export class SchemaEditorModal extends Modal {
             delete field.numberConstraints;
             delete field.arrayConstraints;
             delete field.objectConstraints;
-            this.renderFields();
+            // Close any open overlay and replace just this card
+            this.removeConstraintsSection();
+            this.expandedFields.delete(index);
+            this.replaceFieldCard(card, field, index);
         });
 
         // Required checkbox with label
@@ -260,13 +237,30 @@ export class SchemaEditorModal extends Modal {
                 cls: "frontmatter-linter-icon-btn",
                 attr: { title: "Toggle constraints" },
             });
-            setIcon(expandBtn, this.expandedFields.has(index) ? "chevron-down" : "chevron-right");
+            setIcon(expandBtn, "chevron-right");
             expandBtn.addEventListener("click", () => {
                 if (this.expandedFields.has(index)) {
-                    this.collapseField(index, card);
+                    // Collapse: animate out, then clean up
+                    this.collapseField(index, card, expandBtn);
                 } else {
+                    // Close any other expanded field first
+                    if (this.expandedFields.size > 0) {
+                        this.removeConstraintsSection();
+                        // Update previous expanded card's icon
+                        const prevIndex = Array.from(this.expandedFields)[0];
+                        const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
+                        if (prevCard) {
+                            prevCard.removeClass("expanded");
+                            const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn");
+                            if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
+                        }
+                        this.expandedFields.clear();
+                    }
+                    // Expand this field
                     this.expandedFields.add(index);
-                    this.renderFields();
+                    card.addClass("expanded");
+                    setIcon(expandBtn, "chevron-down");
+                    this.showConstraintsOverlay(card, field);
                 }
             });
         }
@@ -283,11 +277,6 @@ export class SchemaEditorModal extends Modal {
             this.renderFields();
         });
 
-        // Mark as expanded (overlay is rendered separately in renderFields)
-        if (this.expandedFields.has(index) && hasConstraints) {
-            card.addClass("expanded");
-        }
-
         return card;
     }
 
@@ -295,10 +284,19 @@ export class SchemaEditorModal extends Modal {
         return ["string", "number", "array", "object"].includes(type);
     }
 
+    private replaceFieldCard(oldCard: HTMLElement, field: SchemaField, index: number): void {
+        // Create a temporary container to render the new card
+        const temp = document.createElement("div");
+        const newCard = this.renderFieldCard(temp, field, index);
+        // Replace old card with new one
+        oldCard.replaceWith(newCard);
+    }
+
     private showConstraintsOverlay(card: HTMLElement, field: SchemaField): void {
         const rect = card.getBoundingClientRect();
 
-        const section = document.body.createDiv({
+        // Append to modal container so focus stays within modal
+        const section = this.containerEl.createDiv({
             cls: "frontmatter-linter-constraints-section",
         });
 
@@ -310,17 +308,19 @@ export class SchemaEditorModal extends Modal {
         this.activeConstraintsSection = section;
     }
 
-    private collapseField(index: number, _card: HTMLElement): void {
+    private collapseField(index: number, card: HTMLElement, expandBtn: HTMLElement): void {
         if (this.activeConstraintsSection) {
             this.activeConstraintsSection.addClass("collapsing");
             this.activeConstraintsSection.addEventListener("animationend", () => {
                 this.removeConstraintsSection();
                 this.expandedFields.delete(index);
-                this.renderFields();
+                card.removeClass("expanded");
+                setIcon(expandBtn, "chevron-right");
             }, { once: true });
         } else {
             this.expandedFields.delete(index);
-            this.renderFields();
+            card.removeClass("expanded");
+            setIcon(expandBtn, "chevron-right");
         }
     }
 

@@ -18,7 +18,7 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
         // Create a minimal plugin-like object for the parent class
         const pluginStub = {
             app,
-            manifest: { id: "frontmatter-linter", name: "Frontmatter Linter" },
+            manifest: { id: "propsec", name: "propsec" },
         } as any;
 
         super(app, pluginStub);
@@ -31,8 +31,6 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
-
-        containerEl.createEl("h2", { text: "Frontmatter Linter Settings" });
 
         // Templates folder setting
         new Setting(containerEl)
@@ -54,7 +52,7 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
         containerEl.createEl("hr");
 
         // Schema Mappings section
-        containerEl.createEl("h3", { text: "Schema Mappings" });
+        containerEl.createEl("h3", { text: "Schema" });
 
         // Schema list
         const schemaListContainer = containerEl.createDiv({
@@ -96,7 +94,7 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
         containerEl.createEl("hr");
 
         // Validation Options section
-        containerEl.createEl("h3", { text: "Validation Options" });
+        containerEl.createEl("h3", { text: "Validation preferences" });
 
         new Setting(containerEl)
             .setName("Warn on unknown fields")
@@ -133,6 +131,18 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
                     .setValue(this.settings.validateOnFileSave)
                     .onChange(async (value) => {
                         this.settings.validateOnFileSave = value;
+                        await this.onSettingsChange();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName("Show in status bar")
+            .setDesc("Display violation count in the status bar")
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.settings.showInStatusBar)
+                    .onChange(async (value) => {
+                        this.settings.showInStatusBar = value;
                         await this.onSettingsChange();
                     })
             );
@@ -220,7 +230,7 @@ export class FrontmatterLinterSettingTab extends PluginSettingTab {
             cls: "frontmatter-linter-schema-info",
         });
         infoRow.createEl("span", {
-            text: `Query: ${mapping.query || "(not set)"}`,
+            text: `${mapping.query || "(not set)"}`,
             cls: "frontmatter-linter-schema-query",
         });
 

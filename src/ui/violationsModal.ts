@@ -19,7 +19,7 @@ export class ViolationsModal extends Modal {
         contentEl.addClass("frontmatter-linter-violations-modal");
 
         // Header
-        contentEl.createEl("h2", { text: "Frontmatter Violations" });
+        contentEl.createEl("h2", { text: "Schema Violations" });
 
         const violations = this.store.getAllViolations();
 

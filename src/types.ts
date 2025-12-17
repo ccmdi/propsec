@@ -58,14 +58,16 @@ export interface FrontmatterLinterSettings {
     warnOnUnknownFields: boolean;
     validateOnFileOpen: boolean;
     validateOnFileSave: boolean;
+    showInStatusBar: boolean;
 }
 
 export const DEFAULT_SETTINGS: FrontmatterLinterSettings = {
-    templatesFolder: "Templates",
+    templatesFolder: "",
     schemaMappings: [],
     warnOnUnknownFields: true,
     validateOnFileOpen: true,
     validateOnFileSave: true,
+    showInStatusBar: true,
 };
 
 export type ViolationType =

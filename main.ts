@@ -21,6 +21,7 @@ export default class FrontmatterLinterPlugin extends Plugin {
     private store: ViolationStore;
     private validator: Validator;
     private statusBarItem: StatusBarItem | null = null;
+    private statusBarEl: HTMLElement | null = null;
 
     async onload(): Promise<void> {
         await this.loadSettings();
@@ -43,10 +44,11 @@ export default class FrontmatterLinterPlugin extends Plugin {
         );
 
         // Set up status bar
-        const statusBarEl = this.addStatusBarItem();
-        this.statusBarItem = new StatusBarItem(statusBarEl, this.store, () => {
+        this.statusBarEl = this.addStatusBarItem();
+        this.statusBarItem = new StatusBarItem(this.statusBarEl, this.store, () => {
             new ViolationsModal(this.app, this.store).open();
         });
+        this.updateStatusBarVisibility();
 
         // Register commands
         this.addCommand({
@@ -119,10 +121,26 @@ export default class FrontmatterLinterPlugin extends Plugin {
     }
 
     private detectTemplatesFolder(): void {
-        // Try to get templates folder from core Templates plugin
-        const templatesPlugin = (this.app as any).internalPlugins?.plugins?.templates;
-        if (templatesPlugin?.enabled && templatesPlugin?.instance?.options?.folder) {
-            this.settings.templatesFolder = templatesPlugin.instance.options.folder;
+        // Skip if user has already set a templates folder
+        if (this.settings.templatesFolder) return;
+
+        // Try core Templates plugin first
+        const coreTemplates = (this.app as any).internalPlugins?.plugins?.templates;
+        if (coreTemplates?.enabled && coreTemplates?.instance?.options?.folder) {
+            this.settings.templatesFolder = coreTemplates.instance.options.folder;
+            return;
+        }
+
+        // Try Templater plugin
+        const templater = (this.app as any).plugins?.plugins?.["templater-obsidian"];
+        if (templater?.settings?.templates_folder) {
+            this.settings.templatesFolder = templater.settings.templates_folder;
+        }
+    }
+
+    private updateStatusBarVisibility(): void {
+        if (this.statusBarEl) {
+            this.statusBarEl.style.display = this.settings.showInStatusBar ? "" : "none";
         }
     }
 
@@ -191,6 +209,13 @@ export default class FrontmatterLinterPlugin extends Plugin {
     }
 
     /**
+     * Called when any setting changes
+     */
+    onSettingsChange(): void {
+        this.updateStatusBarVisibility();
+    }
+
+    /**
      * Open the violations view in the right sidebar
      */
     async activateViolationsView(): Promise<void> {
@@ -234,6 +259,7 @@ class FrontmatterLinterPluginSettingTab extends PluginSettingTab {
             this.plugin.settings,
             async () => {
                 await this.plugin.saveSettings();
+                this.plugin.onSettingsChange();
             },
             (mappingId?: string) => {
                 this.plugin.onSchemaChange(mappingId);

@@ -22,7 +22,7 @@ export class ViolationsView extends ItemView {
     }
 
     getDisplayText(): string {
-        return "Frontmatter Violations";
+        return "Schema violations";
     }
 
     getIcon(): string {
