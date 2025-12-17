@@ -1,8 +1,34 @@
 import { App, TFile } from "obsidian";
 import { FieldType, SchemaField } from "../types";
+import "../obsidian-ex.d.ts";
 
 // Date regex for ISO format YYYY-MM-DD
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Map Obsidian's metadata type names to our FieldType
+ */
+function mapObsidianType(obsidianType: string | null): FieldType | null {
+    if (!obsidianType) return null;
+
+    switch (obsidianType) {
+        case "text":
+            return "string";
+        case "number":
+            return "number";
+        case "checkbox":
+            return "boolean";
+        case "date":
+        case "datetime":
+            return "date";
+        case "tags":
+        case "aliases":
+        case "multitext":
+            return "array";
+        default:
+            return null;
+    }
+}
 
 /**
  * Infer the FieldType from a frontmatter value
@@ -40,8 +66,28 @@ export function inferFieldType(value: unknown): FieldType {
 }
 
 /**
+ * Infer FieldType with Obsidian metadata fallback for empty values
+ */
+export function inferFieldTypeWithObsidian(app: App, key: string, value: unknown): FieldType {
+    // First try to infer from actual value
+    const inferredType = inferFieldType(value);
+
+    // If we got a concrete type, use it
+    if (inferredType !== "unknown") {
+        return inferredType;
+    }
+
+    // Fall back to Obsidian's registered type for this property
+    const obsidianType = app.metadataTypeManager?.properties?.[key]?.widget;
+    const mappedType = mapObsidianType(obsidianType ?? null);
+
+    return mappedType ?? "unknown";
+}
+
+/**
  * Extract schema fields from a template file's frontmatter
  * All fields default to required=true
+ * Uses Obsidian's metadata type system as fallback for empty values
  */
 export async function extractSchemaFromTemplate(
     app: App,
@@ -61,7 +107,7 @@ export async function extractSchemaFromTemplate(
 
         fields.push({
             name: key,
-            type: inferFieldType(value),
+            type: inferFieldTypeWithObsidian(app, key, value),
             required: true, // Default to required
         });
     }

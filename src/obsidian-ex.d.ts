@@ -1,7 +1,7 @@
 import "obsidian";
 
 declare module "obsidian" {
-    
+
     interface TemplatesPlugin extends Plugin {
         enabled: boolean;
         instance: {
@@ -15,9 +15,17 @@ declare module "obsidian" {
             templates: TemplatesPlugin;
         };
     }
+
+    // Obsidian's metadata type system
+    // Widget types: "text", "number", "checkbox", "date", "datetime", "tags", "aliases", "multitext"
+    interface MetadataTypeManager {
+        properties: Record<string, { widget: string } | undefined>;
+    }
+
     interface App {
         internalPlugins: InternalPlugins;
         plugins: Plugins;
+        metadataTypeManager: MetadataTypeManager;
     }
 
     interface TemplaterPlugin extends Plugin {

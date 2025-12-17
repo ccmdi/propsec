@@ -4,6 +4,39 @@ import { FieldType, SchemaField, SchemaMapping, Violation } from "../types";
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
+ * Group schema fields by name (for union type support)
+ * Multiple fields with same name = union type
+ */
+function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
+    const groups = new Map<string, SchemaField[]>();
+    for (const field of fields) {
+        const existing = groups.get(field.name) || [];
+        existing.push(field);
+        groups.set(field.name, existing);
+    }
+    return groups;
+}
+
+/**
+ * Find the matching variant for a value in a union type
+ * Returns the first field variant whose type matches the value
+ */
+function findMatchingVariant(value: unknown, variants: SchemaField[]): SchemaField | null {
+    for (const variant of variants) {
+        if (checkTypeMatch(value, variant.type)) {
+            return variant;
+        }
+        // Also check allowEmpty
+        if (variant.allowEmpty) {
+            if (value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
+                return variant;
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * Check if a value matches the expected field type
  */
 export function checkTypeMatch(value: unknown, expectedType: FieldType): boolean {
@@ -49,6 +82,7 @@ export function getActualType(value: unknown): string {
 
 /**
  * Check for missing required fields
+ * For union types, field is required if ANY variant is required
  */
 export function checkMissingRequired(
     frontmatter: Record<string, unknown> | undefined,
@@ -56,23 +90,34 @@ export function checkMissingRequired(
     filePath: string
 ): Violation[] {
     const violations: Violation[] = [];
+    const fieldGroups = groupFieldsByName(schema.fields);
+    const checkedFields = new Set<string>();
 
-    for (const field of schema.fields) {
-        if (!field.required) continue;
+    for (const [fieldName, variants] of fieldGroups) {
+        if (checkedFields.has(fieldName)) continue;
+        checkedFields.add(fieldName);
+
+        // Field is required if any variant is required
+        const isRequired = variants.some(v => v.required);
+        if (!isRequired) continue;
+
+        // Check if any variant allows empty
+        const anyAllowsEmpty = variants.some(v => v.allowEmpty);
 
         const hasField =
             frontmatter !== undefined &&
-            Object.prototype.hasOwnProperty.call(frontmatter, field.name) &&
-            frontmatter[field.name] !== null &&
-            frontmatter[field.name] !== undefined;
+            Object.prototype.hasOwnProperty.call(frontmatter, fieldName);
 
-        if (!hasField) {
+        const value = hasField ? frontmatter![fieldName] : undefined;
+        const isEmpty = value === null || value === undefined;
+
+        if (isEmpty && !anyAllowsEmpty) {
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "missing_required",
-                message: `Missing required field: ${field.name}`,
+                message: `Missing required field: ${fieldName}`,
             });
         }
     }
@@ -82,6 +127,7 @@ export function checkMissingRequired(
 
 /**
  * Check for type mismatches
+ * For union types (multiple fields with same name), value must match at least one variant
  */
 export function checkTypeMismatches(
     frontmatter: Record<string, unknown> | undefined,
@@ -92,32 +138,35 @@ export function checkTypeMismatches(
 
     if (!frontmatter) return violations;
 
-    for (const field of schema.fields) {
-        if (!Object.prototype.hasOwnProperty.call(frontmatter, field.name)) {
+    const fieldGroups = groupFieldsByName(schema.fields);
+    const checkedFields = new Set<string>();
+
+    for (const [fieldName, variants] of fieldGroups) {
+        if (checkedFields.has(fieldName)) continue;
+        checkedFields.add(fieldName);
+
+        if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName)) {
             continue;
         }
 
-        const value = frontmatter[field.name];
+        const value = frontmatter[fieldName];
 
-        // Skip null/undefined - these are handled by missing_required check
-        // But if allowEmpty is set, null/empty values are valid
+        // Skip null/undefined - handled by missing_required
         if (value === null || value === undefined) continue;
 
-        // If allowEmpty is set and value is "empty" (empty string, empty array), skip type check
-        if (field.allowEmpty) {
-            if (value === "" || (Array.isArray(value) && value.length === 0)) {
-                continue;
-            }
-        }
+        // Check if value matches any variant
+        const matchingVariant = findMatchingVariant(value, variants);
 
-        if (!checkTypeMatch(value, field.type)) {
+        if (!matchingVariant) {
+            // Build expected types string for error message
+            const expectedTypes = variants.map(v => v.type).join(" | ");
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "type_mismatch",
-                message: `Type mismatch: ${field.name} (expected ${field.type}, got ${getActualType(value)})`,
-                expected: field.type,
+                message: `Type mismatch: ${fieldName} (expected ${expectedTypes}, got ${getActualType(value)})`,
+                expected: expectedTypes,
                 actual: getActualType(value),
             });
         }
@@ -160,6 +209,7 @@ export function checkUnknownFields(
 
 /**
  * Check string constraints (pattern, minLength, maxLength)
+ * For union types, only applies constraints from the matching variant
  */
 export function checkStringConstraints(
     frontmatter: Record<string, unknown> | undefined,
@@ -170,14 +220,19 @@ export function checkStringConstraints(
 
     if (!frontmatter) return violations;
 
-    for (const field of schema.fields) {
-        if (field.type !== "string" || !field.stringConstraints) continue;
-        if (!Object.prototype.hasOwnProperty.call(frontmatter, field.name)) continue;
+    const fieldGroups = groupFieldsByName(schema.fields);
 
-        const value = frontmatter[field.name];
+    for (const [fieldName, variants] of fieldGroups) {
+        if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName)) continue;
+
+        const value = frontmatter[fieldName];
         if (typeof value !== "string") continue;
 
-        const constraints = field.stringConstraints;
+        // Find the matching string variant
+        const matchingVariant = variants.find(v => v.type === "string" && checkTypeMatch(value, v.type));
+        if (!matchingVariant || !matchingVariant.stringConstraints) continue;
+
+        const constraints = matchingVariant.stringConstraints;
 
         // Check pattern
         if (constraints.pattern) {
@@ -187,9 +242,9 @@ export function checkStringConstraints(
                     violations.push({
                         filePath,
                         schemaMapping: schema,
-                        field: field.name,
+                        field: fieldName,
                         type: "pattern_mismatch",
-                        message: `Pattern mismatch: ${field.name} does not match /${constraints.pattern}/`,
+                        message: `Pattern mismatch: ${fieldName} does not match /${constraints.pattern}/`,
                         expected: constraints.pattern,
                         actual: value,
                     });
@@ -204,9 +259,9 @@ export function checkStringConstraints(
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "string_too_short",
-                message: `String too short: ${field.name} has ${value.length} chars (min: ${constraints.minLength})`,
+                message: `String too short: ${fieldName} has ${value.length} chars (min: ${constraints.minLength})`,
                 expected: `>= ${constraints.minLength}`,
                 actual: String(value.length),
             });
@@ -217,9 +272,9 @@ export function checkStringConstraints(
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "string_too_long",
-                message: `String too long: ${field.name} has ${value.length} chars (max: ${constraints.maxLength})`,
+                message: `String too long: ${fieldName} has ${value.length} chars (max: ${constraints.maxLength})`,
                 expected: `<= ${constraints.maxLength}`,
                 actual: String(value.length),
             });
@@ -231,6 +286,7 @@ export function checkStringConstraints(
 
 /**
  * Check number constraints (min, max)
+ * For union types, only applies constraints from the matching variant
  */
 export function checkNumberConstraints(
     frontmatter: Record<string, unknown> | undefined,
@@ -241,23 +297,28 @@ export function checkNumberConstraints(
 
     if (!frontmatter) return violations;
 
-    for (const field of schema.fields) {
-        if (field.type !== "number" || !field.numberConstraints) continue;
-        if (!Object.prototype.hasOwnProperty.call(frontmatter, field.name)) continue;
+    const fieldGroups = groupFieldsByName(schema.fields);
 
-        const value = frontmatter[field.name];
+    for (const [fieldName, variants] of fieldGroups) {
+        if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName)) continue;
+
+        const value = frontmatter[fieldName];
         if (typeof value !== "number") continue;
 
-        const constraints = field.numberConstraints;
+        // Find the matching number variant
+        const matchingVariant = variants.find(v => v.type === "number" && checkTypeMatch(value, v.type));
+        if (!matchingVariant || !matchingVariant.numberConstraints) continue;
+
+        const constraints = matchingVariant.numberConstraints;
 
         // Check min
         if (constraints.min !== undefined && value < constraints.min) {
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "number_too_small",
-                message: `Number too small: ${field.name} is ${value} (min: ${constraints.min})`,
+                message: `Number too small: ${fieldName} is ${value} (min: ${constraints.min})`,
                 expected: `>= ${constraints.min}`,
                 actual: String(value),
             });
@@ -268,9 +329,9 @@ export function checkNumberConstraints(
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "number_too_large",
-                message: `Number too large: ${field.name} is ${value} (max: ${constraints.max})`,
+                message: `Number too large: ${fieldName} is ${value} (max: ${constraints.max})`,
                 expected: `<= ${constraints.max}`,
                 actual: String(value),
             });
@@ -282,6 +343,7 @@ export function checkNumberConstraints(
 
 /**
  * Check array constraints (minItems, maxItems, contains)
+ * For union types, only applies constraints from the matching variant
  */
 export function checkArrayConstraints(
     frontmatter: Record<string, unknown> | undefined,
@@ -292,23 +354,28 @@ export function checkArrayConstraints(
 
     if (!frontmatter) return violations;
 
-    for (const field of schema.fields) {
-        if (field.type !== "array" || !field.arrayConstraints) continue;
-        if (!Object.prototype.hasOwnProperty.call(frontmatter, field.name)) continue;
+    const fieldGroups = groupFieldsByName(schema.fields);
 
-        const value = frontmatter[field.name];
+    for (const [fieldName, variants] of fieldGroups) {
+        if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName)) continue;
+
+        const value = frontmatter[fieldName];
         if (!Array.isArray(value)) continue;
 
-        const constraints = field.arrayConstraints;
+        // Find the matching array variant
+        const matchingVariant = variants.find(v => v.type === "array" && checkTypeMatch(value, v.type));
+        if (!matchingVariant || !matchingVariant.arrayConstraints) continue;
+
+        const constraints = matchingVariant.arrayConstraints;
 
         // Check minItems
         if (constraints.minItems !== undefined && value.length < constraints.minItems) {
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "array_too_few",
-                message: `Array too small: ${field.name} has ${value.length} items (min: ${constraints.minItems})`,
+                message: `Array too small: ${fieldName} has ${value.length} items (min: ${constraints.minItems})`,
                 expected: `>= ${constraints.minItems}`,
                 actual: String(value.length),
             });
@@ -319,9 +386,9 @@ export function checkArrayConstraints(
             violations.push({
                 filePath,
                 schemaMapping: schema,
-                field: field.name,
+                field: fieldName,
                 type: "array_too_many",
-                message: `Array too large: ${field.name} has ${value.length} items (max: ${constraints.maxItems})`,
+                message: `Array too large: ${fieldName} has ${value.length} items (max: ${constraints.maxItems})`,
                 expected: `<= ${constraints.maxItems}`,
                 actual: String(value.length),
             });
@@ -335,9 +402,9 @@ export function checkArrayConstraints(
                     violations.push({
                         filePath,
                         schemaMapping: schema,
-                        field: field.name,
+                        field: fieldName,
                         type: "array_missing_value",
-                        message: `Array missing value: ${field.name} must contain "${required}"`,
+                        message: `Array missing value: ${fieldName} must contain "${required}"`,
                         expected: required,
                     });
                 }
@@ -350,6 +417,7 @@ export function checkArrayConstraints(
 
 /**
  * Check object constraints (requiredKeys)
+ * For union types, only applies constraints from the matching variant
  */
 export function checkObjectConstraints(
     frontmatter: Record<string, unknown> | undefined,
@@ -360,14 +428,19 @@ export function checkObjectConstraints(
 
     if (!frontmatter) return violations;
 
-    for (const field of schema.fields) {
-        if (field.type !== "object" || !field.objectConstraints) continue;
-        if (!Object.prototype.hasOwnProperty.call(frontmatter, field.name)) continue;
+    const fieldGroups = groupFieldsByName(schema.fields);
 
-        const value = frontmatter[field.name];
+    for (const [fieldName, variants] of fieldGroups) {
+        if (!Object.prototype.hasOwnProperty.call(frontmatter, fieldName)) continue;
+
+        const value = frontmatter[fieldName];
         if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
 
-        const constraints = field.objectConstraints;
+        // Find the matching object variant
+        const matchingVariant = variants.find(v => v.type === "object" && checkTypeMatch(value, v.type));
+        if (!matchingVariant || !matchingVariant.objectConstraints) continue;
+
+        const constraints = matchingVariant.objectConstraints;
         const obj = value as Record<string, unknown>;
 
         // Check requiredKeys
@@ -377,9 +450,9 @@ export function checkObjectConstraints(
                     violations.push({
                         filePath,
                         schemaMapping: schema,
-                        field: field.name,
+                        field: fieldName,
                         type: "object_missing_key",
-                        message: `Object missing key: ${field.name} is missing required key "${requiredKey}"`,
+                        message: `Object missing key: ${fieldName} is missing required key "${requiredKey}"`,
                         expected: requiredKey,
                     });
                 }
