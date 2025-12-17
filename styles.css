@@ -112,11 +112,15 @@
 
 /* Field Cards */
 .frontmatter-linter-field-card {
+    position: relative;
     background: var(--background-secondary);
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     margin-bottom: 8px;
-    overflow: hidden;
+}
+
+.frontmatter-linter-field-card.expanded {
+    z-index: 10;
 }
 
 .frontmatter-linter-field-main-row {
@@ -190,43 +194,40 @@
     color: var(--text-error);
 }
 
-/* Constraints Section */
-@keyframes frontmatter-linter-expand {
-    from {
-        opacity: 0;
-        transform: translateY(-4px) scaleY(0.95);
-        transform-origin: top center;
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scaleY(1);
-        transform-origin: top center;
-    }
-}
-
-@keyframes frontmatter-linter-collapse {
-    from {
-        opacity: 1;
-        transform: translateY(0) scaleY(1);
-        transform-origin: top center;
-    }
-    to {
-        opacity: 0;
-        transform: translateY(-4px) scaleY(0.95);
-        transform-origin: top center;
-    }
-}
-
+/* Constraints Section (Fixed Overlay) */
 .frontmatter-linter-constraints-section {
-    padding: 8px 12px 12px;
+    position: fixed;
+    padding: 10px 12px 12px;
     background: var(--background-primary);
-    border-top: 1px solid var(--background-modifier-border);
-    animation: frontmatter-linter-expand 0.18s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    overflow: hidden;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-4px);
+    animation: frontmatter-linter-fade-in 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .frontmatter-linter-constraints-section.collapsing {
-    animation: frontmatter-linter-collapse 0.15s cubic-bezier(0.4, 0, 1, 1) forwards;
+    animation: frontmatter-linter-fade-out 0.12s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes frontmatter-linter-fade-in {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes frontmatter-linter-fade-out {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
 }
 
 .frontmatter-linter-constraints-title {

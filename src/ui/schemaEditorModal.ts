@@ -24,7 +24,7 @@ export class SchemaEditorModal extends Modal {
     private templatesFolder: string;
     private fieldsContainer: HTMLElement | null = null;
     private expandedFields: Set<number> = new Set();
-    private collapsingFields: Set<number> = new Set();
+    private activeConstraintsSection: HTMLElement | null = null;
 
     constructor(
         app: App,
@@ -140,6 +140,13 @@ export class SchemaEditorModal extends Modal {
     private renderFields(): void {
         if (!this.fieldsContainer) return;
 
+        // Remove any existing constraints overlay
+        this.removeConstraintsSection();
+
+        // Preserve scroll positions (both container and modal)
+        const containerScroll = this.fieldsContainer.scrollTop;
+        const modalScroll = this.contentEl.scrollTop;
+
         this.fieldsContainer.empty();
 
         if (this.mapping.fields.length === 0) {
@@ -150,16 +157,46 @@ export class SchemaEditorModal extends Modal {
             return;
         }
 
+        let expandedCard: HTMLElement | null = null;
+        let expandedField: SchemaField | null = null;
+
         this.mapping.fields.forEach((field, index) => {
-            this.renderFieldCard(this.fieldsContainer!, field, index);
+            const card = this.renderFieldCard(this.fieldsContainer!, field, index);
+            if (this.expandedFields.has(index) && this.typeSupportsConstraints(field.type)) {
+                expandedCard = card;
+                expandedField = field;
+            }
         });
+
+        // Restore scroll positions
+        this.fieldsContainer.scrollTop = containerScroll;
+        this.contentEl.scrollTop = modalScroll;
+
+        // Show overlay after scroll is restored (use requestAnimationFrame to ensure layout is complete)
+        if (expandedCard && expandedField) {
+            const card = expandedCard;
+            const field = expandedField;
+            requestAnimationFrame(() => {
+                // Restore again in case browser reset it
+                this.fieldsContainer!.scrollTop = containerScroll;
+                this.contentEl.scrollTop = modalScroll;
+                this.showConstraintsOverlay(card, field);
+            });
+        }
+    }
+
+    private removeConstraintsSection(): void {
+        if (this.activeConstraintsSection) {
+            this.activeConstraintsSection.remove();
+            this.activeConstraintsSection = null;
+        }
     }
 
     private renderFieldCard(
         container: HTMLElement,
         field: SchemaField,
         index: number
-    ): void {
+    ): HTMLElement {
         const card = container.createDiv({
             cls: "frontmatter-linter-field-card",
         });
@@ -246,24 +283,38 @@ export class SchemaEditorModal extends Modal {
             this.renderFields();
         });
 
-        // Constraints section (if expanded)
+        // Mark as expanded (overlay is rendered separately in renderFields)
         if (this.expandedFields.has(index) && hasConstraints) {
-            const constraintsSection = card.createDiv({
-                cls: "frontmatter-linter-constraints-section",
-            });
-            this.renderConstraints(constraintsSection, field);
+            card.addClass("expanded");
         }
+
+        return card;
     }
 
     private typeSupportsConstraints(type: FieldType): boolean {
         return ["string", "number", "array", "object"].includes(type);
     }
 
-    private collapseField(index: number, card: HTMLElement): void {
-        const constraintsSection = card.querySelector(".frontmatter-linter-constraints-section");
-        if (constraintsSection) {
-            constraintsSection.addClass("collapsing");
-            constraintsSection.addEventListener("animationend", () => {
+    private showConstraintsOverlay(card: HTMLElement, field: SchemaField): void {
+        const rect = card.getBoundingClientRect();
+
+        const section = document.body.createDiv({
+            cls: "frontmatter-linter-constraints-section",
+        });
+
+        section.style.top = `${rect.bottom + 4}px`;
+        section.style.left = `${rect.left}px`;
+        section.style.width = `${rect.width}px`;
+
+        this.renderConstraints(section, field);
+        this.activeConstraintsSection = section;
+    }
+
+    private collapseField(index: number, _card: HTMLElement): void {
+        if (this.activeConstraintsSection) {
+            this.activeConstraintsSection.addClass("collapsing");
+            this.activeConstraintsSection.addEventListener("animationend", () => {
+                this.removeConstraintsSection();
                 this.expandedFields.delete(index);
                 this.renderFields();
             }, { once: true });
@@ -507,6 +558,7 @@ export class SchemaEditorModal extends Modal {
     }
 
     onClose(): void {
+        this.removeConstraintsSection();
         const { contentEl } = this;
         contentEl.empty();
     }
