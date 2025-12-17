@@ -15,6 +15,27 @@
     min-width: 500px;
 }
 
+.frontmatter-linter-search-container,
+.frontmatter-linter-view-search {
+    margin-bottom: 12px;
+}
+
+.frontmatter-linter-search-input,
+.frontmatter-linter-view-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+}
+
+.frontmatter-linter-search-input:focus,
+.frontmatter-linter-view-search-input:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+
 .frontmatter-linter-violations-container {
     max-height: 60vh;
     overflow-y: auto;
@@ -194,6 +215,12 @@
 .frontmatter-linter-icon-btn svg {
     width: 16px;
     height: 16px;
+}
+
+.frontmatter-linter-icon-btn-disabled {
+    opacity: 0.3;
+    cursor: default;
+    pointer-events: none;
 }
 
 .frontmatter-linter-delete-btn:hover {

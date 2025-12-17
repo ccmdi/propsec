@@ -158,6 +158,9 @@ export default class PropsecPlugin extends Plugin {
                 const mapping = this.validator.getMatchingSchema(file);
                 if (mapping) {
                     this.validator.validateFile(file, mapping);
+                } else {
+                    // File no longer matches any schema, remove its violations
+                    this.store.removeFile(file.path);
                 }
             })
         );
@@ -167,16 +170,31 @@ export default class PropsecPlugin extends Plugin {
             this.app.vault.on("rename", (file: TAbstractFile, oldPath: string) => {
                 if (!(file instanceof TFile) || file.extension !== "md") return;
 
-                // Update violation store
+                // Update violation store path
                 this.store.renameFile(oldPath, file.path);
 
-                // Re-validate in case folder membership changed
-                const mapping = this.validator.getMatchingSchema(file);
-                if (mapping) {
-                    this.validator.validateFile(file, mapping);
-                } else {
-                    this.store.removeFile(file.path);
-                }
+                // Wait for metadata cache to update before re-validating
+                let handled = false;
+                const revalidate = () => {
+                    if (handled) return;
+                    handled = true;
+                    this.app.metadataCache.off("changed", onCacheUpdate);
+                    const mapping = this.validator.getMatchingSchema(file);
+                    if (mapping) {
+                        this.validator.validateFile(file, mapping);
+                    } else {
+                        this.store.removeFile(file.path);
+                    }
+                };
+                const onCacheUpdate = (updatedFile: TFile) => {
+                    if (updatedFile.path === file.path) {
+                        revalidate();
+                    }
+                };
+                this.app.metadataCache.on("changed", onCacheUpdate);
+
+                // Fallback timeout in case cache event doesn't fire (e.g., no frontmatter)
+                setTimeout(revalidate, 500);
             })
         );
 
@@ -197,6 +215,9 @@ export default class PropsecPlugin extends Plugin {
                 const mapping = this.validator.getMatchingSchema(file);
                 if (mapping) {
                     this.validator.validateFile(file, mapping);
+                } else {
+                    // File no longer matches any schema, remove its violations
+                    this.store.removeFile(file.path);
                 }
             })
         );

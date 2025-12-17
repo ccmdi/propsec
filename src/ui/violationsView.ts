@@ -10,11 +10,14 @@ export const VIOLATIONS_VIEW_TYPE = "frontmatter-linter-violations";
 export class ViolationsView extends ItemView {
     private store: ViolationStore;
     private changeListener: () => void;
+    private searchQuery: string = "";
+    private listContainer: HTMLElement | null = null;
+    private summaryEl: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, store: ViolationStore) {
         super(leaf);
         this.store = store;
-        this.changeListener = () => this.render();
+        this.changeListener = () => this.renderList();
     }
 
     getViewType(): string {
@@ -43,10 +46,43 @@ export class ViolationsView extends ItemView {
         container.empty();
         container.addClass("frontmatter-linter-violations-view");
 
+        // Search bar
+        const searchContainer = container.createDiv({
+            cls: "frontmatter-linter-view-search",
+        });
+        const searchInput = searchContainer.createEl("input", {
+            type: "text",
+            placeholder: "Search...",
+            cls: "frontmatter-linter-view-search-input",
+        });
+        searchInput.value = this.searchQuery;
+        searchInput.addEventListener("input", (e) => {
+            this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+            this.renderList();
+        });
+
+        // Summary
+        this.summaryEl = container.createDiv({
+            cls: "frontmatter-linter-view-summary",
+        });
+
+        // Violations list container
+        this.listContainer = container.createDiv({
+            cls: "frontmatter-linter-view-list",
+        });
+
+        this.renderList();
+    }
+
+    private renderList(): void {
+        if (!this.listContainer || !this.summaryEl) return;
+        this.listContainer.empty();
+
         const violations = this.store.getAllViolations();
 
         if (violations.size === 0) {
-            const emptyState = container.createDiv({
+            this.summaryEl.empty();
+            const emptyState = this.listContainer.createDiv({
                 cls: "frontmatter-linter-view-empty",
             });
             emptyState.createEl("div", {
@@ -61,23 +97,42 @@ export class ViolationsView extends ItemView {
         }
 
         // Summary
-        const summary = container.createDiv({
-            cls: "frontmatter-linter-view-summary",
-        });
         const totalViolations = this.store.getTotalViolationCount();
         const fileCount = this.store.getFileCount();
-        summary.setText(
+        this.summaryEl.setText(
             `${totalViolations} violation${totalViolations !== 1 ? "s" : ""} in ${fileCount} file${fileCount !== 1 ? "s" : ""}`
         );
 
-        // Violations list
-        const list = container.createDiv({
-            cls: "frontmatter-linter-view-list",
-        });
-
+        // Filter and render
+        let hasResults = false;
         for (const [filePath, fileViolations] of violations) {
-            this.renderFileSection(list, filePath, fileViolations);
+            const filtered = this.filterViolations(filePath, fileViolations);
+            if (filtered.length > 0) {
+                hasResults = true;
+                this.renderFileSection(this.listContainer, filePath, filtered);
+            }
         }
+
+        if (!hasResults && this.searchQuery) {
+            this.listContainer.createEl("p", {
+                text: "No violations match your search.",
+                cls: "frontmatter-linter-view-no-results",
+            });
+        }
+    }
+
+    private filterViolations(filePath: string, violations: Violation[]): Violation[] {
+        if (!this.searchQuery) return violations;
+
+        const query = this.searchQuery;
+        if (filePath.toLowerCase().includes(query)) {
+            return violations;
+        }
+        return violations.filter(v =>
+            v.field.toLowerCase().includes(query) ||
+            v.message.toLowerCase().includes(query) ||
+            v.schemaMapping.name.toLowerCase().includes(query)
+        );
     }
 
     private renderFileSection(
@@ -155,6 +210,8 @@ export class ViolationsView extends ItemView {
         switch (type) {
             case "missing_required":
                 return "!";
+            case "missing_warned":
+                return "*";
             case "type_mismatch":
                 return "~";
             case "unknown_field":

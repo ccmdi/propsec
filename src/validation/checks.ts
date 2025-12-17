@@ -81,8 +81,8 @@ export function getActualType(value: unknown): string {
 }
 
 /**
- * Check for missing required fields
- * For union types, field is required if ANY variant is required
+ * Check for missing required/warned fields
+ * For union types, field is required if ANY variant is required (warn if any variant warns)
  */
 export function checkMissingRequired(
     frontmatter: Record<string, unknown> | undefined,
@@ -99,7 +99,10 @@ export function checkMissingRequired(
 
         // Field is required if any variant is required
         const isRequired = variants.some(v => v.required);
-        if (!isRequired) continue;
+        // Field triggers warning if any variant has warn flag (and not required)
+        const isWarned = !isRequired && variants.some(v => v.warn);
+
+        if (!isRequired && !isWarned) continue;
 
         // Check if any variant allows empty
         const anyAllowsEmpty = variants.some(v => v.allowEmpty);
@@ -112,13 +115,23 @@ export function checkMissingRequired(
         const isEmpty = value === null || value === undefined;
 
         if (isEmpty && !anyAllowsEmpty) {
-            violations.push({
-                filePath,
-                schemaMapping: schema,
-                field: fieldName,
-                type: "missing_required",
-                message: `Missing required field: ${fieldName}`,
-            });
+            if (isRequired) {
+                violations.push({
+                    filePath,
+                    schemaMapping: schema,
+                    field: fieldName,
+                    type: "missing_required",
+                    message: `Missing required field: ${fieldName}`,
+                });
+            } else if (isWarned) {
+                violations.push({
+                    filePath,
+                    schemaMapping: schema,
+                    field: fieldName,
+                    type: "missing_warned",
+                    message: `Missing recommended field: ${fieldName}`,
+                });
+            }
         }
     }
 

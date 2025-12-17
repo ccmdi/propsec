@@ -7,6 +7,8 @@ import { ViolationStore } from "../validation/store";
  */
 export class ViolationsModal extends Modal {
     private store: ViolationStore;
+    private searchQuery: string = "";
+    private container: HTMLElement | null = null;
 
     constructor(app: App, store: ViolationStore) {
         super(app);
@@ -21,25 +23,74 @@ export class ViolationsModal extends Modal {
         // Header
         contentEl.createEl("h2", { text: "Schema Violations" });
 
+        // Search bar
+        const searchContainer = contentEl.createDiv({
+            cls: "frontmatter-linter-search-container",
+        });
+        const searchInput = searchContainer.createEl("input", {
+            type: "text",
+            placeholder: "Search violations...",
+            cls: "frontmatter-linter-search-input",
+        });
+        searchInput.addEventListener("input", (e) => {
+            this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+            this.renderViolations();
+        });
+
+        // Create scrollable container
+        this.container = contentEl.createDiv({
+            cls: "frontmatter-linter-violations-container",
+        });
+
+        this.renderViolations();
+    }
+
+    private renderViolations(): void {
+        if (!this.container) return;
+        this.container.empty();
+
         const violations = this.store.getAllViolations();
 
         if (violations.size === 0) {
-            contentEl.createEl("p", {
+            this.container.createEl("p", {
                 text: "No violations found. All notes match their schemas.",
                 cls: "frontmatter-linter-no-violations",
             });
             return;
         }
 
-        // Create scrollable container
-        const container = contentEl.createDiv({
-            cls: "frontmatter-linter-violations-container",
-        });
-
-        // Group and display violations by file
+        // Filter and display violations by file
+        let hasResults = false;
         for (const [filePath, fileViolations] of violations) {
-            this.renderFileViolations(container, filePath, fileViolations);
+            const filtered = this.filterViolations(filePath, fileViolations);
+            if (filtered.length > 0) {
+                hasResults = true;
+                this.renderFileViolations(this.container, filePath, filtered);
+            }
         }
+
+        if (!hasResults && this.searchQuery) {
+            this.container.createEl("p", {
+                text: "No violations match your search.",
+                cls: "frontmatter-linter-no-violations",
+            });
+        }
+    }
+
+    private filterViolations(filePath: string, violations: Violation[]): Violation[] {
+        if (!this.searchQuery) return violations;
+
+        const query = this.searchQuery;
+        // Check if file path matches
+        if (filePath.toLowerCase().includes(query)) {
+            return violations;
+        }
+        // Filter individual violations
+        return violations.filter(v =>
+            v.field.toLowerCase().includes(query) ||
+            v.message.toLowerCase().includes(query) ||
+            v.schemaMapping.name.toLowerCase().includes(query)
+        );
     }
 
     private renderFileViolations(
@@ -105,6 +156,8 @@ export class ViolationsModal extends Modal {
         switch (type) {
             case "missing_required":
                 return "!";
+            case "missing_warned":
+                return "*";
             case "type_mismatch":
                 return "~";
             case "unknown_field":

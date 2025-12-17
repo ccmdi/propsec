@@ -249,10 +249,34 @@ export class SchemaEditorModal extends Modal {
             type: "checkbox",
         });
         requiredCheckbox.checked = field.required;
+        requiredLabel.appendText(" Req");
+
+        // Warn checkbox with label (mutually exclusive with required)
+        const warnLabel = mainRow.createEl("label", {
+            cls: "frontmatter-linter-required-label",
+            attr: { title: "Warn if missing (not an error)" },
+        });
+        const warnCheckbox = warnLabel.createEl("input", {
+            type: "checkbox",
+        });
+        warnCheckbox.checked = field.warn || false;
+        warnLabel.appendText(" Warn");
+
+        // Mutual exclusion handlers
         requiredCheckbox.addEventListener("change", (e) => {
             field.required = (e.target as HTMLInputElement).checked;
+            if (field.required) {
+                field.warn = false;
+                warnCheckbox.checked = false;
+            }
         });
-        requiredLabel.appendText(" Req");
+        warnCheckbox.addEventListener("change", (e) => {
+            field.warn = (e.target as HTMLInputElement).checked;
+            if (field.warn) {
+                field.required = false;
+                requiredCheckbox.checked = false;
+            }
+        });
 
         // Allow empty checkbox (for "array OR null" scenarios)
         const allowEmptyLabel = mainRow.createEl("label", {
@@ -268,14 +292,15 @@ export class SchemaEditorModal extends Modal {
         });
         allowEmptyLabel.appendText(" Null");
 
-        // Expand button (only if type supports constraints)
+        // Expand button (always rendered for consistent layout, disabled if no constraints)
         const hasConstraints = this.typeSupportsConstraints(field.type);
+        const expandBtn = mainRow.createEl("button", {
+            cls: "frontmatter-linter-icon-btn",
+            attr: { title: hasConstraints ? "Toggle constraints" : "No constraints for this type" },
+        });
+        setIcon(expandBtn, "chevron-right");
+
         if (hasConstraints) {
-            const expandBtn = mainRow.createEl("button", {
-                cls: "frontmatter-linter-icon-btn",
-                attr: { title: "Toggle constraints" },
-            });
-            setIcon(expandBtn, "chevron-right");
             expandBtn.addEventListener("click", () => {
                 if (this.expandedFields.has(index)) {
                     // Collapse: animate out, then clean up
@@ -289,7 +314,7 @@ export class SchemaEditorModal extends Modal {
                         const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
                         if (prevCard) {
                             prevCard.removeClass("expanded");
-                            const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn");
+                            const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
                             if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
                         }
                         this.expandedFields.clear();
@@ -301,6 +326,9 @@ export class SchemaEditorModal extends Modal {
                     this.showConstraintsOverlay(card, field);
                 }
             });
+        } else {
+            expandBtn.addClass("frontmatter-linter-icon-btn-disabled");
+            expandBtn.disabled = true;
         }
 
         // Delete button

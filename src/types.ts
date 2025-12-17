@@ -36,6 +36,8 @@ export interface SchemaField {
     name: string;
     type: FieldType;
     required: boolean;
+    // Warn if missing (mutually exclusive with required - either warn or required, not both)
+    warn?: boolean;
     // Allow null/empty as valid (for "array OR null" scenarios)
     allowEmpty?: boolean;
     // Optional constraints based on type
@@ -77,6 +79,7 @@ export const DEFAULT_SETTINGS: PropsecSettings = {
 
 export type ViolationType =
     | "missing_required"
+    | "missing_warned"
     | "type_mismatch"
     | "unknown_field"
     | "pattern_mismatch"
