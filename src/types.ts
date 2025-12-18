@@ -54,6 +54,7 @@ export interface SchemaField {
     type: FieldType;
     required: boolean;
     // Warn if missing (mutually exclusive with required - either warn or required, not both)
+    //TODO discrim union
     warn?: boolean;
 
     // For arrays: specify what type the elements should be
@@ -125,6 +126,7 @@ export interface PropsecSettings {
     showInStatusBar: boolean;
     colorStatusBarErrors: boolean;
     excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
+    enablePropertySuggestions: boolean;  // Show property autocomplete in schema editor
 }
 
 // Obsidian's reserved frontmatter keys
@@ -141,6 +143,7 @@ export const DEFAULT_SETTINGS: PropsecSettings = {
     showInStatusBar: true,
     colorStatusBarErrors: true,
     excludeWarningsFromCount: true,
+    enablePropertySuggestions: true,
 };
 
 export type ViolationType =

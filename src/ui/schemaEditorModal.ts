@@ -24,6 +24,7 @@ export class SchemaEditorModal extends Modal {
     private onSave: (mapping: SchemaMapping) => void;
     private templatesFolder: string;
     private customTypes: CustomType[];
+    private enablePropertySuggestions: boolean;
     private fieldsContainer: HTMLElement | null = null;
     private expandedFields: Set<number> = new Set();
     private activeConstraintsSection: HTMLElement | null = null;
@@ -34,7 +35,8 @@ export class SchemaEditorModal extends Modal {
         mapping: SchemaMapping,
         templatesFolder: string,
         customTypes: CustomType[],
-        onSave: (mapping: SchemaMapping) => void
+        onSave: (mapping: SchemaMapping) => void,
+        enablePropertySuggestions: boolean = true
     ) {
         super(app);
         // Deep copy the mapping to avoid mutating the original
@@ -42,6 +44,7 @@ export class SchemaEditorModal extends Modal {
         this.templatesFolder = templatesFolder;
         this.customTypes = customTypes;
         this.onSave = onSave;
+        this.enablePropertySuggestions = enablePropertySuggestions;
     }
 
     onOpen(): void {
@@ -223,6 +226,18 @@ export class SchemaEditorModal extends Modal {
         nameInput.addEventListener("input", (e) => {
             field.name = (e.target as HTMLInputElement).value;
         });
+
+        // Property suggestions for field name
+        if (this.enablePropertySuggestions) {
+            const knownProperties = Object.keys(this.app.metadataTypeManager.properties);
+            new PropertySuggest(
+                this.app,
+                nameInput,
+                knownProperties,
+                (prop) => this.getPropertyType(prop),
+                () => {} // No additional callback needed
+            );
+        }
 
         // Type select
         const typeSelect = mainRow.createEl("select", {

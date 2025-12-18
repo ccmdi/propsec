@@ -145,7 +145,8 @@ export class PropsecSettingTab extends PluginSettingTab {
                                 const newIndex = this.settings.schemaMappings.length - 1;
                                 this.renderSchemaMappingItem(this.schemaListContainer, mapping, newIndex);
                             }
-                        }
+                        },
+                        this.settings.enablePropertySuggestions
                     );
                     modal.open();
                 })
@@ -246,6 +247,18 @@ export class PropsecSettingTab extends PluginSettingTab {
                         await this.onSettingsChange();
                     })
             );
+
+        new Setting(containerEl)
+            .setName("Property suggestions")
+            .setDesc("Show autocomplete suggestions for field names in the schema editor based on existing properties in your vault")
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.settings.enablePropertySuggestions)
+                    .onChange(async (value) => {
+                        this.settings.enablePropertySuggestions = value;
+                        await this.onSettingsChange();
+                    })
+            );
     }
 
     private renderSchemaMappingItem(
@@ -338,7 +351,8 @@ export class PropsecSettingTab extends PluginSettingTab {
                         this.renderSchemaMappingItem(temp, updatedMapping, idx);
                         itemEl.replaceWith(temp.firstChild!);
                     }
-                }
+                },
+                this.settings.enablePropertySuggestions
             );
             modal.open();
         });
