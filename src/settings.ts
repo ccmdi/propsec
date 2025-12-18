@@ -1,9 +1,10 @@
-import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { App, PluginSettingTab, Setting, setIcon, Notice } from "obsidian";
 import { PropsecSettings, SchemaMapping, CustomType } from "./types";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
 import { describePropertyFilter } from "./query/matcher";
+import PropsecPlugin from "main";
 
 export class PropsecSettingTab extends PluginSettingTab {
     private settings: PropsecSettings;
@@ -12,18 +13,13 @@ export class PropsecSettingTab extends PluginSettingTab {
 
     constructor(
         app: App,
+        plugin: PropsecPlugin,
         containerEl: HTMLElement,
         settings: PropsecSettings,
         onSettingsChange: () => Promise<void>,
         onSchemaChange: (mappingId?: string) => void
     ) {
-        // Create a minimal plugin-like object for the parent class
-        const pluginStub = {
-            app,
-            manifest: { id: "propsec", name: "propsec" },
-        } as any;
-
-        super(app, pluginStub);
+        super(app, plugin);
         this.containerEl = containerEl;
         this.settings = settings;
         this.onSettingsChange = onSettingsChange;
@@ -36,8 +32,9 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Templates folder setting
         new Setting(containerEl)
-            .setName("Templates Folder")
+            .setName("Templates folder")
             .setDesc(
+                //eslint-disable-next-line obsidianmd/ui/sentence-case
                 "Folder containing your template files. Auto-detected from core 'Templates' or community 'Templater' plugin if enabled."
             )
             .addText((text) =>
@@ -54,7 +51,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         containerEl.createEl("hr");
 
         // Types section
-        containerEl.createEl("h3", { text: "Types" });
+        new Setting(containerEl).setName("Types").setHeading();
 
         // Custom types list
         const customTypesContainer = containerEl.createDiv({
@@ -85,7 +82,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         async (newType) => {
                             this.settings.customTypes.push(newType);
                             await this.onSettingsChange();
-                            this.display(); // Refresh the settings view
+                            void this.display(); // Refresh the settings view
                         }
                     );
                     modal.open();
@@ -96,7 +93,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         containerEl.createEl("hr");
 
         // Schema Mappings section
-        containerEl.createEl("h3", { text: "Schema" });
+        new Setting(containerEl).setName("Schema").setHeading();
 
         // Schema list
         const schemaListContainer = containerEl.createDiv({
@@ -128,7 +125,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                             this.settings.schemaMappings.push(mapping);
                             await this.onSettingsChange();
                             this.onSchemaChange(mapping.id);
-                            this.display(); // Refresh the settings view
+                            void this.display(); // Refresh the settings view
                         }
                     );
                     modal.open();
@@ -139,7 +136,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         containerEl.createEl("hr");
 
         // Validation Options section
-        containerEl.createEl("h3", { text: "Validation preferences" });
+        new Setting(containerEl).setName("Validation preferences").setHeading();
 
         new Setting(containerEl)
             .setName("Warn on unknown fields")
@@ -264,7 +261,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.settings.schemaMappings.splice(toIndex, 0, moved);
                 await this.onSettingsChange();
                 this.onSchemaChange();
-                this.display();
+                void this.display();
             }
         });
 
@@ -286,7 +283,7 @@ export class PropsecSettingTab extends PluginSettingTab {
             mapping.enabled = checkbox.checked;
             await this.onSettingsChange();
             this.onSchemaChange(mapping.id);
-            this.display();
+            void this.display();
         });
 
         // Schema name
@@ -320,7 +317,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         this.settings.schemaMappings[idx] = updatedMapping;
                         await this.onSettingsChange();
                         this.onSchemaChange(updatedMapping.id);
-                        this.display();
+                        void this.display();
                     }
                 }
             );
@@ -340,7 +337,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.settings.schemaMappings.splice(idx, 1);
                 await this.onSettingsChange();
                 this.onSchemaChange();
-                this.display();
+                void this.display();
             }
         });
 
@@ -408,7 +405,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                     if (index >= 0) {
                         this.settings.customTypes[index] = updatedType;
                         await this.onSettingsChange();
-                        this.display();
+                        void this.display();
                     }
                 }
             );
@@ -428,7 +425,7 @@ export class PropsecSettingTab extends PluginSettingTab {
 
             if (usedInSchemas.length > 0) {
                 const schemaNames = usedInSchemas.map((m) => m.name).join(", ");
-                alert(
+                new Notice(
                     `Cannot delete type "${customType.name}" because it is used in the following schemas: ${schemaNames}`
                 );
                 return;
@@ -440,7 +437,7 @@ export class PropsecSettingTab extends PluginSettingTab {
             if (index >= 0) {
                 this.settings.customTypes.splice(index, 1);
                 await this.onSettingsChange();
-                this.display();
+                void this.display();
             }
         });
 

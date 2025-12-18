@@ -1,4 +1,4 @@
-import { App, Modal, setIcon, Setting } from "obsidian";
+import { App, Modal, Notice, setIcon, Setting } from "obsidian";
 import {
     FieldType,
     SchemaField,
@@ -45,7 +45,7 @@ export class CustomTypeEditorModal extends Modal {
     }
 
     private generateId(): string {
-        return `ct_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        return `ct_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     }
 
     onOpen(): void {
@@ -60,11 +60,11 @@ export class CustomTypeEditorModal extends Modal {
 
         // Name field
         new Setting(contentEl)
-            .setName("Type Name")
+            .setName("Type name")
             .setDesc("A unique name for this custom type (e.g., 'exercise', 'person')")
             .addText((text) =>
                 text
-                    .setPlaceholder("e.g., exercise")
+                    .setPlaceholder("Type name")
                     .setValue(this.customType.name)
                     .onChange((value) => {
                         this.customType.name = value.trim();
@@ -99,7 +99,8 @@ export class CustomTypeEditorModal extends Modal {
         const buttonsRow = contentEl.createDiv({
             cls: "frontmatter-linter-buttons-row",
         });
-
+        
+        //eslint-disable-next-line obsidianmd/ui/sentence-case
         const addFieldBtn = buttonsRow.createEl("button", { text: "+ Add Field" });
         addFieldBtn.addEventListener("click", () => {
             this.customType.fields.push({
@@ -130,7 +131,7 @@ export class CustomTypeEditorModal extends Modal {
         saveBtn.addEventListener("click", () => {
             // Validate
             if (!this.customType.name.trim()) {
-                alert("Please enter a type name");
+                new Notice("Please enter a type name");
                 return;
             }
 
@@ -139,13 +140,13 @@ export class CustomTypeEditorModal extends Modal {
                 (t) => t.id !== this.customType.id && t.name === this.customType.name
             );
             if (duplicate) {
-                alert(`A custom type named "${this.customType.name}" already exists`);
+                new Notice(`A custom type named "${this.customType.name}" already exists`);
                 return;
             }
 
             // Check for name collision with primitive types
             if (isPrimitiveType(this.customType.name)) {
-                alert(`"${this.customType.name}" is a built-in type name. Please choose a different name.`);
+                new Notice(`"${this.customType.name}" is a built-in type name. Please choose a different name.`);
                 return;
             }
 
@@ -156,7 +157,7 @@ export class CustomTypeEditorModal extends Modal {
 
             // Check for circular references
             if (this.hasCircularReference()) {
-                alert("Circular reference detected: A custom type cannot reference itself directly or indirectly.");
+                new Notice("Circular reference detected: A custom type cannot reference itself directly or indirectly.");
                 return;
             }
 
@@ -305,9 +306,10 @@ export class CustomTypeEditorModal extends Modal {
         }
 
         typeSelect.addEventListener("change", (e) => {
-            field.type = (e.target as HTMLSelectElement).value as FieldType;
+            field.type = (e.target as HTMLSelectElement).value;
             // Clear constraints when type changes
             //TODO: ugly, just set one constraint and delete it maybe?
+            //REPEATED in schema editor modal lol
             delete field.stringConstraints;
             delete field.numberConstraints;
             delete field.arrayConstraints;
@@ -488,7 +490,7 @@ export class CustomTypeEditorModal extends Modal {
         }
 
         container.createEl("div", {
-            text: "Array Configuration",
+            text: "Array configuration",
             cls: "frontmatter-linter-constraints-title",
         });
 
@@ -580,7 +582,7 @@ export class CustomTypeEditorModal extends Modal {
         const constraints = field.stringConstraints;
 
         container.createEl("div", {
-            text: "String Constraints",
+            text: "String constraints",
             cls: "frontmatter-linter-constraints-title",
         });
 
@@ -635,7 +637,7 @@ export class CustomTypeEditorModal extends Modal {
         const constraints = field.numberConstraints;
 
         container.createEl("div", {
-            text: "Number Constraints",
+            text: "Number constraints",
             cls: "frontmatter-linter-constraints-title",
         });
 

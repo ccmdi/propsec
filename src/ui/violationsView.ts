@@ -169,10 +169,10 @@ export class ViolationsView extends ItemView {
             }
         };
 
-        fileLink.addEventListener("click", (e) => openFile(e, false));
-        fileLink.addEventListener("auxclick", (e) => {
+        fileLink.addEventListener("click", async (e) => await openFile(e, false));
+        fileLink.addEventListener("auxclick", async (e) => {
             if (e.button === 1) {
-                openFile(e, true);
+                await openFile(e, true);
             }
         });
 

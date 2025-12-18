@@ -21,7 +21,7 @@ export class ViolationsModal extends Modal {
         contentEl.addClass("frontmatter-linter-violations-modal");
 
         // Header
-        contentEl.createEl("h2", { text: "Schema Violations" });
+        contentEl.createEl("h2", { text: "Schema violations" });
 
         // Search bar
         const searchContainer = contentEl.createDiv({

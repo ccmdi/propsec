@@ -1,4 +1,4 @@
-import { App, TFile, TFolder } from "obsidian";
+import { App, TFile } from "obsidian";
 import { PropsecSettings, SchemaMapping, Violation, OBSIDIAN_NATIVE_PROPERTIES } from "../types";
 import { ViolationStore } from "./store";
 import { validateFrontmatter } from "./validate";

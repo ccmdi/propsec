@@ -21,7 +21,7 @@ export function validateFrontmatter(
     for (const [fieldName, variants] of fieldGroups) {
         const hasField = frontmatter !== undefined &&
             Object.prototype.hasOwnProperty.call(frontmatter, fieldName);
-        const value = hasField ? frontmatter![fieldName] : undefined;
+        const value = hasField ? frontmatter[fieldName] : undefined;
 
         violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema));
     }

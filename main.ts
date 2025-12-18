@@ -282,6 +282,7 @@ class PropsecSettingTabWrapper extends PluginSettingTab {
     display(): void {
         this.settingsTab = new PropsecSettingTab(
             this.app,
+            this.plugin,
             this.containerEl,
             this.plugin.settings,
             async () => {

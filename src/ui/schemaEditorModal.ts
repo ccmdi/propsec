@@ -3,12 +3,12 @@ import {
     FieldType,
     SchemaField,
     SchemaMapping,
-    StringConstraints,
-    NumberConstraints,
-    ArrayConstraints,
-    ObjectConstraints,
+    // StringConstraints,
+    // NumberConstraints,
+    // ArrayConstraints,
+    // ObjectConstraints,
     CustomType,
-    PropertyFilter,
+    // PropertyFilter,
     isPrimitiveType,
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes, getTypeDisplayName } from "../schema/extractor";
@@ -110,7 +110,8 @@ export class SchemaEditorModal extends Modal {
         const buttonsRow = contentEl.createDiv({
             cls: "frontmatter-linter-buttons-row",
         });
-
+        
+        //eslint-disable-next-line obsidianmd/ui/sentence-case
         const addFieldBtn = buttonsRow.createEl("button", { text: "+ Add Field" });
         addFieldBtn.addEventListener("click", () => {
             this.mapping.fields.push({
@@ -122,6 +123,7 @@ export class SchemaEditorModal extends Modal {
         });
 
         const importBtn = buttonsRow.createEl("button", {
+            //eslint-disable-next-line obsidianmd/ui/sentence-case
             text: "Import from Template...",
         });
         importBtn.addEventListener("click", () => {
@@ -238,7 +240,7 @@ export class SchemaEditorModal extends Modal {
             }
         }
         typeSelect.addEventListener("change", (e) => {
-            field.type = (e.target as HTMLSelectElement).value as FieldType;
+            field.type = (e.target as HTMLSelectElement).value;
             // Clear constraints when type changes
             delete field.stringConstraints;
             delete field.numberConstraints;
@@ -436,7 +438,7 @@ export class SchemaEditorModal extends Modal {
         const constraints = field.stringConstraints;
 
         container.createEl("div", {
-            text: "String Constraints",
+            text: "String constraints",
             cls: "frontmatter-linter-constraints-title",
         });
 
@@ -491,7 +493,7 @@ export class SchemaEditorModal extends Modal {
         const constraints = field.numberConstraints;
 
         container.createEl("div", {
-            text: "Number Constraints",
+            text: "Number constraints",
             cls: "frontmatter-linter-constraints-title",
         });
 
@@ -527,7 +529,7 @@ export class SchemaEditorModal extends Modal {
         const constraints = field.arrayConstraints;
 
         container.createEl("div", {
-            text: "Array Configuration",
+            text: "Array configuration",
             cls: "frontmatter-linter-constraints-title",
         });
 
@@ -644,7 +646,7 @@ export class SchemaEditorModal extends Modal {
                 this.renderFields();
             }
         );
-        modal.open();
+        void modal.open();
     }
 
     private getTemplateFiles(folder: TFolder): TFile[] {
@@ -807,7 +809,7 @@ class TemplateSelectorModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
 
-        contentEl.createEl("h3", { text: "Select Template" });
+        contentEl.createEl("h3", { text: "Select template" });
 
         const list = contentEl.createEl("div", {
             cls: "frontmatter-linter-template-list",
