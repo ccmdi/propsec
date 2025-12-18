@@ -1,15 +1,8 @@
 import { App, TFile, TFolder } from "obsidian";
 import { PropsecSettings, SchemaMapping, Violation, OBSIDIAN_NATIVE_PROPERTIES } from "../types";
 import { ViolationStore } from "./store";
-import {
-    checkMissingRequired,
-    checkTypeMismatches,
-    checkUnknownFields,
-    checkStringConstraints,
-    checkNumberConstraints,
-    checkArrayConstraints,
-    checkObjectConstraints,
-} from "./checks";
+import { validateFrontmatter } from "./validate";
+import { validationContext } from "./context";
 import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
 
 /**
@@ -31,22 +24,23 @@ export class Validator {
     }
 
     /**
+     * Check if a file matches a schema mapping
+     */
+    private fileMatchesMapping(file: TFile, mapping: SchemaMapping): boolean {
+        if (!mapping.enabled || !mapping.query) return false;
+        if (!fileMatchesQuery(this.app, file, mapping.query)) return false;
+        if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) return false;
+        return true;
+    }
+
+    /**
      * Check if a file matches any schema mapping
      */
     getMatchingSchema(file: TFile): SchemaMapping | null {
         const settings = this.settings();
 
         for (const mapping of settings.schemaMappings) {
-            if (!mapping.enabled) continue;
-            if (!mapping.query) continue;
-
-            if (fileMatchesQuery(this.app, file, mapping.query)) {
-                // Also check property filter if specified
-                if (mapping.propertyFilter) {
-                    if (!fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
-                        continue;
-                    }
-                }
+            if (this.fileMatchesMapping(file, mapping)) {
                 return mapping;
             }
         }
@@ -65,35 +59,20 @@ export class Validator {
             return [];
         }
 
+        const settings = this.settings();
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-        const violations: Violation[] = [];
-        const customTypes = this.settings().customTypes;
 
-        // Check for missing required fields
-        violations.push(...checkMissingRequired(frontmatter, schema, file.path, customTypes));
+        validationContext.setCustomTypes(settings.customTypes);
 
-        // Check for type mismatches
-        violations.push(...checkTypeMismatches(frontmatter, schema, file.path, customTypes));
+        let violations = validateFrontmatter(frontmatter, schema, file.path, {
+            checkUnknownFields: settings.warnOnUnknownFields,
+        });
 
-        // Check for unknown fields (if enabled)
-        if (this.settings().warnOnUnknownFields) {
-            let unknownFieldViolations = checkUnknownFields(frontmatter, schema, file.path, customTypes);
-
-            // Filter out Obsidian native properties if setting is enabled
-            if (this.settings().allowObsidianProperties) {
-                unknownFieldViolations = unknownFieldViolations.filter(v =>
-                    !OBSIDIAN_NATIVE_PROPERTIES.includes(v.field)
-                );
-            }
-
-            violations.push(...unknownFieldViolations);
+        if (settings.allowObsidianProperties) {
+            violations = violations.filter(v =>
+                v.type !== "unknown_field" || !OBSIDIAN_NATIVE_PROPERTIES.includes(v.field)
+            );
         }
-
-        // Check constraints
-        violations.push(...checkStringConstraints(frontmatter, schema, file.path, customTypes));
-        violations.push(...checkNumberConstraints(frontmatter, schema, file.path, customTypes));
-        violations.push(...checkArrayConstraints(frontmatter, schema, file.path, customTypes));
-        violations.push(...checkObjectConstraints(frontmatter, schema, file.path, customTypes));
 
         // Update store
         this.store.setFileViolations(file.path, violations);
@@ -105,20 +84,10 @@ export class Validator {
      * Validate all files that match a schema mapping's query
      */
     validateMapping(mapping: SchemaMapping): void {
-        if (!mapping.enabled) return;
-        if (!mapping.query) return;
-
-        // Get all markdown files in the vault
         const allFiles = this.app.vault.getMarkdownFiles();
 
         for (const file of allFiles) {
-            if (fileMatchesQuery(this.app, file, mapping.query)) {
-                // Also check property filter if specified
-                if (mapping.propertyFilter) {
-                    if (!fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
-                        continue;
-                    }
-                }
+            if (this.fileMatchesMapping(file, mapping)) {
                 this.validateFile(file, mapping);
             }
         }
