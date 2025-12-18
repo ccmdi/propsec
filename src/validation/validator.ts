@@ -1,5 +1,5 @@
 import { App, TFile, TFolder } from "obsidian";
-import { PropsecSettings, SchemaMapping, Violation } from "../types";
+import { PropsecSettings, SchemaMapping, Violation, OBSIDIAN_NATIVE_PROPERTIES } from "../types";
 import { ViolationStore } from "./store";
 import {
     checkMissingRequired,
@@ -10,7 +10,7 @@ import {
     checkArrayConstraints,
     checkObjectConstraints,
 } from "./checks";
-import { fileMatchesQuery } from "../query/matcher";
+import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
 
 /**
  * Core validation engine for the Frontmatter Linter
@@ -41,6 +41,12 @@ export class Validator {
             if (!mapping.query) continue;
 
             if (fileMatchesQuery(this.app, file, mapping.query)) {
+                // Also check property filter if specified
+                if (mapping.propertyFilter) {
+                    if (!fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
+                        continue;
+                    }
+                }
                 return mapping;
             }
         }
@@ -71,7 +77,16 @@ export class Validator {
 
         // Check for unknown fields (if enabled)
         if (this.settings().warnOnUnknownFields) {
-            violations.push(...checkUnknownFields(frontmatter, schema, file.path, customTypes));
+            let unknownFieldViolations = checkUnknownFields(frontmatter, schema, file.path, customTypes);
+
+            // Filter out Obsidian native properties if setting is enabled
+            if (this.settings().allowObsidianProperties) {
+                unknownFieldViolations = unknownFieldViolations.filter(v =>
+                    !OBSIDIAN_NATIVE_PROPERTIES.includes(v.field)
+                );
+            }
+
+            violations.push(...unknownFieldViolations);
         }
 
         // Check constraints
@@ -98,6 +113,12 @@ export class Validator {
 
         for (const file of allFiles) {
             if (fileMatchesQuery(this.app, file, mapping.query)) {
+                // Also check property filter if specified
+                if (mapping.propertyFilter) {
+                    if (!fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
+                        continue;
+                    }
+                }
                 this.validateFile(file, mapping);
             }
         }

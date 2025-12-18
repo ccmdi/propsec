@@ -300,6 +300,7 @@ export function checkTypeMismatches(
 
 /**
  * Check for unknown fields (fields in note but not in schema)
+ * Also recursively checks nested custom type objects and arrays
  */
 export function checkUnknownFields(
     frontmatter: Record<string, unknown> | undefined,
@@ -312,6 +313,7 @@ export function checkUnknownFields(
     if (!frontmatter) return violations;
 
     const schemaFieldNames = new Set(schema.fields.map((f) => f.name));
+    const fieldGroups = groupFieldsByName(schema.fields);
 
     for (const key of Object.keys(frontmatter)) {
         // Skip internal position field
@@ -325,6 +327,123 @@ export function checkUnknownFields(
                 type: "unknown_field",
                 message: `Unknown field: ${key} (not defined in schema)`,
             });
+        } else {
+            // Check nested custom types for unknown fields
+            const value = frontmatter[key];
+            const variants = fieldGroups.get(key);
+            if (variants) {
+                violations.push(...checkNestedUnknownFields(
+                    value,
+                    key,
+                    variants,
+                    filePath,
+                    schema,
+                    customTypes
+                ));
+            }
+        }
+    }
+
+    return violations;
+}
+
+/**
+ * Recursively check for unknown fields in nested custom type objects
+ */
+function checkNestedUnknownFields(
+    value: unknown,
+    fieldPath: string,
+    variants: SchemaField[],
+    filePath: string,
+    schema: SchemaMapping,
+    customTypes: CustomType[]
+): Violation[] {
+    const violations: Violation[] = [];
+
+    if (value === null || value === undefined) return violations;
+
+    // Check if this is an array with custom type elements
+    if (Array.isArray(value)) {
+        const arrayVariant = variants.find(v => v.type === "array");
+        if (arrayVariant?.arrayElementType) {
+            const elementCustomType = customTypes.find(t => t.name === arrayVariant.arrayElementType);
+            if (elementCustomType) {
+                value.forEach((element, index) => {
+                    if (typeof element === "object" && element !== null && !Array.isArray(element)) {
+                        violations.push(...checkObjectUnknownFields(
+                            element as Record<string, unknown>,
+                            `${fieldPath}[${index}]`,
+                            elementCustomType,
+                            filePath,
+                            schema,
+                            customTypes
+                        ));
+                    }
+                });
+            }
+        }
+        return violations;
+    }
+
+    // Check if this is a custom type object
+    if (typeof value === "object" && !Array.isArray(value)) {
+        for (const variant of variants) {
+            const customType = customTypes.find(t => t.name === variant.type);
+            if (customType) {
+                violations.push(...checkObjectUnknownFields(
+                    value as Record<string, unknown>,
+                    fieldPath,
+                    customType,
+                    filePath,
+                    schema,
+                    customTypes
+                ));
+                break;
+            }
+        }
+    }
+
+    return violations;
+}
+
+/**
+ * Check an object against a custom type for unknown fields
+ */
+function checkObjectUnknownFields(
+    obj: Record<string, unknown>,
+    fieldPath: string,
+    customType: CustomType,
+    filePath: string,
+    schema: SchemaMapping,
+    customTypes: CustomType[]
+): Violation[] {
+    const violations: Violation[] = [];
+
+    const typeFieldNames = new Set(customType.fields.map(f => f.name));
+
+    for (const key of Object.keys(obj)) {
+        if (!typeFieldNames.has(key)) {
+            violations.push({
+                filePath,
+                schemaMapping: schema,
+                field: `${fieldPath}.${key}`,
+                type: "unknown_field",
+                message: `Unknown field: ${fieldPath}.${key} (not defined in type "${customType.name}")`,
+            });
+        } else {
+            // Recursively check nested custom types
+            const fieldDef = customType.fields.find(f => f.name === key);
+            if (fieldDef) {
+                const nestedValue = obj[key];
+                violations.push(...checkNestedUnknownFields(
+                    nestedValue,
+                    `${fieldPath}.${key}`,
+                    [fieldDef],
+                    filePath,
+                    schema,
+                    customTypes
+                ));
+            }
         }
     }
 
@@ -495,16 +614,29 @@ export function checkArrayConstraints(
 
         // Check element types if specified
         if (matchingVariant.arrayElementType) {
+            const elementType = matchingVariant.arrayElementType;
+            const customType = customTypes.find(t => t.name === elementType);
+
             for (let i = 0; i < value.length; i++) {
                 const element = value[i];
-                if (!checkTypeMatch(element, matchingVariant.arrayElementType, customTypes)) {
+                if (!checkTypeMatch(element, elementType, customTypes)) {
+                    // Provide detailed errors for custom type mismatches
+                    let message = `Array element type mismatch: ${fieldName}[${i}] (expected ${elementType}, got ${getActualType(element)})`;
+
+                    if (customType && typeof element === "object" && element !== null && !Array.isArray(element)) {
+                        const fieldErrors = getCustomTypeErrors(element, customType, customTypes);
+                        if (fieldErrors.length > 0) {
+                            message = `Array element type mismatch: ${fieldName}[${i}] (expected ${elementType}): ${fieldErrors.join("; ")}`;
+                        }
+                    }
+
                     violations.push({
                         filePath,
                         schemaMapping: schema,
                         field: fieldName,
                         type: "type_mismatch",
-                        message: `Array element type mismatch: ${fieldName}[${i}] (expected ${matchingVariant.arrayElementType}, got ${getActualType(element)})`,
-                        expected: matchingVariant.arrayElementType,
+                        message,
+                        expected: elementType,
                         actual: getActualType(element),
                     });
                 }

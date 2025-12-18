@@ -8,6 +8,7 @@ import {
     ArrayConstraints,
     ObjectConstraints,
     CustomType,
+    PropertyFilter,
     isPrimitiveType,
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes, getTypeDisplayName } from "../schema/extractor";
@@ -77,6 +78,9 @@ export class SchemaEditorModal extends Modal {
                         this.mapping.query = value;
                     })
             );
+
+        // Property Filter section (collapsible)
+        this.renderPropertyFilterSection(contentEl);
 
         // Separator
         contentEl.createEl("hr");
@@ -653,6 +657,127 @@ export class SchemaEditorModal extends Modal {
             }
         }
         return files;
+    }
+
+    private renderPropertyFilterSection(container: HTMLElement): void {
+        // Initialize filter if not exists
+        if (!this.mapping.propertyFilter) {
+            this.mapping.propertyFilter = {};
+        }
+        const filter = this.mapping.propertyFilter;
+
+        // Collapsible section
+        const section = container.createDiv({
+            cls: "frontmatter-linter-filter-section",
+        });
+
+        const header = section.createDiv({
+            cls: "frontmatter-linter-filter-header",
+        });
+        header.createEl("span", { text: "Filter (optional)" });
+        const toggleIcon = header.createEl("span", { cls: "frontmatter-linter-filter-toggle" });
+        setIcon(toggleIcon, "chevron-right");
+
+        const content = section.createDiv({
+            cls: "frontmatter-linter-filter-content",
+        });
+        content.style.display = "none";
+
+        // Check if any filter is set
+        const hasFilters = filter.modifiedAfter || filter.modifiedBefore ||
+            filter.createdAfter || filter.createdBefore ||
+            filter.hasProperty || filter.notHasProperty || filter.propertyEquals;
+
+        if (hasFilters) {
+            content.style.display = "block";
+            setIcon(toggleIcon, "chevron-down");
+        }
+
+        header.addEventListener("click", () => {
+            const isHidden = content.style.display === "none";
+            content.style.display = isHidden ? "block" : "none";
+            setIcon(toggleIcon, isHidden ? "chevron-down" : "chevron-right");
+        });
+
+        // Filter fields
+        const grid = content.createDiv({ cls: "frontmatter-linter-filter-grid" });
+
+        // Modified after
+        const modAfterRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        modAfterRow.createEl("label", { text: "Modified after:" });
+        const modAfterInput = modAfterRow.createEl("input", { type: "date" });
+        modAfterInput.value = filter.modifiedAfter || "";
+        modAfterInput.addEventListener("change", (e) => {
+            filter.modifiedAfter = (e.target as HTMLInputElement).value || undefined;
+        });
+
+        // Modified before
+        const modBeforeRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        modBeforeRow.createEl("label", { text: "Modified before:" });
+        const modBeforeInput = modBeforeRow.createEl("input", { type: "date" });
+        modBeforeInput.value = filter.modifiedBefore || "";
+        modBeforeInput.addEventListener("change", (e) => {
+            filter.modifiedBefore = (e.target as HTMLInputElement).value || undefined;
+        });
+
+        // Created after
+        const createdAfterRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        createdAfterRow.createEl("label", { text: "Created after:" });
+        const createdAfterInput = createdAfterRow.createEl("input", { type: "date" });
+        createdAfterInput.value = filter.createdAfter || "";
+        createdAfterInput.addEventListener("change", (e) => {
+            filter.createdAfter = (e.target as HTMLInputElement).value || undefined;
+        });
+
+        // Created before
+        const createdBeforeRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        createdBeforeRow.createEl("label", { text: "Created before:" });
+        const createdBeforeInput = createdBeforeRow.createEl("input", { type: "date" });
+        createdBeforeInput.value = filter.createdBefore || "";
+        createdBeforeInput.addEventListener("change", (e) => {
+            filter.createdBefore = (e.target as HTMLInputElement).value || undefined;
+        });
+
+        // Has property
+        const hasPropRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        hasPropRow.createEl("label", { text: "Has property:" });
+        const hasPropInput = hasPropRow.createEl("input", { type: "text", placeholder: "e.g., status" });
+        hasPropInput.value = filter.hasProperty || "";
+        hasPropInput.addEventListener("input", (e) => {
+            filter.hasProperty = (e.target as HTMLInputElement).value || undefined;
+        });
+
+        // Not has property
+        const notHasPropRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        notHasPropRow.createEl("label", { text: "Missing property:" });
+        const notHasPropInput = notHasPropRow.createEl("input", { type: "text", placeholder: "e.g., draft" });
+        notHasPropInput.value = filter.notHasProperty || "";
+        notHasPropInput.addEventListener("input", (e) => {
+            filter.notHasProperty = (e.target as HTMLInputElement).value || undefined;
+        });
+
+        // Property equals
+        const propEqualsRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        propEqualsRow.createEl("label", { text: "Property equals:" });
+        const propEqualsContainer = propEqualsRow.createDiv({ cls: "frontmatter-linter-filter-equals" });
+        const propKeyInput = propEqualsContainer.createEl("input", { type: "text", placeholder: "key" });
+        propEqualsContainer.createEl("span", { text: "=" });
+        const propValueInput = propEqualsContainer.createEl("input", { type: "text", placeholder: "value" });
+
+        propKeyInput.value = filter.propertyEquals?.key || "";
+        propValueInput.value = filter.propertyEquals?.value || "";
+
+        const updatePropEquals = () => {
+            const key = propKeyInput.value.trim();
+            const value = propValueInput.value;
+            if (key) {
+                filter.propertyEquals = { key, value };
+            } else {
+                filter.propertyEquals = undefined;
+            }
+        };
+        propKeyInput.addEventListener("input", updatePropEquals);
+        propValueInput.addEventListener("input", updatePropEquals);
     }
 
     onClose(): void {

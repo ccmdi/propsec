@@ -109,7 +109,7 @@
 
 /* Schema Editor Modal */
 .modal:has(.frontmatter-linter-schema-editor) {
-    width: 80vw;
+    width: 50vw;
     max-width: 90vw;
 }
 
@@ -616,4 +616,118 @@
     padding-left: 0;
     font-size: 0.9em;
     color: var(--text-muted);
+}
+
+/* Property Filter Section */
+.frontmatter-linter-filter-section {
+    margin-top: 12px;
+}
+
+.frontmatter-linter-filter-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.frontmatter-linter-filter-header:hover {
+    background: var(--background-secondary);
+}
+
+.frontmatter-linter-filter-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.frontmatter-linter-filter-toggle svg {
+    width: 14px;
+    height: 14px;
+}
+
+.frontmatter-linter-filter-content {
+    padding: 12px;
+    margin-top: 4px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.frontmatter-linter-filter-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.frontmatter-linter-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.frontmatter-linter-filter-row label {
+    flex: 0 0 120px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.frontmatter-linter-filter-row input {
+    flex: 1;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    color: var(--text-normal);
+    font-size: 0.85em;
+}
+
+.frontmatter-linter-filter-equals {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.frontmatter-linter-filter-equals input {
+    flex: 1;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    color: var(--text-normal);
+    font-size: 0.85em;
+}
+
+.frontmatter-linter-filter-equals span {
+    color: var(--text-muted);
+}
+
+/* Drag Handle for Schema Reordering */
+.frontmatter-linter-drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    padding: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.frontmatter-linter-drag-handle:hover {
+    color: var(--text-normal);
+}
+
+.frontmatter-linter-drag-handle svg {
+    width: 14px;
+    height: 14px;
+}
+
+.frontmatter-linter-schema-item.dragging {
+    opacity: 0.5;
+    background: var(--background-modifier-active-hover);
+}
+
+.frontmatter-linter-schema-item.drag-over {
+    border-top: 2px solid var(--interactive-accent);
 }

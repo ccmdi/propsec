@@ -1,8 +1,9 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
 import { PropsecSettings, SchemaMapping, CustomType } from "./types";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
+import { describePropertyFilter } from "./query/matcher";
 
 export class PropsecSettingTab extends PluginSettingTab {
     private settings: PropsecSettings;
@@ -108,9 +109,9 @@ export class PropsecSettingTab extends PluginSettingTab {
                 cls: "frontmatter-linter-no-schemas",
             });
         } else {
-            for (const mapping of this.settings.schemaMappings) {
-                this.renderSchemaMappingItem(schemaListContainer, mapping);
-            }
+            this.settings.schemaMappings.forEach((mapping, index) => {
+                this.renderSchemaMappingItem(schemaListContainer, mapping, index);
+            });
         }
 
         // Add Schema button
@@ -150,6 +151,21 @@ export class PropsecSettingTab extends PluginSettingTab {
                     .setValue(this.settings.warnOnUnknownFields)
                     .onChange(async (value) => {
                         this.settings.warnOnUnknownFields = value;
+                        await this.onSettingsChange();
+                        this.onSchemaChange();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName("Allow Obsidian properties")
+            .setDesc(
+                "Don't warn about Obsidian's native properties (aliases, tags, cssclasses) when checking for unknown fields"
+            )
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.settings.allowObsidianProperties)
+                    .onChange(async (value) => {
+                        this.settings.allowObsidianProperties = value;
                         await this.onSettingsChange();
                         this.onSchemaChange();
                     })
@@ -206,16 +222,62 @@ export class PropsecSettingTab extends PluginSettingTab {
 
     private renderSchemaMappingItem(
         container: HTMLElement,
-        mapping: SchemaMapping
+        mapping: SchemaMapping,
+        index: number
     ): void {
         const itemEl = container.createDiv({
             cls: `frontmatter-linter-schema-item ${mapping.enabled ? "" : "frontmatter-linter-schema-disabled"}`,
         });
 
-        // Header row with checkbox, name, and buttons
+        // Make item draggable
+        itemEl.draggable = true;
+        itemEl.dataset.index = String(index);
+
+        itemEl.addEventListener("dragstart", (e) => {
+            itemEl.addClass("dragging");
+            e.dataTransfer?.setData("text/plain", String(index));
+        });
+
+        itemEl.addEventListener("dragend", () => {
+            itemEl.removeClass("dragging");
+            // Remove drag-over from all items
+            container.querySelectorAll(".drag-over").forEach(el => el.removeClass("drag-over"));
+        });
+
+        itemEl.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            itemEl.addClass("drag-over");
+        });
+
+        itemEl.addEventListener("dragleave", () => {
+            itemEl.removeClass("drag-over");
+        });
+
+        itemEl.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            itemEl.removeClass("drag-over");
+            const fromIndex = parseInt(e.dataTransfer?.getData("text/plain") || "-1");
+            const toIndex = index;
+            if (fromIndex >= 0 && fromIndex !== toIndex) {
+                // Reorder
+                const [moved] = this.settings.schemaMappings.splice(fromIndex, 1);
+                this.settings.schemaMappings.splice(toIndex, 0, moved);
+                await this.onSettingsChange();
+                this.onSchemaChange();
+                this.display();
+            }
+        });
+
+        // Header row with drag handle, checkbox, name, and buttons
         const headerRow = itemEl.createDiv({
             cls: "frontmatter-linter-schema-header",
         });
+
+        // Drag handle
+        const dragHandle = headerRow.createDiv({
+            cls: "frontmatter-linter-drag-handle",
+        });
+        setIcon(dragHandle, "grip-vertical");
 
         // Enable/disable checkbox
         const checkbox = headerRow.createEl("input", { type: "checkbox" });
@@ -251,11 +313,11 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.settings.customTypes,
                 async (updatedMapping) => {
                     // Update the mapping in place
-                    const index = this.settings.schemaMappings.findIndex(
+                    const idx = this.settings.schemaMappings.findIndex(
                         (m) => m.id === mapping.id
                     );
-                    if (index >= 0) {
-                        this.settings.schemaMappings[index] = updatedMapping;
+                    if (idx >= 0) {
+                        this.settings.schemaMappings[idx] = updatedMapping;
                         await this.onSettingsChange();
                         this.onSchemaChange(updatedMapping.id);
                         this.display();
@@ -271,11 +333,11 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "frontmatter-linter-delete-btn",
         });
         deleteBtn.addEventListener("click", async () => {
-            const index = this.settings.schemaMappings.findIndex(
+            const idx = this.settings.schemaMappings.findIndex(
                 (m) => m.id === mapping.id
             );
-            if (index >= 0) {
-                this.settings.schemaMappings.splice(index, 1);
+            if (idx >= 0) {
+                this.settings.schemaMappings.splice(idx, 1);
                 await this.onSettingsChange();
                 this.onSchemaChange();
                 this.display();
@@ -286,8 +348,17 @@ export class PropsecSettingTab extends PluginSettingTab {
         const infoRow = itemEl.createDiv({
             cls: "frontmatter-linter-schema-info",
         });
+
+        // Query info
+        let queryText = mapping.query || "(no query)";
+        if (mapping.propertyFilter) {
+            const filterDesc = describePropertyFilter(mapping.propertyFilter);
+            if (filterDesc) {
+                queryText += ` [${filterDesc}]`;
+            }
+        }
         infoRow.createEl("span", {
-            text: `${mapping.query || "(not set)"}`,
+            text: queryText,
             cls: "frontmatter-linter-schema-query",
         });
 

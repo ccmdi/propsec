@@ -1,4 +1,5 @@
 import { App, TFile } from "obsidian";
+import { PropertyFilter } from "../types";
 
 /**
  * Query syntax:
@@ -168,4 +169,66 @@ export function describeQuery(query: string): string {
     });
 
     return descriptions.join(" or ");
+}
+
+/**
+ * Check if a file matches property filters
+ * All specified filters must match (AND logic)
+ */
+export function fileMatchesPropertyFilter(app: App, file: TFile, filter: PropertyFilter): boolean {
+    // Check modified date filters
+    if (filter.modifiedAfter) {
+        const filterDate = new Date(filter.modifiedAfter).getTime();
+        if (file.stat.mtime < filterDate) return false;
+    }
+    if (filter.modifiedBefore) {
+        const filterDate = new Date(filter.modifiedBefore).getTime();
+        if (file.stat.mtime > filterDate) return false;
+    }
+
+    // Check created date filters
+    if (filter.createdAfter) {
+        const filterDate = new Date(filter.createdAfter).getTime();
+        if (file.stat.ctime < filterDate) return false;
+    }
+    if (filter.createdBefore) {
+        const filterDate = new Date(filter.createdBefore).getTime();
+        if (file.stat.ctime > filterDate) return false;
+    }
+
+    // Check frontmatter property filters
+    const cache = app.metadataCache.getFileCache(file);
+    const frontmatter = cache?.frontmatter;
+
+    if (filter.hasProperty) {
+        if (!frontmatter || !(filter.hasProperty in frontmatter)) return false;
+    }
+
+    if (filter.notHasProperty) {
+        if (frontmatter && filter.notHasProperty in frontmatter) return false;
+    }
+
+    if (filter.propertyEquals) {
+        const { key, value } = filter.propertyEquals;
+        if (!frontmatter || String(frontmatter[key]) !== value) return false;
+    }
+
+    return true;
+}
+
+/**
+ * Describe a property filter in human-readable form
+ */
+export function describePropertyFilter(filter: PropertyFilter): string {
+    const parts: string[] = [];
+
+    if (filter.modifiedAfter) parts.push(`modified after ${filter.modifiedAfter}`);
+    if (filter.modifiedBefore) parts.push(`modified before ${filter.modifiedBefore}`);
+    if (filter.createdAfter) parts.push(`created after ${filter.createdAfter}`);
+    if (filter.createdBefore) parts.push(`created before ${filter.createdBefore}`);
+    if (filter.hasProperty) parts.push(`has "${filter.hasProperty}"`);
+    if (filter.notHasProperty) parts.push(`no "${filter.notHasProperty}"`);
+    if (filter.propertyEquals) parts.push(`${filter.propertyEquals.key}="${filter.propertyEquals.value}"`);
+
+    return parts.length > 0 ? parts.join(", ") : "";
 }

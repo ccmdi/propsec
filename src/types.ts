@@ -71,6 +71,19 @@ export interface SchemaField {
     objectConstraints?: ObjectConstraints;
 }
 
+// Property filter for fine-grained schema application
+export interface PropertyFilter {
+    // Filter by file dates
+    modifiedAfter?: string;   // ISO date: only files modified after this date
+    modifiedBefore?: string;  // ISO date: only files modified before this date
+    createdAfter?: string;    // ISO date: only files created after this date
+    createdBefore?: string;   // ISO date: only files created before this date
+    // Filter by frontmatter property existence/value
+    hasProperty?: string;     // Property must exist (any value)
+    notHasProperty?: string;  // Property must NOT exist
+    propertyEquals?: { key: string; value: string };  // Property must equal value
+}
+
 export interface SchemaMapping {
     id: string;
     name: string;
@@ -79,6 +92,8 @@ export interface SchemaMapping {
     query: string;
     enabled: boolean;
     fields: SchemaField[];
+    // Optional property-based filter for fine-grained control
+    propertyFilter?: PropertyFilter;
 }
 
 export interface PropsecSettings {
@@ -86,17 +101,22 @@ export interface PropsecSettings {
     schemaMappings: SchemaMapping[];
     customTypes: CustomType[];  // User-defined reusable types
     warnOnUnknownFields: boolean;
+    allowObsidianProperties: boolean;  // Don't warn about aliases, tags, cssclasses
     validateOnFileOpen: boolean;
     validateOnFileSave: boolean;
     showInStatusBar: boolean;
     colorStatusBarErrors: boolean;
 }
 
+// Obsidian's reserved frontmatter keys
+export const OBSIDIAN_NATIVE_PROPERTIES = ["aliases", "tags", "cssclasses", "cssclass"];
+
 export const DEFAULT_SETTINGS: PropsecSettings = {
     templatesFolder: "",
     schemaMappings: [],
     customTypes: [],
     warnOnUnknownFields: true,
+    allowObsidianProperties: true,
     validateOnFileOpen: true,
     validateOnFileSave: true,
     showInStatusBar: true,
