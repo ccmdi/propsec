@@ -5,6 +5,12 @@ import { validateFrontmatter } from "./validate";
 import { validationContext } from "./context";
 import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
 
+const BATCH_SIZE = 50;
+
+function yieldToMain(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 /**
  * Core validation engine for the Frontmatter Linter
  */
@@ -83,12 +89,17 @@ export class Validator {
     /**
      * Validate all files that match a schema mapping's query
      */
-    validateMapping(mapping: SchemaMapping): void {
+    async validateMapping(mapping: SchemaMapping): Promise<void> {
         const allFiles = this.app.vault.getMarkdownFiles();
 
+        let processed = 0;
         for (const file of allFiles) {
             if (this.fileMatchesMapping(file, mapping)) {
                 this.validateFile(file, mapping);
+            }
+            processed++;
+            if (processed % BATCH_SIZE === 0) {
+                await yieldToMain();
             }
         }
     }
@@ -96,7 +107,7 @@ export class Validator {
     /**
      * Validate all notes across all schema mappings
      */
-    validateAll(): void {
+    async validateAll(): Promise<void> {
         const settings = this.settings();
 
         // Clear existing violations
@@ -104,7 +115,7 @@ export class Validator {
 
         // Validate each mapping
         for (const mapping of settings.schemaMappings) {
-            this.validateMapping(mapping);
+            await this.validateMapping(mapping);
         }
 
         // Update timestamp
@@ -115,7 +126,7 @@ export class Validator {
      * Re-validate all files affected by a specific schema mapping
      * (used when schema is edited)
      */
-    revalidateMapping(mappingId: string): void {
+    async revalidateMapping(mappingId: string): Promise<void> {
         const settings = this.settings();
         const mapping = settings.schemaMappings.find((m) => m.id === mappingId);
 
@@ -129,7 +140,7 @@ export class Validator {
             }
 
             // Re-validate
-            this.validateMapping(mapping);
+            await this.validateMapping(mapping);
         }
     }
 }
