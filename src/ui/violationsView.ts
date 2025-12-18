@@ -4,8 +4,12 @@ import { ViolationStore } from "../validation/store";
 
 export const VIOLATIONS_VIEW_TYPE = "frontmatter-linter-violations";
 
+// Incremental loading settings
+const INITIAL_RENDER_COUNT = 20; // Files to render initially
+const LOAD_MORE_COUNT = 20; // Files to load when scrolling near bottom
+
 /**
- * Sidebar view displaying frontmatter violations
+ * Sidebar view displaying frontmatter violations with incremental loading
  */
 export class ViolationsView extends ItemView {
     private store: ViolationStore;
@@ -15,6 +19,12 @@ export class ViolationsView extends ItemView {
     private listContainer: HTMLElement | null = null;
     private summaryEl: HTMLElement | null = null;
     private filterContainer: HTMLElement | null = null;
+    
+    // Incremental loading state
+    private allFileEntries: Array<[string, Violation[]]> = [];
+    private renderedCount: number = 0;
+    private loadMoreSentinel: HTMLElement | null = null;
+    private intersectionObserver: IntersectionObserver | null = null;
 
     constructor(leaf: WorkspaceLeaf, store: ViolationStore) {
         super(leaf);
@@ -41,6 +51,11 @@ export class ViolationsView extends ItemView {
 
     async onClose(): Promise<void> {
         this.store.offChange(this.changeListener);
+        // Clean up intersection observer
+        if (this.intersectionObserver) {
+            this.intersectionObserver.disconnect();
+            this.intersectionObserver = null;
+        }
     }
 
     private render(): void {
@@ -83,7 +98,30 @@ export class ViolationsView extends ItemView {
             cls: "frontmatter-linter-view-list",
         });
 
+        // Set up intersection observer for infinite scroll
+        this.setupIntersectionObserver();
+
         this.renderList();
+    }
+    
+    /**
+     * Set up intersection observer for "load more" functionality
+     */
+    private setupIntersectionObserver(): void {
+        if (this.intersectionObserver) {
+            this.intersectionObserver.disconnect();
+        }
+        
+        this.intersectionObserver = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting && this.renderedCount < this.allFileEntries.length) {
+                        this.loadMoreFiles();
+                    }
+                }
+            },
+            { rootMargin: "100px" }
+        );
     }
 
     private renderFilterButtons(): void {
@@ -110,14 +148,28 @@ export class ViolationsView extends ItemView {
         }
     }
 
+    /**
+     * Render the list with incremental loading
+     */
     private renderList(): void {
         if (!this.listContainer || !this.summaryEl) return;
         this.listContainer.empty();
 
         const violations = this.store.getFilteredViolations(this.filter);
 
-        if (violations.size === 0) {
+        // Build filtered file entries
+        this.allFileEntries = [];
+        for (const [filePath, fileViolations] of violations) {
+            const filtered = this.filterViolations(filePath, fileViolations);
+            if (filtered.length > 0) {
+                this.allFileEntries.push([filePath, filtered]);
+            }
+        }
+
+        // Handle empty state
+        if (this.allFileEntries.length === 0) {
             this.summaryEl.empty();
+            
             const emptyState = this.listContainer.createDiv({
                 cls: "frontmatter-linter-view-empty",
             });
@@ -131,18 +183,26 @@ export class ViolationsView extends ItemView {
                 : this.filter === "errors"
                     ? "No errors found"
                     : "No warnings found";
-            emptyState.createEl("div", {
-                text: emptyTitle,
-                cls: "frontmatter-linter-view-empty-title",
-            });
-            emptyState.createEl("div", {
-                text: emptyDesc,
-                cls: "frontmatter-linter-view-empty-desc",
-            });
+            
+            if (!this.searchQuery) {
+                emptyState.createEl("div", {
+                    text: emptyTitle,
+                    cls: "frontmatter-linter-view-empty-title",
+                });
+                emptyState.createEl("div", {
+                    text: emptyDesc,
+                    cls: "frontmatter-linter-view-empty-desc",
+                });
+            } else {
+                emptyState.createEl("p", {
+                    text: "No violations match your search.",
+                    cls: "frontmatter-linter-view-no-results",
+                });
+            }
             return;
         }
 
-        // Summary - show counts based on filter
+        // Update summary
         let summaryText: string;
         if (this.filter === "all") {
             const errorCount = this.store.getErrorCount();
@@ -158,21 +218,66 @@ export class ViolationsView extends ItemView {
         }
         this.summaryEl.setText(summaryText);
 
-        // Filter and render
-        let hasResults = false;
-        for (const [filePath, fileViolations] of violations) {
-            const filtered = this.filterViolations(filePath, fileViolations);
-            if (filtered.length > 0) {
-                hasResults = true;
-                this.renderFileSection(this.listContainer, filePath, filtered);
-            }
+        // Render initial batch
+        this.renderedCount = 0;
+        this.renderMoreFiles(INITIAL_RENDER_COUNT);
+    }
+
+    /**
+     * Render more file sections
+     */
+    private renderMoreFiles(count: number): void {
+        if (!this.listContainer) return;
+
+        // Remove old sentinel if exists
+        if (this.loadMoreSentinel) {
+            this.loadMoreSentinel.remove();
+            this.loadMoreSentinel = null;
         }
 
-        if (!hasResults && this.searchQuery) {
-            this.listContainer.createEl("p", {
-                text: "No violations match your search.",
-                cls: "frontmatter-linter-view-no-results",
+        const endIndex = Math.min(this.renderedCount + count, this.allFileEntries.length);
+        
+        for (let i = this.renderedCount; i < endIndex; i++) {
+            const [filePath, fileViolations] = this.allFileEntries[i];
+            this.renderFileSection(this.listContainer, filePath, fileViolations);
+        }
+
+        this.renderedCount = endIndex;
+
+        // Add sentinel for loading more if there are more items
+        if (this.renderedCount < this.allFileEntries.length) {
+            this.loadMoreSentinel = this.listContainer.createDiv({
+                cls: "frontmatter-linter-load-sentinel",
             });
+            if (this.intersectionObserver) {
+                this.intersectionObserver.observe(this.loadMoreSentinel);
+            }
+        }
+    }
+
+    /**
+     * Load more files when scrolling near bottom
+     */
+    private loadMoreFiles(): void {
+        this.renderMoreFiles(LOAD_MORE_COUNT);
+    }
+
+    /**
+     * Render a file section with its violations
+     */
+    private renderFileSection(container: HTMLElement, filePath: string, violations: Violation[]): void {
+        const section = container.createDiv({
+            cls: "frontmatter-linter-view-file",
+        });
+
+        this.renderFileHeader(section, filePath, violations[0]?.schemaMapping.name || "Unknown");
+        
+        const violationsList = section.createDiv({
+            cls: "frontmatter-linter-view-violations",
+        });
+
+        for (const violation of violations) {
+            this.renderViolationItem(violationsList, violation);
         }
     }
 
@@ -190,17 +295,11 @@ export class ViolationsView extends ItemView {
         );
     }
 
-    private renderFileSection(
-        container: HTMLElement,
-        filePath: string,
-        violations: Violation[]
-    ): void {
-        const section = container.createDiv({
-            cls: "frontmatter-linter-view-file",
-        });
-
-        // File header
-        const header = section.createDiv({
+    /**
+     * Render a file header row
+     */
+    private renderFileHeader(container: HTMLElement, filePath: string, schemaName: string): void {
+        const header = container.createDiv({
             cls: "frontmatter-linter-view-file-header",
         });
 
@@ -234,34 +333,31 @@ export class ViolationsView extends ItemView {
         });
 
         // Schema badge
-        const schemaName = violations[0]?.schemaMapping.name || "Unknown";
         header.createEl("span", {
             text: schemaName,
             cls: "frontmatter-linter-view-schema",
         });
+    }
 
-        // Violations
-        const violationsList = section.createDiv({
-            cls: "frontmatter-linter-view-violations",
+    /**
+     * Render a single violation item
+     */
+    private renderViolationItem(container: HTMLElement, violation: Violation): void {
+        const isWarning = isWarningViolation(violation);
+        const item = container.createDiv({
+            cls: `frontmatter-linter-view-item frontmatter-linter-view-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
         });
 
-        for (const violation of violations) {
-            const isWarning = isWarningViolation(violation);
-            const item = violationsList.createDiv({
-                cls: `frontmatter-linter-view-item frontmatter-linter-view-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
-            });
+        const icon = this.getViolationIcon(violation.type);
+        item.createEl("span", {
+            text: icon,
+            cls: "frontmatter-linter-view-icon",
+        });
 
-            const icon = this.getViolationIcon(violation.type);
-            item.createEl("span", {
-                text: icon,
-                cls: "frontmatter-linter-view-icon",
-            });
-
-            item.createEl("span", {
-                text: violation.message,
-                cls: "frontmatter-linter-view-message",
-            });
-        }
+        item.createEl("span", {
+            text: violation.message,
+            cls: "frontmatter-linter-view-message",
+        });
     }
 
     private getViolationIcon(type: string): string {
@@ -271,6 +367,7 @@ export class ViolationsView extends ItemView {
             case "missing_warned":
                 return "*";
             case "type_mismatch":
+            case "type_mismatch_warned":
                 return "~";
             case "unknown_field":
                 return "?";

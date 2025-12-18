@@ -507,6 +507,11 @@
     padding: 8px;
 }
 
+/* Load more sentinel (invisible) */
+.frontmatter-linter-load-sentinel {
+    height: 1px;
+}
+
 .frontmatter-linter-view-file {
     margin-bottom: 12px;
     background: var(--background-secondary);
