@@ -1,50 +1,69 @@
-# Frontmatter Linter
+# Propsec
 
-A type system for Obsidian frontmatter. Define schemas, associate them with folders or tags, and get instant feedback when notes violate their expected structure.
+A type system for Obsidian to define schemas for your frontmatter.
 
-## What it does
+## Why
 
-Obsidian properties are freeform. Over time, inconsistencies creep in: typos in field names, wrong types, missing required fields. This plugin lets you define schemas and validates notes against them automatically. No modifications to your notes, just validation.
+Obsidian properties are freeform. Over time, things can break: you change the structure, use an old field, etc. This plugin validates notes against schemas you define. Your notes are untouched, but your vault's consistency becomes easier to manage.
 
-## Usage
+## Setup
 
 1. Open plugin settings
-2. Click "Add Schema Mapping"
-3. Either import fields from an existing template file or start from scratch
-4. Define your fields: name, type (string/number/boolean/date/array/object), and whether it's required
-5. Set a query to target files: `Journal/Gym/*` for recursive folder matching, `Journal/Gym` for direct only, `#book` for tags, or combine them with `or`
-6. Violations show in the status bar (click to see details) or use the sidebar view
+2. Create a schema: click **+ Add Schema**
+3. Set a query to target files
+4. Add fields: name, type, required/optional
+5. Violations appear in the status bar/sidebar
 
-## Query syntax
+## Query Syntax
 
-- `folder` - files directly in that folder
-- `folder/*` - files in folder and all subfolders
-- `#tag` - files with that tag
-- `folder/* or #tag` - union (match either condition)
+| Query | Matches |
+|-------|---------|
+| `Journal` | Files directly in Journal folder |
+| `Journal/*` | Files in Journal and all subfolders |
+| `#book` | Files with #book tag |
+| `Projects/* or #active` | Files matching either condition |
+
+## Field Types
+
+**Primitives:** `string`, `number`, `boolean`, `date`, `array`, `object`, `unknown`
+
+**Custom Types:** Define reusable types in settings (Types section). A custom type is a named group of fields. Use them when multiple schemas share the same structure or you need nested validation.
+
+## Constraints
+
+Each field type supports optional constraints:
+
+| Type | Constraints |
+|------|-------------|
+| string | `pattern` (regex), `minLength`, `maxLength` |
+| number | `min`, `max` |
+| array | `minItems`, `maxItems`, `contains` (required values) |
+
+## Field Options
+
+- **Required**: Error if field is missing
+- **Warn**: Warning if field is missing
+- **Allow Empty**: Accept null/empty values as valid (equivalent to union with `null` type)
+
+## Property Filters
+
+Narrow which files a schema applies to beyond the query:
+
+- `modifiedAfter` / `modifiedBefore`: Filter by modification date
+- `createdAfter` / `createdBefore`: Filter by creation date
+- `hasProperty` / `notHasProperty`: Filter by property existence
+- `propertyEquals`: Filter by specific property value
 
 ## Validation
 
-The plugin checks:
-- **Missing required fields** - fields marked as required that don't exist in the note
-- **Type mismatches** - when a value doesn't match the expected type
-- **Unknown fields** - fields in the note that aren't defined in the schema (optional warning)
+The plugin checks for:
 
-For string, number, array, and object fields, you can also set constraints (min/max length, min/max value, required keys, etc.).
-
-## Commands
-
-- **Validate All Notes** - run validation across all mapped folders
-- **Validate Current Note** - validate just the active note
-- **Show Violations (Modal)** - open a modal with all current violations
-- **Show Violations (Sidebar)** - open the violations panel in the right sidebar
+- Missing required/warned fields
+- Type mismatches
+- Constraint violations (length, range, pattern, etc.)
+- Unknown fields (fields not in schema) - optional, enabled by default
 
 ## Installation
 
-Copy the plugin folder to your vault's `.obsidian/plugins/` directory, or install via BRAT.
+Copy to `.obsidian/plugins/` or install via BRAT.
 
-## Development
-
-```bash
-npm install
-npm run dev
-```
