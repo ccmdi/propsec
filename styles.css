@@ -999,3 +999,19 @@
     background: rgba(var(--color-yellow-rgb), 0.15);
     color: var(--text-warning);
 }
+
+/* Confirm Modal */
+.frontmatter-linter-confirm-modal h3 {
+    margin-top: 0;
+}
+
+.frontmatter-linter-confirm-modal p {
+    color: var(--text-muted);
+}
+
+.frontmatter-linter-confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}

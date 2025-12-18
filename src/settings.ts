@@ -4,6 +4,7 @@ import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
 import { SchemaPreviewModal } from "./ui/schemaPreviewModal";
+import { ConfirmModal } from "./ui/confirmModal";
 import { describePropertyFilter } from "./query/matcher";
 import { makeDraggable } from "./ui/draggable";
 import PropsecPlugin from "main";
@@ -347,23 +348,31 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "frontmatter-linter-delete-btn",
         });
         setIcon(deleteBtn, "x");
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
-        deleteBtn.addEventListener("click", async () => {
-            const idx = this.settings.schemaMappings.findIndex(
-                (m) => m.id === mapping.id
-            );
-            if (idx >= 0) {
-                this.settings.schemaMappings.splice(idx, 1);
-                await this.onSettingsChange();
-                this.onSchemaChange();
-                itemEl.remove();
-                if (this.settings.schemaMappings.length === 0) {
-                    container.createEl("p", {
-                        text: "No schemas defined. Click the button below to add one.",
-                        cls: "frontmatter-linter-no-schemas",
-                    });
+        deleteBtn.addEventListener("click", () => {
+            const confirmModal = new ConfirmModal(
+                this.app,
+                "Delete schema",
+                `Are you sure you want to delete "${mapping.name}"?`,
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                async () => {
+                    const idx = this.settings.schemaMappings.findIndex(
+                        (m) => m.id === mapping.id
+                    );
+                    if (idx >= 0) {
+                        this.settings.schemaMappings.splice(idx, 1);
+                        await this.onSettingsChange();
+                        this.onSchemaChange();
+                        itemEl.remove();
+                        if (this.settings.schemaMappings.length === 0) {
+                            container.createEl("p", {
+                                text: "No schemas defined. Click the button below to add one.",
+                                cls: "frontmatter-linter-no-schemas",
+                            });
+                        }
+                    }
                 }
-            }
+            );
+            confirmModal.open();
         });
 
         // Info row
@@ -463,8 +472,7 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "frontmatter-linter-delete-btn",
         });
         setIcon(deleteBtn, "x");
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
-        deleteBtn.addEventListener("click", async () => {
+        deleteBtn.addEventListener("click", () => {
             // Check if any schema is using this type
             const usedInSchemas = this.settings.schemaMappings.filter((mapping) =>
                 mapping.fields.some((field) => field.type === customType.name)
@@ -478,20 +486,29 @@ export class PropsecSettingTab extends PluginSettingTab {
                 return;
             }
 
-            const index = this.settings.customTypes.findIndex(
-                (t) => t.id === customType.id
-            );
-            if (index >= 0) {
-                this.settings.customTypes.splice(index, 1);
-                await this.onSettingsChange();
-                itemEl.remove();
-                if (this.settings.customTypes.length === 0) {
-                    container.createEl("p", {
-                        text: "No types defined. Click the button below to add one.",
-                        cls: "frontmatter-linter-no-types",
-                    });
+            const confirmModal = new ConfirmModal(
+                this.app,
+                "Delete type",
+                `Are you sure you want to delete "${customType.name}"?`,
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                async () => {
+                    const index = this.settings.customTypes.findIndex(
+                        (t) => t.id === customType.id
+                    );
+                    if (index >= 0) {
+                        this.settings.customTypes.splice(index, 1);
+                        await this.onSettingsChange();
+                        itemEl.remove();
+                        if (this.settings.customTypes.length === 0) {
+                            container.createEl("p", {
+                                text: "No types defined. Click the button below to add one.",
+                                cls: "frontmatter-linter-no-types",
+                            });
+                        }
+                    }
                 }
-            }
+            );
+            confirmModal.open();
         });
 
         // Info row
