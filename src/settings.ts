@@ -10,6 +10,8 @@ export class PropsecSettingTab extends PluginSettingTab {
     private settings: PropsecSettings;
     private onSettingsChange: () => Promise<void>;
     private onSchemaChange: (mappingId?: string) => void;
+    private customTypesContainer: HTMLElement | null = null;
+    private schemaListContainer: HTMLElement | null = null;
 
     constructor(
         app: App,
@@ -54,18 +56,18 @@ export class PropsecSettingTab extends PluginSettingTab {
         new Setting(containerEl).setName("Types").setHeading();
 
         // Custom types list
-        const customTypesContainer = containerEl.createDiv({
+        this.customTypesContainer = containerEl.createDiv({
             cls: "frontmatter-linter-custom-types-list",
         });
 
         if (this.settings.customTypes.length === 0) {
-            customTypesContainer.createEl("p", {
+            this.customTypesContainer.createEl("p", {
                 text: "No types defined. Click the button below to add one.",
                 cls: "frontmatter-linter-no-types",
             });
         } else {
             for (const customType of this.settings.customTypes) {
-                this.renderCustomTypeItem(customTypesContainer, customType);
+                this.renderCustomTypeItem(this.customTypesContainer, customType);
             }
         }
 
@@ -82,7 +84,11 @@ export class PropsecSettingTab extends PluginSettingTab {
                         async (newType) => {
                             this.settings.customTypes.push(newType);
                             await this.onSettingsChange();
-                            void this.display(); // Refresh the settings view
+                            if (this.customTypesContainer) {
+                                // Remove "no types" placeholder if present
+                                this.customTypesContainer.querySelector(".frontmatter-linter-no-types")?.remove();
+                                this.renderCustomTypeItem(this.customTypesContainer, newType);
+                            }
                         }
                     );
                     modal.open();
@@ -96,18 +102,18 @@ export class PropsecSettingTab extends PluginSettingTab {
         new Setting(containerEl).setName("Schema").setHeading();
 
         // Schema list
-        const schemaListContainer = containerEl.createDiv({
+        this.schemaListContainer = containerEl.createDiv({
             cls: "frontmatter-linter-schema-list",
         });
 
         if (this.settings.schemaMappings.length === 0) {
-            schemaListContainer.createEl("p", {
+            this.schemaListContainer.createEl("p", {
                 text: "No schemas defined. Click the button below to add one.",
                 cls: "frontmatter-linter-no-schemas",
             });
         } else {
             this.settings.schemaMappings.forEach((mapping, index) => {
-                this.renderSchemaMappingItem(schemaListContainer, mapping, index);
+                this.renderSchemaMappingItem(this.schemaListContainer, mapping, index);
             });
         }
 
@@ -125,7 +131,12 @@ export class PropsecSettingTab extends PluginSettingTab {
                             this.settings.schemaMappings.push(mapping);
                             await this.onSettingsChange();
                             this.onSchemaChange(mapping.id);
-                            void this.display(); // Refresh the settings view
+                            if (this.schemaListContainer) {
+                                // Remove "no schemas" placeholder if present
+                                this.schemaListContainer.querySelector(".frontmatter-linter-no-schemas")?.remove();
+                                const newIndex = this.settings.schemaMappings.length - 1;
+                                this.renderSchemaMappingItem(this.schemaListContainer, mapping, newIndex);
+                            }
                         }
                     );
                     modal.open();
@@ -283,7 +294,8 @@ export class PropsecSettingTab extends PluginSettingTab {
             mapping.enabled = checkbox.checked;
             await this.onSettingsChange();
             this.onSchemaChange(mapping.id);
-            void this.display();
+            itemEl.toggleClass("frontmatter-linter-schema-disabled", !mapping.enabled);
+            itemEl.querySelector(".frontmatter-linter-schema-name")?.toggleClass("frontmatter-linter-schema-name-disabled", !mapping.enabled);
         });
 
         // Schema name
@@ -317,7 +329,10 @@ export class PropsecSettingTab extends PluginSettingTab {
                         this.settings.schemaMappings[idx] = updatedMapping;
                         await this.onSettingsChange();
                         this.onSchemaChange(updatedMapping.id);
-                        void this.display();
+                        // Replace item instead of re-rendering everything
+                        const temp = document.createElement("div");
+                        this.renderSchemaMappingItem(temp, updatedMapping, idx);
+                        itemEl.replaceWith(temp.firstChild!);
                     }
                 }
             );
@@ -337,7 +352,13 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.settings.schemaMappings.splice(idx, 1);
                 await this.onSettingsChange();
                 this.onSchemaChange();
-                void this.display();
+                itemEl.remove();
+                if (this.settings.schemaMappings.length === 0) {
+                    container.createEl("p", {
+                        text: "No schemas defined. Click the button below to add one.",
+                        cls: "frontmatter-linter-no-schemas",
+                    });
+                }
             }
         });
 
@@ -405,7 +426,10 @@ export class PropsecSettingTab extends PluginSettingTab {
                     if (index >= 0) {
                         this.settings.customTypes[index] = updatedType;
                         await this.onSettingsChange();
-                        void this.display();
+                        // Replace item instead of re-rendering everything
+                        const temp = document.createElement("div");
+                        this.renderCustomTypeItem(temp, updatedType);
+                        itemEl.replaceWith(temp.firstChild!);
                     }
                 }
             );
@@ -437,7 +461,13 @@ export class PropsecSettingTab extends PluginSettingTab {
             if (index >= 0) {
                 this.settings.customTypes.splice(index, 1);
                 await this.onSettingsChange();
-                void this.display();
+                itemEl.remove();
+                if (this.settings.customTypes.length === 0) {
+                    container.createEl("p", {
+                        text: "No types defined. Click the button below to add one.",
+                        cls: "frontmatter-linter-no-types",
+                    });
+                }
             }
         });
 
