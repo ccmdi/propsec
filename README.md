@@ -4,7 +4,9 @@
 
 # Propsec
 
-A type system for Obsidian to define schemas for your frontmatter.
+Schema enforcement for Obsidian frontmatter. 
+
+Define schemas based on templates or invariants in your vault, add custom reusable types, and more.
 
 ## Why
 
@@ -60,14 +62,6 @@ Each field type supports optional constraints:
 - **Required**: Error if field is missing (key must be present)
 - **Warn**: Warning if field is missing (softer than required)
 
-## Validation
-
-The plugin checks for:
-
-- Missing required/warned fields
-- Type mismatches
-- Constraint violations (length, range, pattern, etc.)
-- Unknown fields (fields not in schema) - optional, enabled by default
 
 ## Installation
 
