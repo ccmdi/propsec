@@ -1,0 +1,9 @@
+{
+	"id": "propsec",
+	"name": "propsec",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "A type system for Obsidian frontmatter.",
+	"author": "ccmdi",
+	"isDesktopOnly": false
+}

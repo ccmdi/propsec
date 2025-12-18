@@ -1,0 +1,99 @@
+import { App, TFile } from "obsidian";
+import { FieldType, SchemaField } from "../types";
+
+// Date regex for ISO format YYYY-MM-DD
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Infer the FieldType from a frontmatter value
+ */
+export function inferFieldType(value: unknown): FieldType {
+    if (value === null || value === undefined) {
+        return "unknown";
+    }
+
+    if (typeof value === "string") {
+        // Check if it's a date string
+        if (ISO_DATE_REGEX.test(value)) {
+            return "date";
+        }
+        return "string";
+    }
+
+    if (typeof value === "number") {
+        return "number";
+    }
+
+    if (typeof value === "boolean") {
+        return "boolean";
+    }
+
+    if (Array.isArray(value)) {
+        return "array";
+    }
+
+    if (typeof value === "object") {
+        return "object";
+    }
+
+    return "unknown";
+}
+
+/**
+ * Extract schema fields from a template file's frontmatter
+ * All fields default to required=true
+ */
+export async function extractSchemaFromTemplate(
+    app: App,
+    templateFile: TFile
+): Promise<SchemaField[]> {
+    const frontmatter = app.metadataCache.getFileCache(templateFile)?.frontmatter;
+
+    if (!frontmatter) {
+        return [];
+    }
+
+    const fields: SchemaField[] = [];
+
+    for (const [key, value] of Object.entries(frontmatter)) {
+        // Skip internal position field added by Obsidian
+        if (key === "position") continue;
+
+        fields.push({
+            name: key,
+            type: inferFieldType(value),
+            required: true, // Default to required
+        });
+    }
+
+    return fields;
+}
+
+/**
+ * Get a human-readable type name for display
+ */
+export function getTypeDisplayName(type: FieldType): string {
+    switch (type) {
+        case "string":
+            return "String";
+        case "number":
+            return "Number";
+        case "boolean":
+            return "Boolean";
+        case "date":
+            return "Date";
+        case "array":
+            return "Array";
+        case "object":
+            return "Object";
+        case "unknown":
+            return "Unknown";
+    }
+}
+
+/**
+ * Get all available field types for dropdown selection
+ */
+export function getAllFieldTypes(): FieldType[] {
+    return ["string", "number", "boolean", "date", "array", "object", "unknown"];
+}
