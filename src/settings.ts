@@ -3,6 +3,7 @@ import { PropsecSettings, SchemaMapping, CustomType } from "./types";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
+import { SchemaPreviewModal } from "./ui/schemaPreviewModal";
 import { describePropertyFilter } from "./query/matcher";
 import { makeDraggable } from "./ui/draggable";
 import PropsecPlugin from "main";
@@ -300,6 +301,16 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Buttons container
         const buttonsEl = headerRow.createDiv({
             cls: "frontmatter-linter-schema-buttons",
+        });
+
+        // Preview button
+        const previewBtn = buttonsEl.createEl("button", {
+            attr: { title: "Preview resolved schema" },
+        });
+        setIcon(previewBtn, "eye");
+        previewBtn.addEventListener("click", () => {
+            const modal = new SchemaPreviewModal(this.app, mapping);
+            modal.open();
         });
 
         // Edit button
