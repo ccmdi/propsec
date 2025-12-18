@@ -133,6 +133,8 @@ export function getTypeDisplayName(type: FieldType): string {
             return "Array";
         case "object":
             return "Object";
+        case "null":
+            return "Null";
         case "unknown":
             return "Unknown";
         default:
@@ -145,5 +147,5 @@ export function getTypeDisplayName(type: FieldType): string {
  * Get all available field types for dropdown selection
  */
 export function getAllFieldTypes(): FieldType[] {
-    return ["string", "number", "boolean", "date", "array", "object", "unknown"];
+    return ["string", "number", "boolean", "date", "array", "object", "null", "unknown"];
 }

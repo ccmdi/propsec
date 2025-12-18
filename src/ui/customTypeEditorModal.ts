@@ -361,20 +361,6 @@ export class CustomTypeEditorModal extends Modal {
             }
         });
 
-        // Allow empty checkbox
-        const allowEmptyLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
-            attr: { title: "Allow null/empty values" },
-        });
-        const allowEmptyCheckbox = allowEmptyLabel.createEl("input", {
-            type: "checkbox",
-        });
-        allowEmptyCheckbox.checked = field.allowEmpty || false;
-        allowEmptyCheckbox.addEventListener("change", (e) => {
-            field.allowEmpty = (e.target as HTMLInputElement).checked;
-        });
-        allowEmptyLabel.appendText(" Null");
-
         // Expand button
         const hasConstraints = this.typeSupportsConstraints(field.type);
         const expandBtn = mainRow.createEl("button", {

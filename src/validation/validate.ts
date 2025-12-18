@@ -65,10 +65,9 @@ function validateField(
     // Check required/warned
     const isRequired = variants.some(v => v.required);
     const isWarned = !isRequired && variants.some(v => v.warn);
-    const anyAllowsEmpty = variants.some(v => v.allowEmpty);
-    const isEmpty = value === null || value === undefined;
 
-    if (isEmpty && !anyAllowsEmpty) {
+    // Key is missing entirely - required fields must have the key present
+    if (!hasField) {
         if (isRequired) {
             violations.push({
                 filePath,
@@ -77,7 +76,6 @@ function validateField(
                 type: "missing_required",
                 message: `Missing required field: ${path}`,
             });
-            return violations;
         } else if (isWarned) {
             violations.push({
                 filePath,
@@ -86,14 +84,11 @@ function validateField(
                 type: "missing_warned",
                 message: `Missing recommended field: ${path}`,
             });
-            return violations;
         }
+        return violations;
     }
 
-    // If no value, nothing more to check
-    if (!hasField || isEmpty) return violations;
-
-    // Find matching variant
+    // Key exists - find matching type variant (null is now a type, so null values need a null variant)
     const matchingVariant = findMatchingVariant(value, variants);
 
     if (!matchingVariant) {
@@ -263,21 +258,7 @@ function validateCustomTypeObject(
 
         if (!hasField) continue;
 
-        // Check null/empty
-        if (value === null || value === undefined) {
-            if (field.required && !field.allowEmpty) {
-                violations.push({
-                    filePath,
-                    schemaMapping: schema,
-                    field: fieldPath,
-                    type: "missing_required",
-                    message: `Field cannot be null/empty: ${fieldPath}`,
-                });
-            }
-            continue;
-        }
-
-        // Check type
+        // Check type (null values require type: "null" to match)
         if (!checkTypeMatch(value, field.type)) {
             violations.push({
                 filePath,
@@ -301,6 +282,12 @@ function validateCustomTypeObject(
 // ============ Type Checking ============
 
 function checkTypeMatch(value: unknown, expectedType: FieldType): boolean {
+    // Handle null type first - it matches null and undefined values
+    if (expectedType === "null") {
+        return value === null || value === undefined;
+    }
+
+    // For all other types, null/undefined don't match
     if (value === null || value === undefined) return false;
 
     if (isPrimitiveType(expectedType)) {
@@ -333,15 +320,13 @@ function validateCustomTypeMatch(obj: Record<string, unknown>, customType: { fie
         //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
 
+        // Required fields must have the key present
         if (field.required && !hasField) return false;
 
+        // If field exists, check type (null values require type: "null")
         if (hasField) {
             const value = obj[field.name];
-            if (value === null || value === undefined) {
-                if (field.required && !field.allowEmpty) return false;
-            } else {
-                if (!checkTypeMatch(value, field.type)) return false;
-            }
+            if (!checkTypeMatch(value, field.type)) return false;
         }
     }
     return true;
@@ -350,11 +335,6 @@ function validateCustomTypeMatch(obj: Record<string, unknown>, customType: { fie
 function findMatchingVariant(value: unknown, variants: SchemaField[]): SchemaField | null {
     for (const variant of variants) {
         if (checkTypeMatch(value, variant.type)) return variant;
-        if (variant.allowEmpty) {
-            if (value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
-                return variant;
-            }
-        }
     }
     return null;
 }
@@ -506,9 +486,10 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
     for (const field of customType.fields) {
         //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
-         
+
         const value = hasField ? obj[field.name] : undefined;
 
+        // Required fields must have the key present
         if (field.required && !hasField) {
             errors.push(`missing required field "${field.name}"`);
             continue;
@@ -516,13 +497,7 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
 
         if (!hasField) continue;
 
-        if (value === null || value === undefined) {
-            if (field.required && !field.allowEmpty) {
-                errors.push(`"${field.name}" cannot be null/empty`);
-            }
-            continue;
-        }
-
+        // Check type (null values require type: "null")
         if (!checkTypeMatch(value, field.type)) {
             errors.push(`"${field.name}" expected ${field.type}, got ${getActualType(value)}`);
         }

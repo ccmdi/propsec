@@ -8,6 +8,7 @@ export type PrimitiveFieldType =
     | "date"
     | "array"
     | "object"
+    | "null"
     | "unknown";
 
 // FieldType can be a primitive or a custom type name
@@ -15,7 +16,7 @@ export type FieldType = string;
 
 // Helper function to check if a type is a built-in primitive
 export function isPrimitiveType(type: string): type is PrimitiveFieldType {
-    return ["string", "number", "boolean", "date", "array", "object", "unknown"].includes(type);
+    return ["string", "number", "boolean", "date", "array", "object", "null", "unknown"].includes(type);
 }
 
 // Type definition - user-defined reusable types
@@ -54,8 +55,6 @@ export interface SchemaField {
     required: boolean;
     // Warn if missing (mutually exclusive with required - either warn or required, not both)
     warn?: boolean;
-    // Allow null/empty as valid (for "array OR null" scenarios)
-    allowEmpty?: boolean;
 
     // For arrays: specify what type the elements should be
     arrayElementType?: FieldType;
