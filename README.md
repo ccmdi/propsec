@@ -14,7 +14,8 @@ Obsidian properties are freeform. Over time, things can break: you change the st
 4. Add fields: name, type, required/optional
 5. Violations appear in the status bar/sidebar
 
-## Query Syntax
+## Schema definition
+The query field allows schema matching based on file paths and/or tags:
 
 | Query | Matches |
 |-------|---------|
@@ -23,11 +24,22 @@ Obsidian properties are freeform. Over time, things can break: you change the st
 | `#book` | Files with #book tag |
 | `Projects/* or #active` | Files matching either condition |
 
+You can also narrow which files a schema applies to with properties:
+
+- `modifiedAfter` / `modifiedBefore`: Filter by modification date
+- `createdAfter` / `createdBefore`: Filter by creation date
+- `hasProperty` / `notHasProperty`: Filter by property existence
+- `propertyEquals`: Filter by specific property values (property-operator-value list)
+
+Files are matched to schemas in the order of the schemas.
+
 ## Field Types
 
-**Primitives:** `string`, `number`, `boolean`, `date`, `array`, `object`, `unknown`
+**Primitives:** `string`, `number`, `boolean`, `date`, `array`, `object`, `null`, `unknown`
 
-**Custom Types:** Define reusable types in settings. A custom type is a named group of fields. Use them when multiple schemas share the same structure or you need nested validation.
+**Custom Types:** Define reusable types in settings. A custom type is a named group of fields. Use them when multiple schemas share the same structure or you need nested validation.[^1]
+
+**Union Types:** Add multiple field entries with the same name but different types. For example, two entries for `status` with types `string` and `null` creates `string | null`.
 
 ## Constraints
 
@@ -41,18 +53,8 @@ Each field type supports optional constraints:
 
 ## Field Options
 
-- **Required**: Error if field is missing
-- **Warn**: Warning if field is missing
-- **Allow Empty**: Accept null/empty values as valid (equivalent to union with `null` type)
-
-## Property Filters
-
-Narrow which files a schema applies to beyond the query:
-
-- `modifiedAfter` / `modifiedBefore`: Filter by modification date
-- `createdAfter` / `createdBefore`: Filter by creation date
-- `hasProperty` / `notHasProperty`: Filter by property existence
-- `propertyEquals`: Filter by specific property value
+- **Required**: Error if field is missing (key must be present)
+- **Warn**: Warning if field is missing (softer than required)
 
 ## Validation
 
@@ -67,3 +69,4 @@ The plugin checks for:
 
 Copy to `.obsidian/plugins/` or install via BRAT.
 
+[^1]: When defining order for custom types, it is purely visual.

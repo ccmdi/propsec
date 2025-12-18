@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-frontmatter-linter",
-	"version": "1.0.0",
-	"description": "A type system for Obsidian frontmatter. Define schemas and validate notes automatically.",
+	"name": "propsec",
+	"version": "0.1.0",
+	"description": "A type system for Obsidian frontmatter.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
