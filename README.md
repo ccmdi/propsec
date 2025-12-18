@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/logo.png" alt="Propsec Logo" width="360">
+</p>
+
 # Propsec
 
 A type system for Obsidian to define schemas for your frontmatter.
