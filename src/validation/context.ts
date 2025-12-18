@@ -1,7 +1,7 @@
 import { CustomType } from "../types";
 
 /**
- * Global validation context - avoids prop drilling customTypes everywhere
+ * Global validation context
  */
 class ValidationContext {
     private _customTypes: CustomType[] = [];

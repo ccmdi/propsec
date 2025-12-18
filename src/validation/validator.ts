@@ -4,6 +4,7 @@ import { ViolationStore } from "./store";
 import { validateFrontmatter } from "./validate";
 import { validationContext } from "./context";
 import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
+import { queryContext } from "../query/context";
 
 const BATCH_SIZE = 50;
 
@@ -88,15 +89,21 @@ export class Validator {
 
     /**
      * Validate all files that match a schema mapping's query
+     * Uses QueryIndex for efficient file lookup instead of scanning all files
      */
     async validateMapping(mapping: SchemaMapping): Promise<void> {
-        const allFiles = this.app.vault.getMarkdownFiles();
+        if (!mapping.enabled || !mapping.query) return;
+
+        // Get files that match the query using the index (fast!)
+        const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
 
         let processed = 0;
-        for (const file of allFiles) {
-            if (this.fileMatchesMapping(file, mapping)) {
-                this.validateFile(file, mapping);
+        for (const file of candidateFiles) {
+            // Apply property filter if present
+            if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
+                continue;
             }
+            this.validateFile(file, mapping);
             processed++;
             if (processed % BATCH_SIZE === 0) {
                 await yieldToMain();

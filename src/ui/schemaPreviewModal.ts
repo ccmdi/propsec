@@ -1,6 +1,7 @@
-import { App, Modal, TFile } from "obsidian";
+import { App, Modal } from "obsidian";
 import { SchemaField, SchemaMapping } from "../types";
-import { fileMatchesQuery } from "../query/matcher";
+import { queryContext } from "../query/context";
+import { fileMatchesPropertyFilter } from "../query/matcher";
 
 interface ResolvedField {
     name: string;
@@ -96,16 +97,19 @@ export class SchemaPreviewModal extends Modal {
 
     /**
      * Count how many notes match this schema's query
+     * Uses QueryIndex for fast lookup
      */
     private countMatchingNotes(): number {
-        const files = this.app.vault.getMarkdownFiles();
-        let count = 0;
-        for (const file of files) {
-            if (fileMatchesQuery(this.app, file, this.mapping.query)) {
-                count++;
-            }
+        const files = queryContext.index.getFilesForQuery(this.mapping.query);
+        
+        // Apply property filter if present
+        if (this.mapping.propertyFilter) {
+            return files.filter(f => 
+                fileMatchesPropertyFilter(this.app, f, this.mapping.propertyFilter!)
+            ).length;
         }
-        return count;
+        
+        return files.length;
     }
 
     /**
