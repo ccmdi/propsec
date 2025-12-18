@@ -111,7 +111,7 @@ function validateField(
             filePath,
             schemaMapping: schema,
             field: path,
-            type: "type_mismatch",
+            type: isWarned ? "type_mismatch_warned" : "type_mismatch",
             message,
             expected: expectedTypes,
             actual: getActualType(value),

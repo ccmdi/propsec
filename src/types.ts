@@ -147,6 +147,7 @@ export type ViolationType =
     | "missing_required"
     | "missing_warned"
     | "type_mismatch"
+    | "type_mismatch_warned"
     | "unknown_field"
     | "pattern_mismatch"
     | "string_too_short"
@@ -171,6 +172,7 @@ export interface Violation {
 // Warning types are violations that are informational rather than errors
 export const WARNING_VIOLATION_TYPES: ViolationType[] = [
     "missing_warned",
+    "type_mismatch_warned",
     "unknown_field",
 ];
 

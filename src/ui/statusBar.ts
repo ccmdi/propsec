@@ -51,7 +51,7 @@ export class StatusBarItem {
      */
     update(): void {
         const totalViolations = this.store.getTotalViolationCount(this.excludeWarnings);
-        const fileCount = this.store.getFileCount();
+        const fileCount = this.store.getFileCount(this.excludeWarnings);
 
         // Clear existing content
         this.statusBarEl.empty();

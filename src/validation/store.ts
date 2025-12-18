@@ -132,9 +132,19 @@ export class ViolationStore {
 
     /**
      * Get count of files with violations
+     * @param excludeWarnings If true, only count files that have at least one error (not just warnings)
      */
-    getFileCount(): number {
-        return this.state.violations.size;
+    getFileCount(excludeWarnings: boolean = false): number {
+        if (!excludeWarnings) {
+            return this.state.violations.size;
+        }
+        let count = 0;
+        for (const violations of this.state.violations.values()) {
+            if (violations.some(v => !isWarningViolation(v))) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
