@@ -744,3 +744,108 @@
 .frontmatter-linter-hidden {
     display: none;
 }
+
+/* Property conditions */
+.frontmatter-linter-conditions-section {
+    margin-top: 12px;
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 12px;
+}
+
+.frontmatter-linter-conditions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.frontmatter-linter-conditions-header span {
+    font-weight: 500;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.frontmatter-linter-add-condition-btn {
+    padding: 2px 6px;
+    background: transparent;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.frontmatter-linter-add-condition-btn:hover {
+    background: var(--background-modifier-hover);
+}
+
+.frontmatter-linter-add-condition-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.frontmatter-linter-conditions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.frontmatter-linter-condition-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.frontmatter-linter-condition-property {
+    flex: 1;
+    min-width: 80px;
+}
+
+.frontmatter-linter-condition-operator {
+    width: 110px;
+}
+
+.frontmatter-linter-condition-value {
+    flex: 1;
+    min-width: 80px;
+}
+
+.frontmatter-linter-condition-delete {
+    padding: 2px 6px;
+    background: transparent;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.frontmatter-linter-condition-delete:hover {
+    color: var(--text-error);
+    background: var(--background-modifier-hover);
+}
+
+.frontmatter-linter-condition-delete svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Property suggestion styling */
+.frontmatter-linter-property-suggestion {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.frontmatter-linter-property-name {
+    flex: 1;
+}
+
+.frontmatter-linter-property-type {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    font-style: italic;
+}

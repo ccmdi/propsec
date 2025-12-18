@@ -27,7 +27,7 @@ Obsidian properties are freeform. Over time, things can break: you change the st
 
 **Primitives:** `string`, `number`, `boolean`, `date`, `array`, `object`, `unknown`
 
-**Custom Types:** Define reusable types in settings (Types section). A custom type is a named group of fields. Use them when multiple schemas share the same structure or you need nested validation.
+**Custom Types:** Define reusable types in settings. A custom type is a named group of fields. Use them when multiple schemas share the same structure or you need nested validation.
 
 ## Constraints
 

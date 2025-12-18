@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { PropertyFilter } from "../types";
+import { PropertyFilter, PropertyCondition, PropertyConditionOperator } from "../types";
 
 /**
  * Query syntax:
@@ -209,12 +209,98 @@ export function fileMatchesPropertyFilter(app: App, file: TFile, filter: Propert
         if (frontmatter && filter.notHasProperty in frontmatter) return false;
     }
 
-    if (filter.propertyEquals) {
-        const { key, value } = filter.propertyEquals;
-        if (!frontmatter || String(frontmatter[key]) !== value) return false;
+    // Check property conditions (AND logic - all must match)
+    if (filter.conditions && filter.conditions.length > 0) {
+        for (const condition of filter.conditions) {
+            if (!evaluateCondition(frontmatter, condition)) {
+                return false;
+            }
+        }
     }
 
     return true;
+}
+
+/**
+ * Evaluate a single property condition against frontmatter
+ */
+function evaluateCondition(frontmatter: Record<string, unknown> | undefined, condition: PropertyCondition): boolean {
+    const { property, operator, value } = condition;
+
+    // If no frontmatter or property doesn't exist
+    if (!frontmatter || !(property in frontmatter)) {
+        // For "not_equals" and "not_contains", missing property is a match
+        return operator === "not_equals" || operator === "not_contains";
+    }
+
+    const propValue = frontmatter[property];
+
+    // Handle different operators
+    switch (operator) {
+        case "equals":
+            return String(propValue) === value;
+
+        case "not_equals":
+            return String(propValue) !== value;
+
+        case "contains":
+            if (Array.isArray(propValue)) {
+                return propValue.some(v => String(v) === value);
+            }
+            return String(propValue).includes(value);
+
+        case "not_contains":
+            if (Array.isArray(propValue)) {
+                return !propValue.some(v => String(v) === value);
+            }
+            return !String(propValue).includes(value);
+
+        case "greater_than":
+        case "less_than":
+        case "greater_or_equal":
+        case "less_or_equal":
+            return evaluateNumericCondition(propValue, operator, value);
+
+        default:
+            return false;
+    }
+}
+
+/**
+ * Evaluate numeric comparison operators
+ */
+function evaluateNumericCondition(
+    propValue: unknown,
+    operator: PropertyConditionOperator,
+    compareValue: string
+): boolean {
+    // Try to parse both as numbers
+    const numProp = typeof propValue === "number" ? propValue : parseFloat(String(propValue));
+    const numCompare = parseFloat(compareValue);
+
+    // If either isn't a valid number, try date comparison
+    if (isNaN(numProp) || isNaN(numCompare)) {
+        const dateProp = new Date(String(propValue)).getTime();
+        const dateCompare = new Date(compareValue).getTime();
+
+        if (!isNaN(dateProp) && !isNaN(dateCompare)) {
+            switch (operator) {
+                case "greater_than": return dateProp > dateCompare;
+                case "less_than": return dateProp < dateCompare;
+                case "greater_or_equal": return dateProp >= dateCompare;
+                case "less_or_equal": return dateProp <= dateCompare;
+            }
+        }
+        return false;
+    }
+
+    switch (operator) {
+        case "greater_than": return numProp > numCompare;
+        case "less_than": return numProp < numCompare;
+        case "greater_or_equal": return numProp >= numCompare;
+        case "less_or_equal": return numProp <= numCompare;
+        default: return false;
+    }
 }
 
 /**
@@ -229,7 +315,46 @@ export function describePropertyFilter(filter: PropertyFilter): string {
     if (filter.createdBefore) parts.push(`created before ${filter.createdBefore}`);
     if (filter.hasProperty) parts.push(`has "${filter.hasProperty}"`);
     if (filter.notHasProperty) parts.push(`no "${filter.notHasProperty}"`);
-    if (filter.propertyEquals) parts.push(`${filter.propertyEquals.key}="${filter.propertyEquals.value}"`);
+
+    if (filter.conditions && filter.conditions.length > 0) {
+        for (const cond of filter.conditions) {
+            parts.push(`${cond.property} ${getOperatorSymbol(cond.operator)} ${cond.value}`);
+        }
+    }
 
     return parts.length > 0 ? parts.join(", ") : "";
+}
+
+/**
+ * Get a human-readable symbol for an operator
+ */
+export function getOperatorSymbol(operator: PropertyConditionOperator): string {
+    switch (operator) {
+        case "equals": return "=";
+        case "not_equals": return "!=";
+        case "greater_than": return ">";
+        case "less_than": return "<";
+        case "greater_or_equal": return ">=";
+        case "less_or_equal": return "<=";
+        case "contains": return "contains";
+        case "not_contains": return "!contains";
+        default: return "?";
+    }
+}
+
+/**
+ * Get display name for an operator
+ */
+export function getOperatorDisplayName(operator: PropertyConditionOperator): string {
+    switch (operator) {
+        case "equals": return "equals";
+        case "not_equals": return "not equals";
+        case "greater_than": return "greater than";
+        case "less_than": return "less than";
+        case "greater_or_equal": return ">=";
+        case "less_or_equal": return "<=";
+        case "contains": return "contains";
+        case "not_contains": return "not contains";
+        default: return operator;
+    }
 }

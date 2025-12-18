@@ -1,17 +1,15 @@
-import { App, Modal, Notice, setIcon, Setting, TFile, TFolder } from "obsidian";
+import { App, Modal, Notice, setIcon, Setting, TFile, TFolder, AbstractInputSuggest } from "obsidian";
 import {
     FieldType,
     SchemaField,
     SchemaMapping,
-    // StringConstraints,
-    // NumberConstraints,
-    // ArrayConstraints,
-    // ObjectConstraints,
     CustomType,
-    // PropertyFilter,
+    PropertyCondition,
+    PropertyConditionOperator,
     isPrimitiveType,
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes, getTypeDisplayName } from "../schema/extractor";
+import { getOperatorDisplayName } from "../query/matcher";
 
 export interface SchemaEditorResult {
     saved: boolean;
@@ -688,7 +686,8 @@ export class SchemaEditorModal extends Modal {
         // Check if any filter is set
         const hasFilters = filter.modifiedAfter || filter.modifiedBefore ||
             filter.createdAfter || filter.createdBefore ||
-            filter.hasProperty || filter.notHasProperty || filter.propertyEquals;
+            filter.hasProperty || filter.notHasProperty ||
+            (filter.conditions && filter.conditions.length > 0);
 
         if (hasFilters) {
             content.removeClass("frontmatter-linter-hidden");
@@ -758,28 +757,151 @@ export class SchemaEditorModal extends Modal {
             filter.notHasProperty = (e.target as HTMLInputElement).value || undefined;
         });
 
-        // Property equals
-        const propEqualsRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
-        propEqualsRow.createEl("label", { text: "Property equals:" });
-        const propEqualsContainer = propEqualsRow.createDiv({ cls: "frontmatter-linter-filter-equals" });
-        const propKeyInput = propEqualsContainer.createEl("input", { type: "text", placeholder: "key" });
-        propEqualsContainer.createEl("span", { text: "=" });
-        const propValueInput = propEqualsContainer.createEl("input", { type: "text", placeholder: "value" });
+        // Property conditions section
+        const conditionsSection = content.createDiv({ cls: "frontmatter-linter-conditions-section" });
 
-        propKeyInput.value = filter.propertyEquals?.key || "";
-        propValueInput.value = filter.propertyEquals?.value || "";
+        const conditionsHeader = conditionsSection.createDiv({ cls: "frontmatter-linter-conditions-header" });
+        conditionsHeader.createEl("span", { text: "Property conditions" });
+        const addConditionBtn = conditionsHeader.createEl("button", { cls: "frontmatter-linter-add-condition-btn" });
+        setIcon(addConditionBtn, "plus");
 
-        const updatePropEquals = () => {
-            const key = propKeyInput.value.trim();
-            const value = propValueInput.value;
-            if (key) {
-                filter.propertyEquals = { key, value };
-            } else {
-                filter.propertyEquals = undefined;
+        const conditionsList = conditionsSection.createDiv({ cls: "frontmatter-linter-conditions-list" });
+
+        // Initialize conditions array if needed
+        if (!filter.conditions) {
+            filter.conditions = [];
+        }
+
+        const renderConditions = () => {
+            conditionsList.empty();
+            for (let i = 0; i < filter.conditions!.length; i++) {
+                this.renderConditionRow(conditionsList, filter.conditions!, i, renderConditions);
             }
         };
-        propKeyInput.addEventListener("input", updatePropEquals);
-        propValueInput.addEventListener("input", updatePropEquals);
+
+        addConditionBtn.addEventListener("click", () => {
+            filter.conditions!.push({
+                property: "",
+                operator: "equals",
+                value: "",
+            });
+            renderConditions();
+        });
+
+        renderConditions();
+    }
+
+    private renderConditionRow(
+        container: HTMLElement,
+        conditions: PropertyCondition[],
+        index: number,
+        onUpdate: () => void
+    ): void {
+        const condition = conditions[index];
+        const row = container.createDiv({ cls: "frontmatter-linter-condition-row" });
+
+        // Property input with Obsidian native suggest
+        const propInput = row.createEl("input", {
+            type: "text",
+            placeholder: "property",
+            cls: "frontmatter-linter-condition-property",
+        });
+        propInput.value = condition.property;
+
+        // Operator select
+        const operatorSelect = row.createEl("select", { cls: "frontmatter-linter-condition-operator" });
+
+        const updateOperators = () => {
+            const propertyType = this.getPropertyType(condition.property);
+            const operators = this.getOperatorsForType(propertyType);
+
+            operatorSelect.empty();
+            for (const op of operators) {
+                const option = operatorSelect.createEl("option", {
+                    value: op,
+                    text: getOperatorDisplayName(op),
+                });
+                if (op === condition.operator) {
+                    option.selected = true;
+                }
+            }
+
+            // If current operator isn't valid for this type, reset to first valid
+            if (!operators.includes(condition.operator)) {
+                condition.operator = operators[0];
+                operatorSelect.value = operators[0];
+            }
+        };
+
+        updateOperators();
+
+        // Set up property suggest with Obsidian native UI
+        const knownProperties = Object.keys(this.app.metadataTypeManager.properties);
+        new PropertySuggest(
+            this.app,
+            propInput,
+            knownProperties,
+            (prop) => this.getPropertyType(prop),
+            () => updateOperators()
+        );
+
+        propInput.addEventListener("input", (e) => {
+            condition.property = (e.target as HTMLInputElement).value;
+            updateOperators();
+        });
+
+        operatorSelect.addEventListener("change", (e) => {
+            condition.operator = (e.target as HTMLSelectElement).value as PropertyConditionOperator;
+        });
+
+        // Value input
+        const valueInput = row.createEl("input", {
+            type: "text",
+            placeholder: "value",
+            cls: "frontmatter-linter-condition-value",
+        });
+        valueInput.value = condition.value;
+        valueInput.addEventListener("input", (e) => {
+            condition.value = (e.target as HTMLInputElement).value;
+        });
+
+        // Delete button
+        const deleteBtn = row.createEl("button", { cls: "frontmatter-linter-condition-delete" });
+        setIcon(deleteBtn, "x");
+        deleteBtn.addEventListener("click", () => {
+            conditions.splice(index, 1);
+            onUpdate();
+        });
+    }
+
+    /**
+     * Get the Obsidian property type for a property name
+     */
+    private getPropertyType(propertyName: string): string {
+        const propInfo = this.app.metadataTypeManager.properties[propertyName];
+        return propInfo?.widget ?? "text";
+    }
+
+    /**
+     * Get valid operators for a property type
+     */
+    private getOperatorsForType(propertyType: string): PropertyConditionOperator[] {
+        switch (propertyType) {
+            case "number":
+                return ["equals", "not_equals", "greater_than", "less_than", "greater_or_equal", "less_or_equal"];
+            case "checkbox":
+                return ["equals", "not_equals"];
+            case "date":
+            case "datetime":
+                return ["equals", "not_equals", "greater_than", "less_than", "greater_or_equal", "less_or_equal"];
+            case "tags":
+            case "aliases":
+            case "multitext":
+                return ["contains", "not_contains", "equals", "not_equals"];
+            case "text":
+            default:
+                return ["equals", "not_equals", "contains", "not_contains"];
+        }
     }
 
     onClose(): void {
@@ -790,6 +912,51 @@ export class SchemaEditorModal extends Modal {
         this.removeConstraintsSection();
         const { contentEl } = this;
         contentEl.empty();
+    }
+}
+
+/**
+ * Inline suggest for property names using Obsidian's native suggest UI
+ */
+class PropertySuggest extends AbstractInputSuggest<string> {
+    private properties: string[];
+    private onSelectCallback: (value: string) => void;
+    private getType: (prop: string) => string;
+    private textInput: HTMLInputElement;
+
+    constructor(
+        app: App,
+        inputEl: HTMLInputElement,
+        properties: string[],
+        getType: (prop: string) => string,
+        onSelect: (value: string) => void
+    ) {
+        super(app, inputEl);
+        this.textInput = inputEl;
+        this.properties = properties;
+        this.getType = getType;
+        this.onSelectCallback = onSelect;
+    }
+
+    getSuggestions(query: string): string[] {
+        const lowerQuery = query.toLowerCase();
+        return this.properties.filter(prop =>
+            prop.toLowerCase().includes(lowerQuery)
+        );
+    }
+
+    renderSuggestion(value: string, el: HTMLElement): void {
+        el.addClass("frontmatter-linter-property-suggestion");
+        el.createSpan({ text: value, cls: "frontmatter-linter-property-name" });
+        const propType = this.getType(value);
+        el.createSpan({ text: propType, cls: "frontmatter-linter-property-type" });
+    }
+
+    selectSuggestion(value: string, _evt: MouseEvent | KeyboardEvent): void {
+        this.textInput.value = value;
+        this.textInput.dispatchEvent(new Event("input", { bubbles: true }));
+        this.onSelectCallback(value);
+        this.close();
     }
 }
 

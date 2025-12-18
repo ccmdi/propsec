@@ -71,6 +71,24 @@ export interface SchemaField {
     objectConstraints?: ObjectConstraints;
 }
 
+// Operators for property conditions
+export type PropertyConditionOperator =
+    | "equals"
+    | "not_equals"
+    | "greater_than"
+    | "less_than"
+    | "greater_or_equal"
+    | "less_or_equal"
+    | "contains"
+    | "not_contains";
+
+// A single property condition
+export interface PropertyCondition {
+    property: string;
+    operator: PropertyConditionOperator;
+    value: string;
+}
+
 // Property filter for fine-grained schema application
 export interface PropertyFilter {
     // Filter by file dates
@@ -81,7 +99,8 @@ export interface PropertyFilter {
     // Filter by frontmatter property existence/value
     hasProperty?: string;     // Property must exist (any value)
     notHasProperty?: string;  // Property must NOT exist
-    propertyEquals?: { key: string; value: string };  // Property must equal value
+    // Multiple property conditions (AND logic)
+    conditions?: PropertyCondition[];
 }
 
 export interface SchemaMapping {
