@@ -114,7 +114,7 @@ export class AddSchemaModal extends Modal {
                 this.mode = "template";
                 templateOption.addClass("frontmatter-linter-option-selected");
                 scratchOption.removeClass("frontmatter-linter-option-selected");
-                templateSelector.style.display = "block";
+                templateSelector.removeClass("frontmatter-linter-hidden");
             }
         });
 
@@ -123,7 +123,7 @@ export class AddSchemaModal extends Modal {
                 this.mode = "scratch";
                 scratchOption.addClass("frontmatter-linter-option-selected");
                 templateOption.removeClass("frontmatter-linter-option-selected");
-                templateSelector.style.display = "none";
+                templateSelector.addClass("frontmatter-linter-hidden");
             }
         });
 
@@ -141,6 +141,7 @@ export class AddSchemaModal extends Modal {
             text: "Next",
             cls: "mod-cta",
         });
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
         nextBtn.addEventListener("click", async () => {
             await this.proceedToEditor();
         });

@@ -40,7 +40,7 @@ export class SchemaEditorModal extends Modal {
     ) {
         super(app);
         // Deep copy the mapping to avoid mutating the original
-        this.mapping = JSON.parse(JSON.stringify(mapping));
+        this.mapping = JSON.parse(JSON.stringify(mapping)) as SchemaMapping;
         this.templatesFolder = templatesFolder;
         this.customTypes = customTypes;
         this.onSave = onSave;
@@ -633,6 +633,7 @@ export class SchemaEditorModal extends Modal {
         const modal = new TemplateSelectorModal(
             this.app,
             templateFiles,
+            //eslint-disable-next-line @typescript-eslint/no-misused-promises
             async (file) => {
                 const fields = await extractSchemaFromTemplate(this.app, file);
                 // Merge with existing fields (add new ones, don't overwrite)
@@ -681,9 +682,8 @@ export class SchemaEditorModal extends Modal {
         setIcon(toggleIcon, "chevron-right");
 
         const content = section.createDiv({
-            cls: "frontmatter-linter-filter-content",
+            cls: "frontmatter-linter-filter-content frontmatter-linter-hidden",
         });
-        content.style.display = "none";
 
         // Check if any filter is set
         const hasFilters = filter.modifiedAfter || filter.modifiedBefore ||
@@ -691,13 +691,13 @@ export class SchemaEditorModal extends Modal {
             filter.hasProperty || filter.notHasProperty || filter.propertyEquals;
 
         if (hasFilters) {
-            content.style.display = "block";
+            content.removeClass("frontmatter-linter-hidden");
             setIcon(toggleIcon, "chevron-down");
         }
 
         header.addEventListener("click", () => {
-            const isHidden = content.style.display === "none";
-            content.style.display = isHidden ? "block" : "none";
+            const isHidden = content.hasClass("frontmatter-linter-hidden");
+            content.toggleClass("frontmatter-linter-hidden", !isHidden);
             setIcon(toggleIcon, isHidden ? "chevron-down" : "chevron-right");
         });
 

@@ -731,3 +731,16 @@
 .frontmatter-linter-schema-item.drag-over {
     border-top: 2px solid var(--interactive-accent);
 }
+
+.frontmatter-linter-custom-type-item.dragging {
+    opacity: 0.5;
+    background: var(--background-modifier-active-hover);
+}
+
+.frontmatter-linter-custom-type-item.drag-over {
+    border-top: 2px solid var(--interactive-accent);
+}
+
+.frontmatter-linter-hidden {
+    display: none;
+}

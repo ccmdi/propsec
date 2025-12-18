@@ -31,7 +31,7 @@ export class CustomTypeEditorModal extends Modal {
 
         // Deep copy or create new
         if (customType) {
-            this.customType = JSON.parse(JSON.stringify(customType));
+            this.customType = JSON.parse(JSON.stringify(customType)) as CustomType;
         } else {
             this.customType = {
                 id: this.generateId(),
@@ -157,6 +157,7 @@ export class CustomTypeEditorModal extends Modal {
 
             // Check for circular references
             if (this.hasCircularReference()) {
+                //eslint-disable-next-line obsidianmd/ui/sentence-case
                 new Notice("Circular reference detected: A custom type cannot reference itself directly or indirectly.");
                 return;
             }

@@ -19,10 +19,13 @@ export function validateFrontmatter(
 
     // Check each schema field
     for (const [fieldName, variants] of fieldGroups) {
+        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const hasField = frontmatter !== undefined &&
             Object.prototype.hasOwnProperty.call(frontmatter, fieldName);
+         
         const value = hasField ? frontmatter[fieldName] : undefined;
 
+        //eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema));
     }
 
@@ -241,6 +244,7 @@ function validateCustomTypeObject(
 
     // Validate each field in the custom type
     for (const field of customType.fields) {
+        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
         const value = hasField ? obj[field.name] : undefined;
         const fieldPath = `${path}.${field.name}`;
@@ -326,6 +330,7 @@ function checkTypeMatch(value: unknown, expectedType: FieldType): boolean {
 
 function validateCustomTypeMatch(obj: Record<string, unknown>, customType: { fields: SchemaField[] }): boolean {
     for (const field of customType.fields) {
+        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
 
         if (field.required && !hasField) return false;
@@ -499,7 +504,9 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
     const errors: string[] = [];
 
     for (const field of customType.fields) {
+        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
+         
         const value = hasField ? obj[field.name] : undefined;
 
         if (field.required && !hasField) {

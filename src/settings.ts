@@ -4,6 +4,7 @@ import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
 import { describePropertyFilter } from "./query/matcher";
+import { makeDraggable } from "./ui/draggable";
 import PropsecPlugin from "main";
 
 export class PropsecSettingTab extends PluginSettingTab {
@@ -66,14 +67,15 @@ export class PropsecSettingTab extends PluginSettingTab {
                 cls: "frontmatter-linter-no-types",
             });
         } else {
-            for (const customType of this.settings.customTypes) {
-                this.renderCustomTypeItem(this.customTypesContainer, customType);
-            }
+            this.settings.customTypes.forEach((customType, index) => {
+                this.renderCustomTypeItem(this.customTypesContainer!, customType, index);
+            });
         }
 
         // Add Custom Type button
         new Setting(containerEl).addButton((button) =>
             button
+                //eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setButtonText("+ Add Type")
                 .setCta()
                 .onClick(() => {
@@ -81,13 +83,15 @@ export class PropsecSettingTab extends PluginSettingTab {
                         this.app,
                         null,
                         this.settings.customTypes,
+                        //eslint-disable-next-line @typescript-eslint/no-misused-promises
                         async (newType) => {
                             this.settings.customTypes.push(newType);
                             await this.onSettingsChange();
                             if (this.customTypesContainer) {
                                 // Remove "no types" placeholder if present
                                 this.customTypesContainer.querySelector(".frontmatter-linter-no-types")?.remove();
-                                this.renderCustomTypeItem(this.customTypesContainer, newType);
+                                const newIndex = this.settings.customTypes.length - 1;
+                                this.renderCustomTypeItem(this.customTypesContainer, newType, newIndex);
                             }
                         }
                     );
@@ -113,13 +117,14 @@ export class PropsecSettingTab extends PluginSettingTab {
             });
         } else {
             this.settings.schemaMappings.forEach((mapping, index) => {
-                this.renderSchemaMappingItem(this.schemaListContainer, mapping, index);
+                this.renderSchemaMappingItem(this.schemaListContainer!, mapping, index);
             });
         }
 
         // Add Schema button
         new Setting(containerEl).addButton((button) =>
             button
+                //eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setButtonText("+ Add Schema")
                 .setCta()
                 .onClick(() => {
@@ -127,6 +132,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         this.app,
                         this.settings.templatesFolder,
                         this.settings.customTypes,
+                        //eslint-disable-next-line @typescript-eslint/no-misused-promises
                         async (mapping) => {
                             this.settings.schemaMappings.push(mapping);
                             await this.onSettingsChange();
@@ -238,42 +244,13 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
 
         // Make item draggable
-        itemEl.draggable = true;
-        itemEl.dataset.index = String(index);
-
-        itemEl.addEventListener("dragstart", (e) => {
-            itemEl.addClass("dragging");
-            e.dataTransfer?.setData("text/plain", String(index));
-        });
-
-        itemEl.addEventListener("dragend", () => {
-            itemEl.removeClass("dragging");
-            // Remove drag-over from all items
-            container.querySelectorAll(".drag-over").forEach(el => el.removeClass("drag-over"));
-        });
-
-        itemEl.addEventListener("dragover", (e) => {
-            e.preventDefault();
-            itemEl.addClass("drag-over");
-        });
-
-        itemEl.addEventListener("dragleave", () => {
-            itemEl.removeClass("drag-over");
-        });
-
-        itemEl.addEventListener("drop", async (e) => {
-            e.preventDefault();
-            itemEl.removeClass("drag-over");
-            const fromIndex = parseInt(e.dataTransfer?.getData("text/plain") || "-1");
-            const toIndex = index;
-            if (fromIndex >= 0 && fromIndex !== toIndex) {
-                // Reorder
-                const [moved] = this.settings.schemaMappings.splice(fromIndex, 1);
-                this.settings.schemaMappings.splice(toIndex, 0, moved);
-                await this.onSettingsChange();
-                this.onSchemaChange();
-                void this.display();
-            }
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
+            const [moved] = this.settings.schemaMappings.splice(fromIndex, 1);
+            this.settings.schemaMappings.splice(toIndex, 0, moved);
+            await this.onSettingsChange();
+            this.onSchemaChange();
+            void this.display();
         });
 
         // Header row with drag handle, checkbox, name, and buttons
@@ -290,6 +267,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Enable/disable checkbox
         const checkbox = headerRow.createEl("input", { type: "checkbox" });
         checkbox.checked = mapping.enabled;
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
         checkbox.addEventListener("change", async () => {
             mapping.enabled = checkbox.checked;
             await this.onSettingsChange();
@@ -313,13 +291,15 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
 
         // Edit button
-        const editBtn = buttonsEl.createEl("button", { text: "Edit" });
+        const editBtn = buttonsEl.createEl("button");
+        setIcon(editBtn, "pencil");
         editBtn.addEventListener("click", () => {
             const modal = new SchemaEditorModal(
                 this.app,
                 mapping,
                 this.settings.templatesFolder,
                 this.settings.customTypes,
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises
                 async (updatedMapping) => {
                     // Update the mapping in place
                     const idx = this.settings.schemaMappings.findIndex(
@@ -341,9 +321,10 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Delete button
         const deleteBtn = buttonsEl.createEl("button", {
-            text: "X",
             cls: "frontmatter-linter-delete-btn",
         });
+        setIcon(deleteBtn, "x");
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
         deleteBtn.addEventListener("click", async () => {
             const idx = this.settings.schemaMappings.findIndex(
                 (m) => m.id === mapping.id
@@ -389,16 +370,32 @@ export class PropsecSettingTab extends PluginSettingTab {
 
     private renderCustomTypeItem(
         container: HTMLElement,
-        customType: CustomType
+        customType: CustomType,
+        index: number
     ): void {
         const itemEl = container.createDiv({
             cls: "frontmatter-linter-custom-type-item",
         });
 
-        // Header row with name and buttons
+        // Make item draggable
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
+            const [moved] = this.settings.customTypes.splice(fromIndex, 1);
+            this.settings.customTypes.splice(toIndex, 0, moved);
+            await this.onSettingsChange();
+            void this.display();
+        });
+
+        // Header row with drag handle, name and buttons
         const headerRow = itemEl.createDiv({
             cls: "frontmatter-linter-custom-type-header",
         });
+
+        // Drag handle
+        const dragHandle = headerRow.createDiv({
+            cls: "frontmatter-linter-drag-handle",
+        });
+        setIcon(dragHandle, "grip-vertical");
 
         // Type name
         headerRow.createEl("span", {
@@ -412,23 +409,25 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
 
         // Edit button
-        const editBtn = buttonsEl.createEl("button", { text: "Edit" });
+        const editBtn = buttonsEl.createEl("button");
+        setIcon(editBtn, "pencil");
         editBtn.addEventListener("click", () => {
             const modal = new CustomTypeEditorModal(
                 this.app,
                 customType,
                 this.settings.customTypes,
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises
                 async (updatedType) => {
                     // Update the custom type in place
-                    const index = this.settings.customTypes.findIndex(
+                    const idx = this.settings.customTypes.findIndex(
                         (t) => t.id === customType.id
                     );
-                    if (index >= 0) {
-                        this.settings.customTypes[index] = updatedType;
+                    if (idx >= 0) {
+                        this.settings.customTypes[idx] = updatedType;
                         await this.onSettingsChange();
                         // Replace item instead of re-rendering everything
                         const temp = document.createElement("div");
-                        this.renderCustomTypeItem(temp, updatedType);
+                        this.renderCustomTypeItem(temp, updatedType, idx);
                         itemEl.replaceWith(temp.firstChild!);
                     }
                 }
@@ -438,9 +437,10 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Delete button
         const deleteBtn = buttonsEl.createEl("button", {
-            text: "X",
             cls: "frontmatter-linter-delete-btn",
         });
+        setIcon(deleteBtn, "x");
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
         deleteBtn.addEventListener("click", async () => {
             // Check if any schema is using this type
             const usedInSchemas = this.settings.schemaMappings.filter((mapping) =>

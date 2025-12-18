@@ -112,6 +112,7 @@ export class ViolationsModal extends Modal {
             cls: "frontmatter-linter-file-link",
         });
 
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
         fileLink.addEventListener("click", async (e) => {
             e.preventDefault();
             const file = this.app.vault.getAbstractFileByPath(filePath);

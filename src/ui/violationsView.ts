@@ -169,7 +169,9 @@ export class ViolationsView extends ItemView {
             }
         };
 
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
         fileLink.addEventListener("click", async (e) => await openFile(e, false));
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises
         fileLink.addEventListener("auxclick", async (e) => {
             if (e.button === 1) {
                 await openFile(e, true);
