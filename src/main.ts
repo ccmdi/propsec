@@ -59,7 +59,15 @@ export default class PropsecPlugin extends Plugin {
             id: "validate-all-notes",
             name: "Validate all notes",
             callback: () => {
-                this.validator.validateAll();
+                void this.validator.validateAll();
+            },
+        });
+
+        this.addCommand({
+            id: "rebuild-and-validate",
+            name: "Rebuild index and validate all",
+            callback: () => {
+                void this.rebuildAndValidate();
             },
         });
 
@@ -112,6 +120,15 @@ export default class PropsecPlugin extends Plugin {
 
     private async initializeAndValidate(): Promise<void> {
         await queryContext.index.initialize();
+        await this.validator.validateAll();
+    }
+
+    /**
+     * Force rebuild the tag index and re-validate everything
+     * Nuclear option for when things seem out of sync
+     */
+    private async rebuildAndValidate(): Promise<void> {
+        await queryContext.index.buildFullIndex();
         await this.validator.validateAll();
     }
 
