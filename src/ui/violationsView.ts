@@ -1,5 +1,5 @@
-import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
-import { Violation } from "../types";
+import { ItemView, WorkspaceLeaf, TFile, setIcon } from "obsidian";
+import { Violation, ViolationFilter, isWarningViolation } from "../types";
 import { ViolationStore } from "../validation/store";
 
 export const VIOLATIONS_VIEW_TYPE = "frontmatter-linter-violations";
@@ -11,8 +11,10 @@ export class ViolationsView extends ItemView {
     private store: ViolationStore;
     private changeListener: () => void;
     private searchQuery: string = "";
+    private filter: ViolationFilter = "all";
     private listContainer: HTMLElement | null = null;
     private summaryEl: HTMLElement | null = null;
+    private filterContainer: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, store: ViolationStore) {
         super(leaf);
@@ -42,18 +44,28 @@ export class ViolationsView extends ItemView {
     }
 
     private render(): void {
-        const container = this.containerEl.children[1];
+        const container = this.containerEl.children[1] as HTMLElement;
         container.empty();
         container.addClass("frontmatter-linter-violations-view");
 
-        // Search bar
-        const searchContainer = container.createDiv({
-            cls: "frontmatter-linter-view-search",
-        });
+        // Nav header with filter buttons and search (sibling to view-content, not inside)
+        let navHeader = this.containerEl.querySelector(".nav-header") as HTMLElement;
+        if (!navHeader) {
+            navHeader = createDiv({ cls: "nav-header" });
+            this.containerEl.insertBefore(navHeader, container);
+        }
+        navHeader.empty();
+
+        // Filter buttons
+        this.filterContainer = navHeader.createDiv({ cls: "nav-buttons-container" });
+        this.renderFilterButtons();
+
+        // Search bar in header (using native Obsidian search-input-container style)
+        const searchContainer = navHeader.createDiv({ cls: "search-input-container" });
         const searchInput = searchContainer.createEl("input", {
-            type: "text",
+            type: "search",
+            attr: { enterkeyhint: "search", spellcheck: "false" },
             placeholder: "Search...",
-            cls: "frontmatter-linter-view-search-input",
         });
         searchInput.value = this.searchQuery;
         searchInput.addEventListener("input", (e) => {
@@ -74,34 +86,77 @@ export class ViolationsView extends ItemView {
         this.renderList();
     }
 
+    private renderFilterButtons(): void {
+        if (!this.filterContainer) return;
+        this.filterContainer.empty();
+
+        const filters: Array<{ value: ViolationFilter; icon: string; tooltip: string }> = [
+            { value: "all", icon: "list", tooltip: "All" },
+            { value: "errors", icon: "alert-circle", tooltip: "Errors" },
+            { value: "warnings", icon: "alert-triangle", tooltip: "Warnings" },
+        ];
+
+        for (const filterDef of filters) {
+            const btn = this.filterContainer.createDiv({
+                cls: `clickable-icon nav-action-button${this.filter === filterDef.value ? " is-active" : ""}`,
+                attr: { "aria-label": filterDef.tooltip },
+            });
+            setIcon(btn, filterDef.icon);
+            btn.addEventListener("click", () => {
+                this.filter = filterDef.value;
+                this.renderFilterButtons();
+                this.renderList();
+            });
+        }
+    }
+
     private renderList(): void {
         if (!this.listContainer || !this.summaryEl) return;
         this.listContainer.empty();
 
-        const violations = this.store.getAllViolations();
+        const violations = this.store.getFilteredViolations(this.filter);
 
         if (violations.size === 0) {
             this.summaryEl.empty();
             const emptyState = this.listContainer.createDiv({
                 cls: "frontmatter-linter-view-empty",
             });
+            const emptyTitle = this.filter === "all"
+                ? "No violations"
+                : this.filter === "errors"
+                    ? "No errors"
+                    : "No warnings";
+            const emptyDesc = this.filter === "all"
+                ? "All notes match their schemas"
+                : this.filter === "errors"
+                    ? "No errors found"
+                    : "No warnings found";
             emptyState.createEl("div", {
-                text: "No violations",
+                text: emptyTitle,
                 cls: "frontmatter-linter-view-empty-title",
             });
             emptyState.createEl("div", {
-                text: "All notes match their schemas",
+                text: emptyDesc,
                 cls: "frontmatter-linter-view-empty-desc",
             });
             return;
         }
 
-        // Summary
-        const totalViolations = this.store.getTotalViolationCount();
-        const fileCount = this.store.getFileCount();
-        this.summaryEl.setText(
-            `${totalViolations} violation${totalViolations !== 1 ? "s" : ""} in ${fileCount} file${fileCount !== 1 ? "s" : ""}`
-        );
+        // Summary - show counts based on filter
+        let summaryText: string;
+        if (this.filter === "all") {
+            const errorCount = this.store.getErrorCount();
+            const warningCount = this.store.getWarningCount();
+            summaryText = `${errorCount} error${errorCount !== 1 ? "s" : ""}, ${warningCount} warning${warningCount !== 1 ? "s" : ""}`;
+        } else {
+            let count = 0;
+            for (const fileViolations of violations.values()) {
+                count += fileViolations.length;
+            }
+            const label = this.filter === "errors" ? "error" : "warning";
+            summaryText = `${count} ${label}${count !== 1 ? "s" : ""}`;
+        }
+        this.summaryEl.setText(summaryText);
 
         // Filter and render
         let hasResults = false;
@@ -191,8 +246,9 @@ export class ViolationsView extends ItemView {
         });
 
         for (const violation of violations) {
+            const isWarning = isWarningViolation(violation);
             const item = violationsList.createDiv({
-                cls: `frontmatter-linter-view-item frontmatter-linter-view-${violation.type}`,
+                cls: `frontmatter-linter-view-item frontmatter-linter-view-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
             });
 
             const icon = this.getViolationIcon(violation.type);

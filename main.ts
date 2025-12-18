@@ -50,6 +50,7 @@ export default class PropsecPlugin extends Plugin {
         });
         this.updateStatusBarVisibility();
         this.updateStatusBarColoring();
+        this.updateStatusBarWarnings();
 
         // Register commands
         this.addCommand({
@@ -149,6 +150,12 @@ export default class PropsecPlugin extends Plugin {
         }
     }
 
+    private updateStatusBarWarnings(): void {
+        if (this.statusBarItem) {
+            this.statusBarItem.setExcludeWarnings(this.settings.excludeWarningsFromCount);
+        }
+    }
+
     private registerEvents(): void {
         // Validate on metadata cache changes (file save, frontmatter edit)
         this.registerEvent(
@@ -240,6 +247,7 @@ export default class PropsecPlugin extends Plugin {
     onSettingsChange(): void {
         this.updateStatusBarVisibility();
         this.updateStatusBarColoring();
+        this.updateStatusBarWarnings();
     }
 
     /**

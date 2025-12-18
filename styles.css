@@ -13,6 +13,15 @@
 /* Violations Modal */
 .frontmatter-linter-violations-modal {
     min-width: 500px;
+    display: flex;
+    flex-direction: column;
+    height: 70vh;
+}
+
+.frontmatter-linter-violations-modal .frontmatter-linter-filter-tabs {
+    background: transparent;
+    border-bottom: none;
+    padding: 0 0 12px 0;
 }
 
 .frontmatter-linter-search-container,
@@ -37,8 +46,9 @@
 }
 
 .frontmatter-linter-violations-container {
-    max-height: 60vh;
+    flex: 1;
     overflow-y: auto;
+    min-height: 0;
 }
 
 .frontmatter-linter-no-violations {
@@ -848,4 +858,76 @@
     font-size: 0.85em;
     color: var(--text-muted);
     font-style: italic;
+}
+
+/* Filter Tabs (Modal) */
+.frontmatter-linter-filter-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+}
+
+.frontmatter-linter-filter-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.frontmatter-linter-filter-tab svg {
+    width: 18px;
+    height: 18px;
+}
+
+.frontmatter-linter-filter-tab:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.frontmatter-linter-filter-tab.active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+
+
+.workspace-leaf-content:has(.frontmatter-linter-violations-view) > .nav-header .nav-buttons-container {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+}
+
+.workspace-leaf-content:has(.frontmatter-linter-violations-view) > .nav-header .nav-buttons-container .clickable-icon.is-active {
+    color: var(--interactive-accent);
+}
+
+
+/* Warning/Error distinction styling */
+.frontmatter-linter-warning .frontmatter-linter-view-icon,
+.frontmatter-linter-warning .frontmatter-linter-violation-icon {
+    color: var(--text-warning);
+}
+
+.frontmatter-linter-error-item .frontmatter-linter-view-icon,
+.frontmatter-linter-error-item .frontmatter-linter-violation-icon {
+    color: var(--text-error);
+}
+
+/* Add border-left styling for warnings */
+.frontmatter-linter-missing_warned {
+    border-left-color: var(--text-warning);
+}
+
+.frontmatter-linter-view-missing_warned .frontmatter-linter-view-icon {
+    color: var(--text-warning);
 }

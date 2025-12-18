@@ -125,6 +125,7 @@ export interface PropsecSettings {
     validateOnFileSave: boolean;
     showInStatusBar: boolean;
     colorStatusBarErrors: boolean;
+    excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
 }
 
 // Obsidian's reserved frontmatter keys
@@ -140,6 +141,7 @@ export const DEFAULT_SETTINGS: PropsecSettings = {
     validateOnFileSave: true,
     showInStatusBar: true,
     colorStatusBarErrors: true,
+    excludeWarningsFromCount: true,
 };
 
 export type ViolationType =
@@ -166,6 +168,22 @@ export interface Violation {
     expected?: string;
     actual?: string;
 }
+
+// Warning types are violations that are informational rather than errors
+export const WARNING_VIOLATION_TYPES: ViolationType[] = [
+    "missing_warned",
+    "unknown_field",
+];
+
+/**
+ * Check if a violation is a warning (vs an error)
+ */
+export function isWarningViolation(violation: Violation): boolean {
+    return WARNING_VIOLATION_TYPES.includes(violation.type);
+}
+
+// Filter type for violation views
+export type ViolationFilter = "all" | "errors" | "warnings";
 
 export interface ValidationState {
     violations: Map<string, Violation[]>;

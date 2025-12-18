@@ -232,6 +232,18 @@ export class PropsecSettingTab extends PluginSettingTab {
                         await this.onSettingsChange();
                     })
             );
+
+        new Setting(containerEl)
+            .setName("Exclude warnings from count")
+            .setDesc("Don't include warnings in the status bar violation count (warnings still appear in the violations panel)")
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.settings.excludeWarningsFromCount)
+                    .onChange(async (value) => {
+                        this.settings.excludeWarningsFromCount = value;
+                        await this.onSettingsChange();
+                    })
+            );
     }
 
     private renderSchemaMappingItem(

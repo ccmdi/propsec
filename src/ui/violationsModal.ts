@@ -1,5 +1,5 @@
-import { App, Modal, TFile } from "obsidian";
-import { Violation } from "../types";
+import { App, Modal, TFile, setIcon } from "obsidian";
+import { Violation, ViolationFilter, isWarningViolation } from "../types";
 import { ViolationStore } from "../validation/store";
 
 /**
@@ -8,6 +8,7 @@ import { ViolationStore } from "../validation/store";
 export class ViolationsModal extends Modal {
     private store: ViolationStore;
     private searchQuery: string = "";
+    private filter: ViolationFilter = "all";
     private container: HTMLElement | null = null;
 
     constructor(app: App, store: ViolationStore) {
@@ -22,6 +23,12 @@ export class ViolationsModal extends Modal {
 
         // Header
         contentEl.createEl("h2", { text: "Schema violations" });
+
+        // Filter tabs
+        const filterContainer = contentEl.createDiv({
+            cls: "frontmatter-linter-filter-tabs",
+        });
+        this.renderFilterTabs(filterContainer);
 
         // Search bar
         const searchContainer = contentEl.createDiv({
@@ -45,15 +52,43 @@ export class ViolationsModal extends Modal {
         this.renderViolations();
     }
 
+    private renderFilterTabs(container: HTMLElement): void {
+        container.empty();
+
+        const tabs: Array<{ value: ViolationFilter; icon: string; tooltip: string }> = [
+            { value: "all", icon: "list", tooltip: "All" },
+            { value: "errors", icon: "alert-circle", tooltip: "Errors" },
+            { value: "warnings", icon: "alert-triangle", tooltip: "Warnings" },
+        ];
+
+        for (const tab of tabs) {
+            const tabEl = container.createEl("button", {
+                cls: `frontmatter-linter-filter-tab ${this.filter === tab.value ? "active" : ""}`,
+                attr: { "aria-label": tab.tooltip, title: tab.tooltip },
+            });
+            setIcon(tabEl, tab.icon);
+            tabEl.addEventListener("click", () => {
+                this.filter = tab.value;
+                this.renderFilterTabs(container);
+                this.renderViolations();
+            });
+        }
+    }
+
     private renderViolations(): void {
         if (!this.container) return;
         this.container.empty();
 
-        const violations = this.store.getAllViolations();
+        const violations = this.store.getFilteredViolations(this.filter);
 
         if (violations.size === 0) {
+            const emptyMessage = this.filter === "all"
+                ? "No violations found. All notes match their schemas."
+                : this.filter === "errors"
+                    ? "No errors found."
+                    : "No warnings found.";
             this.container.createEl("p", {
-                text: "No violations found. All notes match their schemas.",
+                text: emptyMessage,
                 cls: "frontmatter-linter-no-violations",
             });
             return;
@@ -135,8 +170,9 @@ export class ViolationsModal extends Modal {
         });
 
         for (const violation of violations) {
+            const isWarning = isWarningViolation(violation);
             const item = violationList.createEl("li", {
-                cls: `frontmatter-linter-violation-item frontmatter-linter-${violation.type}`,
+                cls: `frontmatter-linter-violation-item frontmatter-linter-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
             });
 
             // Icon based on violation type

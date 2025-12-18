@@ -1,4 +1,4 @@
-import { Violation, ValidationState } from "../types";
+import { Violation, ValidationState, isWarningViolation, ViolationFilter } from "../types";
 
 /**
  * In-memory store for validation violations
@@ -77,13 +77,57 @@ export class ViolationStore {
 
     /**
      * Get total violation count
+     * @param excludeWarnings If true, only count errors (not warnings)
      */
-    getTotalViolationCount(): number {
+    getTotalViolationCount(excludeWarnings: boolean = false): number {
         let count = 0;
         for (const violations of this.state.violations.values()) {
-            count += violations.length;
+            if (excludeWarnings) {
+                count += violations.filter(v => !isWarningViolation(v)).length;
+            } else {
+                count += violations.length;
+            }
         }
         return count;
+    }
+
+    /**
+     * Get error count (violations that are not warnings)
+     */
+    getErrorCount(): number {
+        return this.getTotalViolationCount(true);
+    }
+
+    /**
+     * Get warning count
+     */
+    getWarningCount(): number {
+        let count = 0;
+        for (const violations of this.state.violations.values()) {
+            count += violations.filter(v => isWarningViolation(v)).length;
+        }
+        return count;
+    }
+
+    /**
+     * Get violations filtered by type
+     */
+    getFilteredViolations(filter: ViolationFilter): Map<string, Violation[]> {
+        if (filter === "all") {
+            return new Map(this.state.violations);
+        }
+
+        const filtered = new Map<string, Violation[]>();
+        for (const [filePath, violations] of this.state.violations) {
+            const filteredViolations = violations.filter(v => {
+                const isWarning = isWarningViolation(v);
+                return filter === "warnings" ? isWarning : !isWarning;
+            });
+            if (filteredViolations.length > 0) {
+                filtered.set(filePath, filteredViolations);
+            }
+        }
+        return filtered;
     }
 
     /**

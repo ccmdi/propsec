@@ -8,6 +8,7 @@ export class StatusBarItem {
     private store: ViolationStore;
     private onClick: () => void;
     private colorErrors: boolean = true;
+    private excludeWarnings: boolean = true;
 
     constructor(
         statusBarEl: HTMLElement,
@@ -38,10 +39,18 @@ export class StatusBarItem {
     }
 
     /**
+     * Set whether to exclude warnings from the violation count
+     */
+    setExcludeWarnings(excludeWarnings: boolean): void {
+        this.excludeWarnings = excludeWarnings;
+        this.update();
+    }
+
+    /**
      * Update the status bar display
      */
     update(): void {
-        const totalViolations = this.store.getTotalViolationCount();
+        const totalViolations = this.store.getTotalViolationCount(this.excludeWarnings);
         const fileCount = this.store.getFileCount();
 
         // Clear existing content
