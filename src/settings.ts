@@ -7,7 +7,7 @@ import { SchemaPreviewModal } from "./ui/schemaPreviewModal";
 import { ConfirmModal } from "./ui/confirmModal";
 import { describePropertyFilter } from "./query/matcher";
 import { makeDraggable } from "./ui/draggable";
-import PropsecPlugin from "main";
+import PropsecPlugin from "./main";
 
 export class PropsecSettingTab extends PluginSettingTab {
     private settings: PropsecSettings;

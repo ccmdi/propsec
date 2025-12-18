@@ -47,6 +47,8 @@ Files are matched to schemas in the order of the schemas.
 
 **Union Types:** Add multiple field entries with the same name but different types. For example, two entries for `status` with types `string` and `null` creates `string | null`.
 
+Fields can be flagged to be **required** (key is required) xor **warn** (soft requirement).
+
 ## Constraints
 
 Each field type supports optional constraints:
@@ -56,12 +58,6 @@ Each field type supports optional constraints:
 | string | `pattern` (regex), `minLength`, `maxLength` |
 | number | `min`, `max` |
 | array | `minItems`, `maxItems`, `contains` (required values) |
-
-## Field Options
-
-- **Required**: Error if field is missing (key must be present)
-- **Warn**: Warning if field is missing (softer than required)
-
 
 ## Installation
 

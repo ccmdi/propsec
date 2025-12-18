@@ -8,13 +8,13 @@ import {
 import {
     PropsecSettings,
     DEFAULT_SETTINGS,
-} from "./src/types";
-import { ViolationStore } from "./src/validation/store";
-import { Validator } from "./src/validation/validator";
-import { StatusBarItem } from "./src/ui/statusBar";
-import { ViolationsModal } from "./src/ui/violationsModal";
-import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./src/ui/violationsView";
-import { PropsecSettingTab } from "./src/settings";
+} from "./types";
+import { ViolationStore } from "./validation/store";
+import { Validator } from "./validation/validator";
+import { StatusBarItem } from "./ui/statusBar";
+import { ViolationsModal } from "./ui/violationsModal";
+import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./ui/violationsView";
+import { PropsecSettingTab } from "./settings";
 
 export default class PropsecPlugin extends Plugin {
     settings: PropsecSettings;
