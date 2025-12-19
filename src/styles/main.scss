@@ -1,0 +1,956 @@
+// Frontmatter Linter Styles
+
+// ============================================
+// Mixins
+// ============================================
+
+@mixin input-base {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    color: var(--text-normal);
+    font-size: 0.85em;
+}
+
+@mixin input-primary {
+    @include input-base;
+    background: var(--background-primary);
+}
+
+@mixin card-base {
+    background: var(--background-secondary);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+@mixin card-bordered {
+    @include card-base;
+    border: 1px solid var(--background-modifier-border);
+}
+
+@mixin empty-state {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+}
+
+@mixin flex-row($gap: 6px) {
+    display: flex;
+    align-items: center;
+    gap: $gap;
+}
+
+@mixin flex-col($gap: 6px) {
+    display: flex;
+    flex-direction: column;
+    gap: $gap;
+}
+
+@mixin icon-btn {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+        background: var(--background-modifier-hover);
+        color: var(--text-normal);
+    }
+
+    svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+@mixin small-btn {
+    @include icon-btn;
+    padding: 2px 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+// ============================================
+// Base / Utility
+// ============================================
+
+.frontmatter-linter-hidden {
+    display: none;
+}
+
+// ============================================
+// Status Bar
+// ============================================
+
+.frontmatter-linter-ok {
+    color: var(--text-muted);
+}
+
+.frontmatter-linter-error {
+    color: var(--text-error);
+    font-weight: 600;
+}
+
+// ============================================
+// Modals
+// ============================================
+
+.frontmatter-linter-violations-modal {
+    min-width: 500px;
+    display: flex;
+    flex-direction: column;
+    height: 70vh;
+
+    .frontmatter-linter-filter-tabs {
+        background: transparent;
+        border-bottom: none;
+        padding: 0 0 12px 0;
+    }
+}
+
+.frontmatter-linter-add-schema-modal {
+    min-width: 450px;
+}
+
+.frontmatter-linter-schema-preview-modal {
+    min-width: 400px;
+
+    h2 {
+        margin-top: 0;
+        margin-bottom: 8px;
+    }
+}
+
+.frontmatter-linter-confirm-modal {
+    h3 { margin-top: 0; }
+    p { color: var(--text-muted); }
+}
+
+.frontmatter-linter-schema-editor h2,
+.frontmatter-linter-add-schema-modal h2,
+.frontmatter-linter-violations-modal h2 {
+    margin-top: 0;
+}
+
+.modal:has(.frontmatter-linter-schema-editor) {
+    width: 50vw;
+    max-width: 90vw;
+}
+
+// ============================================
+// Search
+// ============================================
+
+.frontmatter-linter-search-container,
+.frontmatter-linter-view-search {
+    margin-bottom: 12px;
+}
+
+.frontmatter-linter-search-input,
+.frontmatter-linter-view-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    @include input-primary;
+
+    &:focus {
+        border-color: var(--interactive-accent);
+        outline: none;
+    }
+}
+
+// ============================================
+// Violations
+// ============================================
+
+.frontmatter-linter-violations-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.frontmatter-linter-no-violations {
+    @include empty-state;
+    text-align: center;
+    padding: 20px;
+}
+
+.frontmatter-linter-file-section {
+    @include card-base;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.frontmatter-linter-file-header {
+    @include flex-row(8px);
+    margin-bottom: 8px;
+}
+
+.frontmatter-linter-file-link {
+    color: var(--text-accent);
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.frontmatter-linter-schema-badge {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.frontmatter-linter-violation-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.frontmatter-linter-violation-item {
+    padding: 4px 0 4px 12px;
+    font-size: 0.9em;
+    border-left: 2px solid var(--text-muted);
+}
+
+.frontmatter-linter-missing_required { border-left-color: var(--text-error); }
+.frontmatter-linter-type_mismatch { border-left-color: var(--text-warning); }
+.frontmatter-linter-missing_warned { border-left-color: var(--text-warning); }
+.frontmatter-linter-unknown_field { border-left-color: var(--text-muted); }
+
+.frontmatter-linter-violation-icon {
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+// ============================================
+// Schema Editor
+// ============================================
+
+.frontmatter-linter-fields-header {
+    margin-top: 16px;
+}
+
+.frontmatter-linter-fields-container {
+    margin: 12px 0;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.frontmatter-linter-no-fields {
+    @include empty-state;
+}
+
+// Field Cards
+.frontmatter-linter-field-card {
+    @include card-bordered;
+    position: relative;
+
+    &.expanded {
+        z-index: 10;
+    }
+}
+
+.frontmatter-linter-field-main-row {
+    @include flex-row;
+    padding: 8px;
+}
+
+.frontmatter-linter-field-name {
+    @include input-primary;
+    flex: 1;
+    min-width: 100px;
+    box-sizing: border-box;
+    font-size: 0.9em;
+}
+
+.frontmatter-linter-field-type {
+    @include input-primary;
+    width: 90px;
+    box-sizing: border-box;
+    font-size: 0.9em;
+}
+
+.frontmatter-linter-required-label {
+    @include flex-row(2px);
+    font-size: 0.85em;
+    color: var(--text-muted);
+    white-space: nowrap;
+
+    input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+    }
+}
+
+.frontmatter-linter-icon-btn {
+    @include icon-btn;
+
+    svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    &-disabled {
+        opacity: 0.3;
+        cursor: default;
+        pointer-events: none;
+    }
+}
+
+.frontmatter-linter-delete-btn:hover {
+    color: var(--text-error);
+}
+
+// Constraints Overlay
+.frontmatter-linter-constraints-section {
+    position: fixed;
+    padding: 10px 12px 12px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-4px);
+    animation: fl-fade-in 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+
+    &.collapsing {
+        animation: fl-fade-out 0.12s cubic-bezier(0.4, 0, 1, 1) forwards;
+    }
+}
+
+@keyframes fl-fade-in {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fl-fade-out {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-4px); }
+}
+
+.frontmatter-linter-constraints-title {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.frontmatter-linter-constraints-grid {
+    @include flex-col;
+}
+
+.frontmatter-linter-constraint-row {
+    @include flex-row(8px);
+
+    label {
+        flex: 0 0 100px;
+        font-size: 0.85em;
+        color: var(--text-muted);
+    }
+
+    input {
+        @include input-base;
+        flex: 1;
+
+        &[type="number"] {
+            width: 80px;
+            flex: 0 0 80px;
+        }
+    }
+
+    select {
+        @include input-base;
+        flex: 1;
+    }
+}
+
+// Condition Section
+.frontmatter-linter-condition-section {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.frontmatter-linter-condition-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.frontmatter-linter-condition-desc {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.frontmatter-linter-conditions-list {
+    @include flex-col;
+}
+
+.frontmatter-linter-condition-row,
+.frontmatter-linter-field-condition-row {
+    @include flex-row;
+
+    input, select {
+        @include input-base;
+    }
+}
+
+.frontmatter-linter-condition-field { flex: 1; min-width: 80px; }
+.frontmatter-linter-condition-operator { width: 90px; flex-shrink: 0; }
+.frontmatter-linter-condition-value { flex: 1; min-width: 60px; }
+.frontmatter-linter-condition-property { flex: 1; min-width: 80px; }
+
+.frontmatter-linter-add-condition-btn {
+    @include small-btn;
+}
+
+.frontmatter-linter-condition-delete {
+    @include small-btn;
+
+    &:hover {
+        color: var(--text-error);
+    }
+}
+
+// Button rows
+.frontmatter-linter-buttons-row {
+    @include flex-row(8px);
+    margin-top: 12px;
+}
+
+.frontmatter-linter-footer-buttons,
+.frontmatter-linter-confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+// ============================================
+// Add Schema Modal
+// ============================================
+
+.frontmatter-linter-option {
+    padding: 12px;
+    margin: 8px 0;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--background-secondary);
+    }
+
+    &-selected {
+        border-color: var(--interactive-accent);
+        background: var(--background-secondary);
+    }
+
+    input[type="radio"] {
+        margin-right: 8px;
+    }
+
+    &-desc {
+        color: var(--text-muted);
+        font-size: 0.9em;
+    }
+}
+
+.frontmatter-linter-template-selector {
+    margin-top: 12px;
+    padding-left: 24px;
+}
+
+.frontmatter-linter-template-select {
+    width: 100%;
+    @include input-primary;
+    padding: 6px 8px;
+    font-size: 14px;
+    line-height: 1.4;
+    height: auto;
+    min-height: 32px;
+}
+
+.frontmatter-linter-template-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.frontmatter-linter-template-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+
+    &:hover {
+        background: var(--background-secondary);
+    }
+}
+
+// ============================================
+// Settings
+// ============================================
+
+.frontmatter-linter-schema-list,
+.frontmatter-linter-custom-types-list {
+    margin: 12px 0;
+}
+
+.frontmatter-linter-no-schemas,
+.frontmatter-linter-no-types {
+    @include empty-state;
+}
+
+.frontmatter-linter-schema-item,
+.frontmatter-linter-custom-type-item {
+    @include card-bordered;
+    padding: 12px;
+    margin: 8px 0;
+}
+
+.frontmatter-linter-schema-disabled {
+    opacity: 0.6;
+}
+
+.frontmatter-linter-schema-header,
+.frontmatter-linter-custom-type-header {
+    @include flex-row(8px);
+}
+
+.frontmatter-linter-schema-name,
+.frontmatter-linter-custom-type-name {
+    flex: 1;
+    font-weight: 600;
+}
+
+.frontmatter-linter-schema-name-disabled {
+    text-decoration: line-through;
+}
+
+.frontmatter-linter-schema-buttons,
+.frontmatter-linter-custom-type-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.frontmatter-linter-schema-info,
+.frontmatter-linter-custom-type-info {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.frontmatter-linter-schema-info {
+    padding-left: 26px;
+}
+
+.frontmatter-linter-notice {
+    padding: 10px 12px;
+    margin: 8px 0;
+    border-radius: 4px;
+    font-size: 0.9em;
+    border: 1px solid;
+}
+
+.frontmatter-linter-error-notice {
+    background: rgba(var(--color-red-rgb), 0.1);
+    border-color: var(--text-error);
+    color: var(--text-error);
+}
+
+// ============================================
+// Sidebar View
+// ============================================
+
+.frontmatter-linter-violations-view {
+    padding: 0;
+}
+
+.frontmatter-linter-view-empty {
+    @include flex-col;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+
+    &-title {
+        font-weight: 500;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+
+    &-desc {
+        font-size: 0.85em;
+        color: var(--text-faint);
+    }
+}
+
+.frontmatter-linter-view-summary {
+    padding: 8px 12px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+}
+
+.frontmatter-linter-view-list {
+    padding: 8px;
+}
+
+.frontmatter-linter-load-sentinel {
+    height: 1px;
+}
+
+.frontmatter-linter-view-file {
+    @include card-base;
+    overflow: hidden;
+    margin-bottom: 12px;
+
+    &-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--background-modifier-border);
+    }
+
+    &-link {
+        color: var(--text-accent);
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.9em;
+        text-decoration: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+.frontmatter-linter-view-schema {
+    font-size: 0.75em;
+    color: var(--text-faint);
+    background: var(--background-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.frontmatter-linter-view-violations {
+    padding: 6px 10px;
+}
+
+.frontmatter-linter-view-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 0.85em;
+}
+
+.frontmatter-linter-view-icon {
+    font-weight: 600;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+}
+
+.frontmatter-linter-view-message {
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+// View icon colors
+.frontmatter-linter-view-missing_required .frontmatter-linter-view-icon,
+.frontmatter-linter-error-item .frontmatter-linter-view-icon {
+    color: var(--text-error);
+}
+
+.frontmatter-linter-view-type_mismatch .frontmatter-linter-view-icon {
+    color: var(--text-warning);
+}
+
+.frontmatter-linter-view-unknown_field .frontmatter-linter-view-icon {
+    color: var(--text-muted);
+}
+
+.frontmatter-linter-view-missing_warned .frontmatter-linter-view-icon,
+.frontmatter-linter-warning .frontmatter-linter-view-icon,
+.frontmatter-linter-warning .frontmatter-linter-violation-icon {
+    color: var(--text-warning);
+}
+
+.frontmatter-linter-error-item .frontmatter-linter-violation-icon {
+    color: var(--text-error);
+}
+
+// ============================================
+// Property Filter
+// ============================================
+
+.frontmatter-linter-filter-section {
+    margin-top: 12px;
+}
+
+.frontmatter-linter-filter-header {
+    @include flex-row;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+
+    &:hover {
+        background: var(--background-secondary);
+    }
+}
+
+.frontmatter-linter-filter-toggle {
+    display: flex;
+    align-items: center;
+
+    svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+.frontmatter-linter-filter-content {
+    padding: 12px;
+    margin-top: 4px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.frontmatter-linter-filter-grid {
+    @include flex-col(8px);
+}
+
+.frontmatter-linter-filter-row {
+    @include flex-row(8px);
+
+    label {
+        flex: 0 0 120px;
+        font-size: 0.85em;
+        color: var(--text-muted);
+    }
+
+    input {
+        @include input-primary;
+        flex: 1;
+    }
+}
+
+.frontmatter-linter-filter-equals {
+    @include flex-row;
+    flex: 1;
+
+    input {
+        @include input-primary;
+        flex: 1;
+    }
+
+    span {
+        color: var(--text-muted);
+    }
+}
+
+.frontmatter-linter-conditions-section {
+    margin-top: 12px;
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 12px;
+}
+
+.frontmatter-linter-conditions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+
+    span {
+        font-weight: 500;
+        font-size: 0.9em;
+        color: var(--text-muted);
+    }
+}
+
+// ============================================
+// Drag & Drop
+// ============================================
+
+.frontmatter-linter-drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    padding: 4px;
+    display: flex;
+    align-items: center;
+
+    &:hover {
+        color: var(--text-normal);
+    }
+
+    svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+.frontmatter-linter-schema-item,
+.frontmatter-linter-custom-type-item {
+    &.dragging {
+        opacity: 0.5;
+        background: var(--background-modifier-active-hover);
+    }
+
+    &.drag-over {
+        border-top: 2px solid var(--interactive-accent);
+    }
+}
+
+// ============================================
+// Property Suggestions
+// ============================================
+
+.frontmatter-linter-property-suggestion {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.frontmatter-linter-property-name {
+    flex: 1;
+}
+
+.frontmatter-linter-property-type {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+// ============================================
+// Filter Tabs
+// ============================================
+
+.frontmatter-linter-filter-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+}
+
+.frontmatter-linter-filter-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    &:hover {
+        background: var(--background-modifier-hover);
+        color: var(--text-normal);
+    }
+
+    &.active {
+        background: var(--interactive-accent);
+        color: var(--text-on-accent);
+    }
+}
+
+.workspace-leaf-content:has(.frontmatter-linter-violations-view) > .nav-header .nav-buttons-container {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+
+    .clickable-icon.is-active {
+        color: var(--interactive-accent);
+    }
+}
+
+// ============================================
+// Schema Preview
+// ============================================
+
+.frontmatter-linter-preview-query {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-bottom: 16px;
+}
+
+.frontmatter-linter-preview-empty {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.frontmatter-linter-preview-fields {
+    @include flex-col(8px);
+}
+
+.frontmatter-linter-preview-field {
+    @include flex-row(4px);
+    padding: 8px 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    font-family: var(--font-monospace);
+    font-size: 0.9em;
+
+    &-name code {
+        color: var(--text-accent);
+        background: none;
+        padding: 0;
+    }
+
+    &-type {
+        color: var(--text-normal);
+        background: none;
+        padding: 0;
+    }
+}
+
+.frontmatter-linter-preview-badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-family: var(--font-interface);
+}
+
+.frontmatter-linter-preview-required {
+    background: rgba(var(--color-red-rgb), 0.15);
+    color: var(--text-error);
+}
+
+.frontmatter-linter-preview-warn {
+    background: rgba(var(--color-yellow-rgb), 0.15);
+    color: var(--text-warning);
+}
