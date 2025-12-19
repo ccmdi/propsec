@@ -27,7 +27,6 @@ export default class PropsecPlugin extends Plugin {
     async onload(): Promise<void> {
         await this.loadSettings();
 
-        // Initialize query context, store, and validator
         queryContext.initialize(this.app, this.manifest.id);
         this.store = new ViolationStore();
         this.validator = new Validator(
@@ -36,16 +35,13 @@ export default class PropsecPlugin extends Plugin {
             () => this.settings
         );
 
-        // Auto-detect templates folder from core Templates plugin
         this.detectTemplatesFolder();
 
-        // Register violations view
         this.registerView(
             VIOLATIONS_VIEW_TYPE,
             (leaf) => new ViolationsView(leaf, this.store)
         );
 
-        // Set up status bar
         this.statusBarEl = this.addStatusBarItem();
         this.statusBarItem = new StatusBarItem(this.statusBarEl, this.store, () => {
             new ViolationsModal(this.app, this.store).open();
@@ -54,7 +50,6 @@ export default class PropsecPlugin extends Plugin {
         this.updateStatusBarColoring();
         this.updateStatusBarWarnings();
 
-        // Register commands
         this.addCommand({
             id: "validate-all-notes",
             name: "Validate all notes",
@@ -105,13 +100,10 @@ export default class PropsecPlugin extends Plugin {
             },
         });
 
-        // Register settings tab
         this.addSettingTab(new PropsecSettingTabWrapper(this.app, this));
 
-        // Register event handlers
         this.registerEvents();
 
-        // Initial validation on plugin load
         // Initialize query index first, then validate
         this.app.workspace.onLayoutReady(() => {
             void this.initializeAndValidate();
@@ -209,7 +201,6 @@ export default class PropsecPlugin extends Plugin {
             this.app.vault.on("rename", (file: TAbstractFile, oldPath: string) => {
                 if (!(file instanceof TFile) || file.extension !== "md") return;
 
-                // Update tag index
                 queryContext.index.renameFile(oldPath, file.path);
 
                 // Update violation store path

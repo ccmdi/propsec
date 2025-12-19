@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, setIcon, ViewStateResult } from "obsidian";
 import { Violation, ViolationFilter, isWarningViolation } from "../types";
 import { ViolationStore } from "../validation/store";
 
@@ -42,6 +42,28 @@ export class ViolationsView extends ItemView {
 
     getIcon(): string {
         return "alert-triangle";
+    }
+
+    getState(): { filter: ViolationFilter; searchQuery: string } {
+        return {
+            filter: this.filter,
+            searchQuery: this.searchQuery,
+        };
+    }
+
+    async setState(state: { filter?: ViolationFilter; searchQuery?: string }, result: ViewStateResult): Promise<void> {
+        if (state.filter) {
+            this.filter = state.filter;
+        }
+        if (state.searchQuery !== undefined) {
+            this.searchQuery = state.searchQuery;
+        }
+        // Re-render if we're already open
+        if (this.listContainer) {
+            this.renderFilterButtons();
+            this.renderList();
+        }
+        return super.setState(state, result);
     }
 
     async onOpen(): Promise<void> {
