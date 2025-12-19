@@ -57,8 +57,8 @@ export interface SchemaField {
     //TODO discrim union
     warn?: boolean;
 
-    // Conditional validation: only validate this field if condition is met
-    condition?: FieldCondition;
+    // Conditional validation: only validate this field if ALL conditions are met
+    conditions?: FieldCondition[];
 
     // For arrays: specify what type the elements should be
     arrayElementType?: FieldType;

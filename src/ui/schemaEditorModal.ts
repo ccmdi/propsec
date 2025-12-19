@@ -380,12 +380,30 @@ export class SchemaEditorModal extends Modal {
             cls: "frontmatter-linter-constraints-section",
         });
 
-        section.style.top = `${rect.bottom + 4}px`;
         section.style.left = `${rect.left}px`;
         section.style.width = `${rect.width}px`;
 
         this.renderConstraints(section, field);
         this.activeConstraintsSection = section;
+
+        // Position after render so we know the height, keep on screen
+        requestAnimationFrame(() => {
+            const sectionRect = section.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const spaceBelow = viewportHeight - rect.bottom - 8;
+            const spaceAbove = rect.top - 8;
+
+            if (sectionRect.height <= spaceBelow) {
+                section.style.top = `${rect.bottom + 4}px`;
+            } else if (sectionRect.height <= spaceAbove) {
+                section.style.top = `${rect.top - sectionRect.height - 4}px`;
+            } else {
+                // Not enough space either way, position at bottom of viewport
+                section.style.top = `${Math.max(8, viewportHeight - sectionRect.height - 8)}px`;
+                section.style.maxHeight = `${viewportHeight - 16}px`;
+                section.style.overflowY = "auto";
+            }
+        });
     }
 
     private collapseField(index: number, card: HTMLElement, expandBtn: HTMLElement, field: SchemaField): void {
@@ -425,88 +443,58 @@ export class SchemaEditorModal extends Modal {
 
     private renderConditionSection(container: HTMLElement, field: SchemaField): void {
         const section = container.createDiv({ cls: "frontmatter-linter-condition-section" });
-
-        const header = section.createDiv({ cls: "frontmatter-linter-condition-header" });
-        header.createEl("span", { text: "Condition", cls: "frontmatter-linter-constraints-title" });
-
-        const hasCondition = !!field.condition;
-
-        if (!hasCondition) {
-            const addBtn = header.createEl("button", {
-                cls: "frontmatter-linter-add-condition-btn",
-                attr: { title: "Add condition" }
-            });
-            setIcon(addBtn, "plus");
-            addBtn.addEventListener("click", () => {
-                field.condition = {
-                    field: "",
-                    operator: "equals",
-                    value: "",
-                };
-                this.rerenderConditionSection(section, field);
-            });
-        } else {
-            this.renderFieldConditionRow(section, field);
-        }
+        this.renderConditionSectionContent(section, field);
     }
 
-    private rerenderConditionSection(section: HTMLElement, field: SchemaField): void {
+    private renderConditionSectionContent(section: HTMLElement, field: SchemaField): void {
         section.empty();
 
         const header = section.createDiv({ cls: "frontmatter-linter-condition-header" });
-        header.createEl("span", { text: "Condition", cls: "frontmatter-linter-constraints-title" });
+        header.createEl("span", { text: "Conditions", cls: "frontmatter-linter-constraints-title" });
 
-        if (!field.condition) {
-            const addBtn = header.createEl("button", {
-                cls: "frontmatter-linter-add-condition-btn",
-                attr: { title: "Add condition" }
+        const addBtn = header.createEl("button", {
+            cls: "frontmatter-linter-add-condition-btn",
+            attr: { title: "Add condition" }
+        });
+        setIcon(addBtn, "plus");
+        addBtn.addEventListener("click", () => {
+            if (!field.conditions) field.conditions = [];
+            field.conditions.push({ field: "", operator: "equals", value: "" });
+            this.renderConditionSectionContent(section, field);
+        });
+
+        if (field.conditions && field.conditions.length > 0) {
+            const desc = section.createEl("div", {
+                text: "Only validate when ALL conditions match:",
+                cls: "frontmatter-linter-condition-desc"
             });
-            setIcon(addBtn, "plus");
-            addBtn.addEventListener("click", () => {
-                field.condition = {
-                    field: "",
-                    operator: "equals",
-                    value: "",
-                };
-                this.rerenderConditionSection(section, field);
-            });
-        } else {
-            this.renderFieldConditionRow(section, field);
+
+            const list = section.createDiv({ cls: "frontmatter-linter-conditions-list" });
+            for (let i = 0; i < field.conditions.length; i++) {
+                this.renderFieldConditionRow(list, field, i, section);
+            }
         }
     }
 
-    private renderFieldConditionRow(container: HTMLElement, field: SchemaField): void {
-        if (!field.condition) return;
-
-        const desc = container.createEl("div", {
-            text: "Only validate this field when:",
-            cls: "frontmatter-linter-condition-desc"
-        });
-
+    private renderFieldConditionRow(container: HTMLElement, field: SchemaField, index: number, section: HTMLElement): void {
+        const condition = field.conditions![index];
         const row = container.createDiv({ cls: "frontmatter-linter-field-condition-row" });
 
         // Field input
         const fieldInput = row.createEl("input", {
             type: "text",
-            placeholder: "field name",
+            placeholder: "field",
             cls: "frontmatter-linter-condition-field",
         });
-        fieldInput.value = field.condition.field;
+        fieldInput.value = condition.field;
 
-        // Property suggestions
         if (this.enablePropertySuggestions) {
             const knownProperties = Object.keys(this.app.metadataTypeManager.properties);
-            new PropertySuggest(
-                this.app,
-                fieldInput,
-                knownProperties,
-                (prop) => this.getPropertyType(prop),
-                () => {}
-            );
+            new PropertySuggest(this.app, fieldInput, knownProperties, (prop) => this.getPropertyType(prop), () => {});
         }
 
         fieldInput.addEventListener("input", (e) => {
-            field.condition!.field = (e.target as HTMLInputElement).value;
+            condition.field = (e.target as HTMLInputElement).value;
         });
 
         // Operator select
@@ -516,16 +504,11 @@ export class SchemaEditorModal extends Modal {
             "greater_than", "less_than", "greater_or_equal", "less_or_equal"
         ];
         for (const op of operators) {
-            const option = operatorSelect.createEl("option", {
-                value: op,
-                text: getOperatorDisplayName(op),
-            });
-            if (op === field.condition.operator) {
-                option.selected = true;
-            }
+            const option = operatorSelect.createEl("option", { value: op, text: getOperatorDisplayName(op) });
+            if (op === condition.operator) option.selected = true;
         }
         operatorSelect.addEventListener("change", (e) => {
-            field.condition!.operator = (e.target as HTMLSelectElement).value as PropertyConditionOperator;
+            condition.operator = (e.target as HTMLSelectElement).value as PropertyConditionOperator;
         });
 
         // Value input
@@ -534,9 +517,9 @@ export class SchemaEditorModal extends Modal {
             placeholder: "value",
             cls: "frontmatter-linter-condition-value",
         });
-        valueInput.value = field.condition.value;
+        valueInput.value = condition.value;
         valueInput.addEventListener("input", (e) => {
-            field.condition!.value = (e.target as HTMLInputElement).value;
+            condition.value = (e.target as HTMLInputElement).value;
         });
 
         // Delete button
@@ -546,11 +529,9 @@ export class SchemaEditorModal extends Modal {
         });
         setIcon(deleteBtn, "x");
         deleteBtn.addEventListener("click", () => {
-            delete field.condition;
-            const section = container.closest(".frontmatter-linter-condition-section") as HTMLElement;
-            if (section) {
-                this.rerenderConditionSection(section, field);
-            }
+            field.conditions!.splice(index, 1);
+            if (field.conditions!.length === 0) delete field.conditions;
+            this.renderConditionSectionContent(section, field);
         });
     }
 

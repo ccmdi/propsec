@@ -65,8 +65,9 @@ function validateField(
 
     // Check field conditions - filter to variants whose conditions are met
     const applicableVariants = variants.filter(v => {
-        if (!v.condition) return true;  // No condition = always applicable
-        return evaluateFieldCondition(v.condition, frontmatter);
+        if (!v.conditions || v.conditions.length === 0) return true;  // No conditions = always applicable
+        // All conditions must be met (AND logic)
+        return v.conditions.every(c => evaluateFieldCondition(c, frontmatter));
     });
 
     // If no variants are applicable (all had conditions, none met), skip this field
