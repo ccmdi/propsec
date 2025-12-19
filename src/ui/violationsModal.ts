@@ -143,7 +143,7 @@ export class ViolationsModal extends Modal {
         });
 
         const fileLink = fileHeader.createEl("a", {
-            text: filePath,
+            text: filePath.replace(/\.md$/, ""),
             cls: "frontmatter-linter-file-link",
         });
 

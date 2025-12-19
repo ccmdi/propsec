@@ -25,7 +25,6 @@ export function validateFrontmatter(
 
         const value = hasField ? frontmatter![actualKey] : undefined;
 
-        //eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter));
     }
 

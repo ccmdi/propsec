@@ -661,7 +661,7 @@ class TemplateSelectorModal extends Modal {
             const item = list.createEl("div", {
                 cls: "frontmatter-linter-template-item",
             });
-            item.setText(file.path);
+            item.setText(file.basename);
             item.addEventListener("click", () => {
                 this.onSelect(file);
                 this.close();

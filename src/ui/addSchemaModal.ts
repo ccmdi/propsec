@@ -75,7 +75,7 @@ export class AddSchemaModal extends Modal {
         const templateFiles = this.getTemplateFiles();
         for (const file of templateFiles) {
             templateSelect.createEl("option", {
-                text: file.path,
+                text: file.basename,
                 value: file.path,
             });
         }

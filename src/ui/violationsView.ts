@@ -356,7 +356,7 @@ export class ViolationsView extends ItemView {
 
         // Show just the filename, with full path on hover
         const fileName = filePath.split("/").pop() || filePath;
-        fileLink.setText(fileName);
+        fileLink.setText(fileName.replace(/\.md$/, ""));
         fileLink.setAttr("title", filePath);
 
         const openFile = async (e: MouseEvent, newTab: boolean) => {
