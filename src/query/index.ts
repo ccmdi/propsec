@@ -1,4 +1,4 @@
-import { App, TFile, TFolder, TAbstractFile } from "obsidian";
+import { App, TFile, TFolder, TAbstractFile, Notice } from "obsidian";
 import { parseQuery } from "./matcher";
 
 /**
@@ -50,17 +50,15 @@ export class QueryIndex {
             const parsed = JSON.parse(data) as TagIndexData;
             
             if (parsed.version !== INDEX_VERSION) {
-                console.log("Propsec: Tag index version mismatch, rebuilding");
                 return false;
             }
 
-            // Convert arrays to Sets
             this.tagIndex.clear();
             for (const [tag, files] of Object.entries(parsed.tags)) {
                 this.tagIndex.set(tag, new Set(files));
             }
 
-            console.log(`Propsec: Loaded tag index with ${this.tagIndex.size} tags`);
+            console.debug(`Propsec: Loaded tag index with ${this.tagIndex.size} tags`);
             return true;
         } catch {
             // File doesn't exist or is corrupted
@@ -109,7 +107,6 @@ export class QueryIndex {
      * Build the full tag index from scratch
      */
     async buildFullIndex(): Promise<void> {
-        console.log("Propsec: Building tag index...");
         const start = Date.now();
 
         this.tagIndex.clear();
@@ -125,7 +122,7 @@ export class QueryIndex {
         this.dirty = true;
         await this.saveToDisk();
 
-        console.log(`Propsec: Built tag index in ${Date.now() - start}ms (${this.tagIndex.size} tags, ${files.length} files)`);
+        new Notice(`Propsec: Built tag index in ${Date.now() - start}ms (${this.tagIndex.size} tags, ${files.length} files)`);
     }
 
     /**

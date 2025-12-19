@@ -37,3 +37,4 @@ class QueryContext {
 // Singleton instance
 export const queryContext = new QueryContext();
 
+

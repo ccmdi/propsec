@@ -1,4 +1,4 @@
-import { FieldType, FieldCondition, PropertyConditionOperator, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
+import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
 import { validationContext } from "./context";
 
 // Date regex for ISO format YYYY-MM-DD
@@ -531,8 +531,15 @@ function evaluateFieldCondition(
     const fieldValue = frontmatter[condition.field];
     const conditionValue = condition.value;
 
-    // Convert values for comparison
-    const fieldStr = fieldValue === null || fieldValue === undefined ? "" : String(fieldValue);
+    // Convert values for comparison - handle objects specially
+    let fieldStr: string;
+    if (fieldValue === null || fieldValue === undefined) {
+        fieldStr = "";
+    } else if (typeof fieldValue === "object") {
+        fieldStr = JSON.stringify(fieldValue);
+    } else {
+        fieldStr = String(fieldValue as string | number | boolean);
+    }
     const conditionNum = parseFloat(conditionValue);
     const fieldNum = typeof fieldValue === "number" ? fieldValue : parseFloat(fieldStr);
 

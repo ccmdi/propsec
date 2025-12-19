@@ -1,6 +1,5 @@
 import { App, Modal, Notice, setIcon, Setting, TFile, TFolder, AbstractInputSuggest } from "obsidian";
 import {
-    FieldType,
     SchemaField,
     SchemaMapping,
     CustomType,
@@ -326,7 +325,6 @@ export class SchemaEditorModal extends Modal {
                     if (prevCard) {
                         prevCard.removeClass("expanded");
                         const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
-                        const prevField = this.mapping.fields[prevIndex];
                         if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
                     }
                     this.expandedFields.clear();
@@ -401,7 +399,7 @@ export class SchemaEditorModal extends Modal {
                 // Not enough space either way, position at bottom of viewport
                 section.style.top = `${Math.max(8, viewportHeight - sectionRect.height - 8)}px`;
                 section.style.maxHeight = `${viewportHeight - 16}px`;
-                section.style.overflowY = "auto";
+                section.addClass("frontmatter-linter-constraints-overflow");
             }
         });
     }
@@ -464,8 +462,8 @@ export class SchemaEditorModal extends Modal {
         });
 
         if (field.conditions && field.conditions.length > 0) {
-            const desc = section.createEl("div", {
-                text: "Only validate when ALL conditions match:",
+            section.createEl("div", {
+                text: "Only validate when all conditions match:",
                 cls: "frontmatter-linter-condition-desc"
             });
 

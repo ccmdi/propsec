@@ -79,12 +79,12 @@ export class SchemaPreviewModal extends Modal {
             // Required/warn badge
             if (field.required) {
                 fieldEl.createEl("span", {
-                    text: "required",
+                    text: "Required",
                     cls: "frontmatter-linter-preview-badge frontmatter-linter-preview-required",
                 });
             } else if (field.warn) {
                 fieldEl.createEl("span", {
-                    text: "warn",
+                    text: "Warn",
                     cls: "frontmatter-linter-preview-badge frontmatter-linter-preview-warn",
                 });
             }

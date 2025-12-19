@@ -121,13 +121,13 @@ export default class PropsecPlugin extends Plugin {
         await this.validator.validateAll();
     }
 
-    async onunload(): Promise<void> {
+    onunload(): void {
         if (this.statusBarItem) {
             this.statusBarItem.destroy();
         }
         // Save tag index on unload
         if (queryContext.isInitialized) {
-            await queryContext.index.saveToDisk();
+            void queryContext.index.saveToDisk();
         }
     }
 
@@ -244,9 +244,9 @@ export default class PropsecPlugin extends Plugin {
      */
     onSchemaChange(mappingId?: string): void {
         if (mappingId) {
-            this.validator.revalidateMapping(mappingId);
+            void this.validator.revalidateMapping(mappingId);
         } else {
-            this.validator.validateAll();
+            void this.validator.validateAll();
         }
     }
 
