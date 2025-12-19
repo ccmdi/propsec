@@ -15,26 +15,26 @@ export function validateFrontmatter(
 ): Violation[] {
     const violations: Violation[] = [];
     const fieldGroups = groupFieldsByName(schema.fields);
-    const schemaFieldNames = new Set(schema.fields.map(f => f.name));
+    const schemaFieldNamesLower = new Set(schema.fields.map(f => f.name.toLowerCase()));
 
     // Check each schema field
     for (const [fieldName, variants] of fieldGroups) {
-        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const hasField = frontmatter !== undefined &&
-            Object.prototype.hasOwnProperty.call(frontmatter, fieldName);
-         
-        const value = hasField ? frontmatter[fieldName] : undefined;
+        // Case-insensitive field lookup in frontmatter
+        const actualKey = frontmatter ? findKeyCaseInsensitive(frontmatter, fieldName) : undefined;
+        const hasField = actualKey !== undefined;
+
+        const value = hasField ? frontmatter![actualKey] : undefined;
 
         //eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter));
     }
 
-    // Check for unknown fields at top level
+    // Check for unknown fields at top level (case-insensitive)
     if (options.checkUnknownFields && frontmatter) {
         for (const key of Object.keys(frontmatter)) {
             if (key === "position") continue; // Skip Obsidian internal field
 
-            if (!schemaFieldNames.has(key)) {
+            if (!schemaFieldNamesLower.has(key.toLowerCase())) {
                 violations.push({
                     filePath,
                     schemaMapping: schema,
@@ -475,6 +475,20 @@ function checkArrayConstraints(
 
 // ============ Helpers ============
 
+/**
+ * Find a key in an object case-insensitively
+ * Returns the actual key if found, or undefined
+ */
+function findKeyCaseInsensitive(obj: Record<string, unknown>, key: string): string | undefined {
+    const lowerKey = key.toLowerCase();
+    for (const k of Object.keys(obj)) {
+        if (k.toLowerCase() === lowerKey) {
+            return k;
+        }
+    }
+    return undefined;
+}
+
 function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
     const groups = new Map<string, SchemaField[]>();
     for (const field of fields) {
@@ -527,8 +541,9 @@ function evaluateFieldCondition(
     frontmatter: Record<string, unknown> | undefined
 ): boolean {
     if (!frontmatter) return false;
-
-    const fieldValue = frontmatter[condition.field];
+    
+    const actualKey = findKeyCaseInsensitive(frontmatter, condition.field);
+    const fieldValue = actualKey ? frontmatter[actualKey] : undefined;
     const conditionValue = condition.value;
 
     // Convert values for comparison - handle objects specially

@@ -105,7 +105,8 @@ export class SchemaEditorModal extends FieldEditorModal {
             input,
             knownProperties,
             (prop) => this.getPropertyType(prop),
-            () => {}
+            () => {},
+            (prop) => this.getPropertyDisplayName(prop)
         );
     }
 
@@ -416,6 +417,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         hasPropInput.addEventListener("input", (e) => {
             filter.hasProperty = (e.target as HTMLInputElement).value || undefined;
         });
+        this.attachPropertySuggest(hasPropInput);
 
         // Missing property
         const notHasPropRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
@@ -425,6 +427,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         notHasPropInput.addEventListener("input", (e) => {
             filter.notHasProperty = (e.target as HTMLInputElement).value || undefined;
         });
+        this.attachPropertySuggest(notHasPropInput);
 
         // Property conditions
         const conditionsSection = content.createDiv({ cls: "frontmatter-linter-conditions-section" });
@@ -519,7 +522,8 @@ export class SchemaEditorModal extends FieldEditorModal {
             propInput,
             knownProperties,
             (prop) => this.getPropertyType(prop),
-            () => updateOperators()
+            () => updateOperators(),
+            (prop) => this.getPropertyDisplayName(prop)
         );
 
         propInput.addEventListener("input", (e) => {
@@ -556,6 +560,11 @@ export class SchemaEditorModal extends FieldEditorModal {
         return propInfo?.widget ?? "text";
     }
 
+    private getPropertyDisplayName(propertyKey: string): string {
+        const propInfo = this.app.metadataTypeManager.properties[propertyKey];
+        return propInfo?.name ?? propertyKey;
+    }
+
     private getOperatorsForType(propertyType: string): PropertyConditionOperator[] {
         switch (propertyType) {
             case "number":
@@ -583,6 +592,7 @@ class PropertySuggest extends AbstractInputSuggest<string> {
     private properties: string[];
     private onSelectCallback: (value: string) => void;
     private getType: (prop: string) => string;
+    private getDisplayName: (prop: string) => string;
     private textInput: HTMLInputElement;
 
     constructor(
@@ -590,13 +600,15 @@ class PropertySuggest extends AbstractInputSuggest<string> {
         inputEl: HTMLInputElement,
         properties: string[],
         getType: (prop: string) => string,
-        onSelect: (value: string) => void
+        onSelect: (value: string) => void,
+        getDisplayName?: (prop: string) => string
     ) {
         super(app, inputEl);
         this.textInput = inputEl;
         this.properties = properties;
         this.getType = getType;
         this.onSelectCallback = onSelect;
+        this.getDisplayName = getDisplayName || ((prop) => prop);
     }
 
     getSuggestions(query: string): string[] {
@@ -608,15 +620,17 @@ class PropertySuggest extends AbstractInputSuggest<string> {
 
     renderSuggestion(value: string, el: HTMLElement): void {
         el.addClass("frontmatter-linter-property-suggestion");
-        el.createSpan({ text: value, cls: "frontmatter-linter-property-name" });
+        const displayName = this.getDisplayName(value);
+        el.createSpan({ text: displayName, cls: "frontmatter-linter-property-name" });
         const propType = this.getType(value);
         el.createSpan({ text: propType, cls: "frontmatter-linter-property-type" });
     }
 
     selectSuggestion(value: string, _evt: MouseEvent | KeyboardEvent): void {
-        this.textInput.value = value;
+        const displayName = this.getDisplayName(value);
+        this.textInput.value = displayName;
         this.textInput.dispatchEvent(new Event("input", { bubbles: true }));
-        this.onSelectCallback(value);
+        this.onSelectCallback(displayName);
         this.close();
     }
 }
