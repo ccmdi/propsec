@@ -173,6 +173,28 @@ export function describeQuery(query: string): string {
 }
 
 /**
+ * Find a key in an object case-insensitively
+ */
+function hasKeyCaseInsensitive(obj: Record<string, unknown>, key: string): boolean {
+    const lowerKey = key.toLowerCase();
+    return Object.keys(obj).some(k => k.toLowerCase() === lowerKey);
+}
+
+/**
+ * Find a key in an object case-insensitively, return the actual key
+ */
+function findKeyCaseInsensitive(obj: Record<string, unknown>, key: string): string | undefined {
+    //TODO
+    const lowerKey = key.toLowerCase();
+    for (const k of Object.keys(obj)) {
+        if (k.toLowerCase() === lowerKey) {
+            return k;
+        }
+    }
+    return undefined;
+}
+
+/**
  * Check if a file matches property filters
  * All specified filters must match (AND logic)
  */
@@ -197,16 +219,15 @@ export function fileMatchesPropertyFilter(app: App, file: TFile, filter: Propert
         if (file.stat.ctime > filterDate) return false;
     }
 
-    // Check frontmatter property filters
     const cache = app.metadataCache.getFileCache(file);
     const frontmatter = cache?.frontmatter;
 
     if (filter.hasProperty) {
-        if (!frontmatter || !(filter.hasProperty in frontmatter)) return false;
+        if (!frontmatter || !hasKeyCaseInsensitive(frontmatter, filter.hasProperty)) return false;
     }
 
     if (filter.notHasProperty) {
-        if (frontmatter && filter.notHasProperty in frontmatter) return false;
+        if (frontmatter && hasKeyCaseInsensitive(frontmatter, filter.notHasProperty)) return false;
     }
 
     // Check property conditions (AND logic - all must match)
@@ -227,13 +248,16 @@ export function fileMatchesPropertyFilter(app: App, file: TFile, filter: Propert
 function evaluateCondition(frontmatter: Record<string, unknown> | undefined, condition: PropertyCondition): boolean {
     const { property, operator, value } = condition;
 
+    // Case-insensitive property lookup
+    const actualKey = frontmatter ? findKeyCaseInsensitive(frontmatter, property) : undefined;
+
     // If no frontmatter or property doesn't exist
-    if (!frontmatter || !(property in frontmatter)) {
+    if (!frontmatter || !actualKey) {
         // For "not_equals" and "not_contains", missing property is a match
         return operator === "not_equals" || operator === "not_contains";
     }
 
-    const propValue = frontmatter[property];
+    const propValue = frontmatter[actualKey];
 
     // Handle different operators
     switch (operator) {

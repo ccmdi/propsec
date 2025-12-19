@@ -4,6 +4,13 @@ import { ViolationStore } from "./store";
 import { validateFrontmatter } from "./validate";
 import { validationContext } from "./context";
 import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
+import { queryContext } from "../query/context";
+
+const BATCH_SIZE = 50;
+
+function yieldToMain(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
 
 /**
  * Core validation engine for the Frontmatter Linter
@@ -34,37 +41,32 @@ export class Validator {
     }
 
     /**
-     * Check if a file matches any schema mapping
+     * Get all schema mappings that match a file (accumulation model)
      */
-    getMatchingSchema(file: TFile): SchemaMapping | null {
+    getMatchingSchemas(file: TFile): SchemaMapping[] {
         const settings = this.settings();
-
-        for (const mapping of settings.schemaMappings) {
-            if (this.fileMatchesMapping(file, mapping)) {
-                return mapping;
-            }
-        }
-        return null;
+        return settings.schemaMappings.filter(m => this.fileMatchesMapping(file, m));
     }
 
     /**
-     * Validate a single file against its schema mapping
+     * Get the first matching schema (for backwards compatibility)
      */
-    validateFile(file: TFile, mapping?: SchemaMapping): Violation[] {
-        const schema = mapping || this.getMatchingSchema(file);
+    getMatchingSchema(file: TFile): SchemaMapping | null {
+        const matches = this.getMatchingSchemas(file);
+        return matches.length > 0 ? matches[0] : null;
+    }
 
-        if (!schema) {
-            // File doesn't match any schema, clear any existing violations
-            this.store.removeFile(file.path);
-            return [];
-        }
-
+    /**
+     * Validate a single file against a specific schema
+     * Accumulates violations - doesn't overwrite other schemas' violations
+     */
+    validateFile(file: TFile, mapping: SchemaMapping): Violation[] {
         const settings = this.settings();
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
         validationContext.setCustomTypes(settings.customTypes);
 
-        let violations = validateFrontmatter(frontmatter, schema, file.path, {
+        let violations = validateFrontmatter(frontmatter, mapping, file.path, {
             checkUnknownFields: settings.warnOnUnknownFields,
         });
 
@@ -74,21 +76,48 @@ export class Validator {
             );
         }
 
-        // Update store
-        this.store.setFileViolations(file.path, violations);
+        // Remove old violations from this schema for this file, then add new ones
+        this.store.removeFileSchemaViolations(file.path, mapping.id);
+        this.store.addFileViolations(file.path, violations);
 
         return violations;
     }
 
     /**
-     * Validate all files that match a schema mapping's query
+     * Validate a single file against ALL matching schemas (accumulation model)
+     * Used when a file changes
      */
-    validateMapping(mapping: SchemaMapping): void {
-        const allFiles = this.app.vault.getMarkdownFiles();
+    validateFileAllSchemas(file: TFile): void {
+        // Remove all existing violations for this file
+        this.store.removeFile(file.path);
+        
+        // Validate against all matching schemas
+        const matchingSchemas = this.getMatchingSchemas(file);
+        for (const schema of matchingSchemas) {
+            this.validateFile(file, schema);
+        }
+    }
 
-        for (const file of allFiles) {
-            if (this.fileMatchesMapping(file, mapping)) {
-                this.validateFile(file, mapping);
+    /**
+     * Validate all files that match a schema mapping's query
+     * Uses QueryIndex for efficient file lookup instead of scanning all files
+     */
+    async validateMapping(mapping: SchemaMapping): Promise<void> {
+        if (!mapping.enabled || !mapping.query) return;
+
+        // Get files that match the query using the index (fast!)
+        const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
+
+        let processed = 0;
+        for (const file of candidateFiles) {
+            // Apply property filter if present
+            if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
+                continue;
+            }
+            this.validateFile(file, mapping);
+            processed++;
+            if (processed % BATCH_SIZE === 0) {
+                await yieldToMain();
             }
         }
     }
@@ -96,7 +125,7 @@ export class Validator {
     /**
      * Validate all notes across all schema mappings
      */
-    validateAll(): void {
+    async validateAll(): Promise<void> {
         const settings = this.settings();
 
         // Clear existing violations
@@ -104,7 +133,7 @@ export class Validator {
 
         // Validate each mapping
         for (const mapping of settings.schemaMappings) {
-            this.validateMapping(mapping);
+            await this.validateMapping(mapping);
         }
 
         // Update timestamp
@@ -113,23 +142,17 @@ export class Validator {
 
     /**
      * Re-validate all files affected by a specific schema mapping
-     * (used when schema is edited)
+     * (used when schema is edited or toggled)
      */
-    revalidateMapping(mappingId: string): void {
+    async revalidateMapping(mappingId: string): Promise<void> {
+        // Remove all violations from this schema
+        this.store.removeSchemaViolations(mappingId);
+
+        // Re-validate if schema exists and is enabled
         const settings = this.settings();
         const mapping = settings.schemaMappings.find((m) => m.id === mappingId);
-
         if (mapping) {
-            // Clear violations for files that were in this mapping
-            const allViolations = this.store.getAllViolations();
-            for (const [filePath, violations] of allViolations) {
-                if (violations.some((v) => v.schemaMapping.id === mappingId)) {
-                    this.store.removeFile(filePath);
-                }
-            }
-
-            // Re-validate
-            this.validateMapping(mapping);
+            await this.validateMapping(mapping);
         }
     }
 }

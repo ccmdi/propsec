@@ -54,7 +54,11 @@ export interface SchemaField {
     type: FieldType;
     required: boolean;
     // Warn if missing (mutually exclusive with required - either warn or required, not both)
+    //TODO discrim union
     warn?: boolean;
+
+    // Conditional validation: only validate this field if ALL conditions are met
+    conditions?: FieldCondition[];
 
     // For arrays: specify what type the elements should be
     arrayElementType?: FieldType;
@@ -86,6 +90,13 @@ export interface PropertyCondition {
     property: string;
     operator: PropertyConditionOperator;
     value: string;
+}
+
+// Condition for when a field should be validated (e.g., "if type=book then isbn is required")
+export interface FieldCondition {
+    field: string;  // The field to check (e.g., "type")
+    operator: PropertyConditionOperator;
+    value: string;  // The value to compare (e.g., "book")
 }
 
 // Property filter for fine-grained schema application
@@ -125,6 +136,7 @@ export interface PropsecSettings {
     showInStatusBar: boolean;
     colorStatusBarErrors: boolean;
     excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
+    enablePropertySuggestions: boolean;  // Show property autocomplete in schema editor
 }
 
 // Obsidian's reserved frontmatter keys
@@ -141,12 +153,14 @@ export const DEFAULT_SETTINGS: PropsecSettings = {
     showInStatusBar: true,
     colorStatusBarErrors: true,
     excludeWarningsFromCount: true,
+    enablePropertySuggestions: true,
 };
 
 export type ViolationType =
     | "missing_required"
     | "missing_warned"
     | "type_mismatch"
+    | "type_mismatch_warned"
     | "unknown_field"
     | "pattern_mismatch"
     | "string_too_short"
@@ -171,6 +185,7 @@ export interface Violation {
 // Warning types are violations that are informational rather than errors
 export const WARNING_VIOLATION_TYPES: ViolationType[] = [
     "missing_warned",
+    "type_mismatch_warned",
     "unknown_field",
 ];
 

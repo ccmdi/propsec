@@ -8,7 +8,7 @@ import { ViolationStore } from "../validation/store";
 export class ViolationsModal extends Modal {
     private store: ViolationStore;
     private searchQuery: string = "";
-    private filter: ViolationFilter = "all";
+    private filter: ViolationFilter = "errors";
     private container: HTMLElement | null = null;
 
     constructor(app: App, store: ViolationStore) {
@@ -143,7 +143,7 @@ export class ViolationsModal extends Modal {
         });
 
         const fileLink = fileHeader.createEl("a", {
-            text: filePath,
+            text: filePath.replace(/\.md$/, ""),
             cls: "frontmatter-linter-file-link",
         });
 
@@ -157,35 +157,51 @@ export class ViolationsModal extends Modal {
             }
         });
 
-        // Schema name badge
-        const schemaName = violations[0]?.schemaMapping.name || "Unknown";
-        fileHeader.createEl("span", {
-            text: `(${schemaName} schema)`,
-            cls: "frontmatter-linter-schema-badge",
-        });
+        // Group violations by schema
+        const bySchema = new Map<string, Violation[]>();
+        for (const v of violations) {
+            const schemaId = v.schemaMapping.id;
+            if (!bySchema.has(schemaId)) {
+                bySchema.set(schemaId, []);
+            }
+            bySchema.get(schemaId)!.push(v);
+        }
 
-        // List violations for this file
-        const violationList = fileSection.createEl("ul", {
-            cls: "frontmatter-linter-violation-list",
-        });
-
-        for (const violation of violations) {
-            const isWarning = isWarningViolation(violation);
-            const item = violationList.createEl("li", {
-                cls: `frontmatter-linter-violation-item frontmatter-linter-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
+        // Render each schema's violations
+        for (const [, schemaViolations] of bySchema) {
+            const schemaName = schemaViolations[0].schemaMapping.name;
+            
+            const schemaGroup = fileSection.createDiv({
+                cls: "frontmatter-linter-schema-group",
+            });
+            
+            schemaGroup.createEl("span", {
+                text: schemaName,
+                cls: "frontmatter-linter-schema-badge",
             });
 
-            // Icon based on violation type
-            const icon = this.getViolationIcon(violation.type);
-            item.createEl("span", {
-                text: icon + " ",
-                cls: "frontmatter-linter-violation-icon",
+            const violationList = schemaGroup.createEl("ul", {
+                cls: "frontmatter-linter-violation-list",
             });
 
-            item.createEl("span", {
-                text: violation.message,
-                cls: "frontmatter-linter-violation-message",
-            });
+            for (const violation of schemaViolations) {
+                const isWarning = isWarningViolation(violation);
+                const item = violationList.createEl("li", {
+                    cls: `frontmatter-linter-violation-item frontmatter-linter-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
+                });
+
+                // Icon based on violation type
+                const icon = this.getViolationIcon(violation.type);
+                item.createEl("span", {
+                    text: icon + " ",
+                    cls: "frontmatter-linter-violation-icon",
+                });
+
+                item.createEl("span", {
+                    text: violation.message,
+                    cls: "frontmatter-linter-violation-message",
+                });
+            }
         }
     }
 

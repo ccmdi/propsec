@@ -1,4 +1,4 @@
-import { FieldType, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
+import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
 import { validationContext } from "./context";
 
 // Date regex for ISO format YYYY-MM-DD
@@ -15,26 +15,25 @@ export function validateFrontmatter(
 ): Violation[] {
     const violations: Violation[] = [];
     const fieldGroups = groupFieldsByName(schema.fields);
-    const schemaFieldNames = new Set(schema.fields.map(f => f.name));
+    const schemaFieldNamesLower = new Set(schema.fields.map(f => f.name.toLowerCase()));
 
     // Check each schema field
     for (const [fieldName, variants] of fieldGroups) {
-        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const hasField = frontmatter !== undefined &&
-            Object.prototype.hasOwnProperty.call(frontmatter, fieldName);
-         
-        const value = hasField ? frontmatter[fieldName] : undefined;
+        // Case-insensitive field lookup in frontmatter
+        const actualKey = frontmatter ? findKeyCaseInsensitive(frontmatter, fieldName) : undefined;
+        const hasField = actualKey !== undefined;
 
-        //eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema));
+        const value = hasField ? frontmatter![actualKey] : undefined;
+
+        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter));
     }
 
-    // Check for unknown fields at top level
+    // Check for unknown fields at top level (case-insensitive)
     if (options.checkUnknownFields && frontmatter) {
         for (const key of Object.keys(frontmatter)) {
             if (key === "position") continue; // Skip Obsidian internal field
 
-            if (!schemaFieldNames.has(key)) {
+            if (!schemaFieldNamesLower.has(key.toLowerCase())) {
                 violations.push({
                     filePath,
                     schemaMapping: schema,
@@ -58,13 +57,26 @@ function validateField(
     variants: SchemaField[],
     path: string,
     filePath: string,
-    schema: SchemaMapping
+    schema: SchemaMapping,
+    frontmatter: Record<string, unknown> | undefined
 ): Violation[] {
     const violations: Violation[] = [];
 
-    // Check required/warned
-    const isRequired = variants.some(v => v.required);
-    const isWarned = !isRequired && variants.some(v => v.warn);
+    // Check field conditions - filter to variants whose conditions are met
+    const applicableVariants = variants.filter(v => {
+        if (!v.conditions || v.conditions.length === 0) return true;  // No conditions = always applicable
+        // All conditions must be met (AND logic)
+        return v.conditions.every(c => evaluateFieldCondition(c, frontmatter));
+    });
+
+    // If no variants are applicable (all had conditions, none met), skip this field
+    if (applicableVariants.length === 0) {
+        return violations;
+    }
+
+    // Check required/warned from applicable variants only
+    const isRequired = applicableVariants.some(v => v.required);
+    const isWarned = !isRequired && applicableVariants.some(v => v.warn);
 
     // Key is missing entirely - required fields must have the key present
     if (!hasField) {
@@ -89,14 +101,14 @@ function validateField(
     }
 
     // Key exists - find matching type variant (null is now a type, so null values need a null variant)
-    const matchingVariant = findMatchingVariant(value, variants);
+    const matchingVariant = findMatchingVariant(value, applicableVariants);
 
     if (!matchingVariant) {
-        const expectedTypes = variants.map(v => v.type).join(" | ");
+        const expectedTypes = applicableVariants.map(v => v.type).join(" | ");
         let message = `Type mismatch: ${path} (expected ${expectedTypes}, got ${getActualType(value)})`;
 
         // Detailed errors for custom type mismatches
-        for (const variant of variants) {
+        for (const variant of applicableVariants) {
             const customType = validationContext.getCustomType(variant.type);
             if (customType && typeof value === "object" && value !== null && !Array.isArray(value)) {
                 const errors = getCustomTypeFieldErrors(value as Record<string, unknown>, customType);
@@ -111,7 +123,7 @@ function validateField(
             filePath,
             schemaMapping: schema,
             field: path,
-            type: "type_mismatch",
+            type: isWarned ? "type_mismatch_warned" : "type_mismatch",
             message,
             expected: expectedTypes,
             actual: getActualType(value),
@@ -462,6 +474,20 @@ function checkArrayConstraints(
 
 // ============ Helpers ============
 
+/**
+ * Find a key in an object case-insensitively
+ * Returns the actual key if found, or undefined
+ */
+function findKeyCaseInsensitive(obj: Record<string, unknown>, key: string): string | undefined {
+    const lowerKey = key.toLowerCase();
+    for (const k of Object.keys(obj)) {
+        if (k.toLowerCase() === lowerKey) {
+            return k;
+        }
+    }
+    return undefined;
+}
+
 function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
     const groups = new Map<string, SchemaField[]>();
     for (const field of fields) {
@@ -504,4 +530,57 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
     }
 
     return errors;
+}
+
+/**
+ * Evaluate a field condition against frontmatter values
+ */
+function evaluateFieldCondition(
+    condition: FieldCondition,
+    frontmatter: Record<string, unknown> | undefined
+): boolean {
+    if (!frontmatter) return false;
+    
+    const actualKey = findKeyCaseInsensitive(frontmatter, condition.field);
+    const fieldValue = actualKey ? frontmatter[actualKey] : undefined;
+    const conditionValue = condition.value;
+
+    // Convert values for comparison - handle objects specially
+    let fieldStr: string;
+    if (fieldValue === null || fieldValue === undefined) {
+        fieldStr = "";
+    } else if (typeof fieldValue === "object") {
+        fieldStr = JSON.stringify(fieldValue);
+    } else {
+        fieldStr = String(fieldValue as string | number | boolean);
+    }
+    const conditionNum = parseFloat(conditionValue);
+    const fieldNum = typeof fieldValue === "number" ? fieldValue : parseFloat(fieldStr);
+
+    switch (condition.operator) {
+        case "equals":
+            return fieldStr === conditionValue;
+        case "not_equals":
+            return fieldStr !== conditionValue;
+        case "contains":
+            if (Array.isArray(fieldValue)) {
+                return fieldValue.some(v => String(v) === conditionValue);
+            }
+            return fieldStr.includes(conditionValue);
+        case "not_contains":
+            if (Array.isArray(fieldValue)) {
+                return !fieldValue.some(v => String(v) === conditionValue);
+            }
+            return !fieldStr.includes(conditionValue);
+        case "greater_than":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum > conditionNum;
+        case "less_than":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum < conditionNum;
+        case "greater_or_equal":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum >= conditionNum;
+        case "less_or_equal":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum <= conditionNum;
+        default:
+            return false;
+    }
 }

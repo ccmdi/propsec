@@ -15,6 +15,7 @@ import { StatusBarItem } from "./ui/statusBar";
 import { ViolationsModal } from "./ui/violationsModal";
 import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./ui/violationsView";
 import { PropsecSettingTab } from "./settings";
+import { queryContext } from "./query/context";
 
 export default class PropsecPlugin extends Plugin {
     settings: PropsecSettings;
@@ -26,7 +27,7 @@ export default class PropsecPlugin extends Plugin {
     async onload(): Promise<void> {
         await this.loadSettings();
 
-        // Initialize store and validator
+        queryContext.initialize(this.app, this.manifest.id);
         this.store = new ViolationStore();
         this.validator = new Validator(
             this.app,
@@ -34,16 +35,13 @@ export default class PropsecPlugin extends Plugin {
             () => this.settings
         );
 
-        // Auto-detect templates folder from core Templates plugin
         this.detectTemplatesFolder();
 
-        // Register violations view
         this.registerView(
             VIOLATIONS_VIEW_TYPE,
             (leaf) => new ViolationsView(leaf, this.store)
         );
 
-        // Set up status bar
         this.statusBarEl = this.addStatusBarItem();
         this.statusBarItem = new StatusBarItem(this.statusBarEl, this.store, () => {
             new ViolationsModal(this.app, this.store).open();
@@ -52,12 +50,19 @@ export default class PropsecPlugin extends Plugin {
         this.updateStatusBarColoring();
         this.updateStatusBarWarnings();
 
-        // Register commands
         this.addCommand({
             id: "validate-all-notes",
             name: "Validate all notes",
             callback: () => {
-                this.validator.validateAll();
+                void this.validator.validateAll();
+            },
+        });
+
+        this.addCommand({
+            id: "rebuild-and-validate",
+            name: "Rebuild index and validate all",
+            callback: () => {
+                void this.rebuildAndValidate();
             },
         });
 
@@ -84,10 +89,7 @@ export default class PropsecPlugin extends Plugin {
                 const file = this.app.workspace.getActiveFile();
                 if (file && file.extension === "md") {
                     if (!checking) {
-                        const mapping = this.validator.getMatchingSchema(file);
-                        if (mapping) {
-                            this.validator.validateFile(file, mapping);
-                        }
+                        this.validator.validateFileAllSchemas(file);
                     }
                     return true;
                 }
@@ -95,22 +97,37 @@ export default class PropsecPlugin extends Plugin {
             },
         });
 
-        // Register settings tab
         this.addSettingTab(new PropsecSettingTabWrapper(this.app, this));
 
-        // Register event handlers
         this.registerEvents();
 
-        // Initial validation on plugin load
-        // Delay to ensure metadata cache is ready
+        // Initialize query index first, then validate
         this.app.workspace.onLayoutReady(() => {
-            this.validator.validateAll();
+            void this.initializeAndValidate();
         });
+    }
+
+    private async initializeAndValidate(): Promise<void> {
+        await queryContext.index.initialize();
+        await this.validator.validateAll();
+    }
+
+    /**
+     * Force rebuild the tag index and re-validate everything
+     * Nuclear option for when things seem out of sync
+     */
+    private async rebuildAndValidate(): Promise<void> {
+        await queryContext.index.buildFullIndex();
+        await this.validator.validateAll();
     }
 
     onunload(): void {
         if (this.statusBarItem) {
             this.statusBarItem.destroy();
+        }
+        // Save tag index on unload
+        if (queryContext.isInitialized) {
+            void queryContext.index.saveToDisk();
         }
     }
 
@@ -158,17 +175,16 @@ export default class PropsecPlugin extends Plugin {
 
     private registerEvents(): void {
         // Validate on metadata cache changes (file save, frontmatter edit)
+        // Also update tag index
         this.registerEvent(
             this.app.metadataCache.on("changed", (file: TFile) => {
                 if (file.extension !== "md") return;
 
-                const mapping = this.validator.getMatchingSchema(file);
-                if (mapping) {
-                    this.validator.validateFile(file, mapping);
-                } else {
-                    // File no longer matches any schema, remove its violations
-                    this.store.removeFile(file.path);
-                }
+                // Update tag index
+                queryContext.index.updateFile(file);
+
+                // Validate against all matching schemas (accumulation model)
+                this.validator.validateFileAllSchemas(file);
             })
         );
 
@@ -176,6 +192,8 @@ export default class PropsecPlugin extends Plugin {
         this.registerEvent(
             this.app.vault.on("rename", (file: TAbstractFile, oldPath: string) => {
                 if (!(file instanceof TFile) || file.extension !== "md") return;
+
+                queryContext.index.renameFile(oldPath, file.path);
 
                 // Update violation store path
                 this.store.renameFile(oldPath, file.path);
@@ -186,12 +204,7 @@ export default class PropsecPlugin extends Plugin {
                     if (handled) return;
                     handled = true;
                     this.app.metadataCache.off("changed", onCacheUpdate);
-                    const mapping = this.validator.getMatchingSchema(file);
-                    if (mapping) {
-                        this.validator.validateFile(file, mapping);
-                    } else {
-                        this.store.removeFile(file.path);
-                    }
+                    this.validator.validateFileAllSchemas(file);
                 };
                 const onCacheUpdate = (updatedFile: TFile) => {
                     if (updatedFile.path === file.path) {
@@ -209,6 +222,8 @@ export default class PropsecPlugin extends Plugin {
         this.registerEvent(
             this.app.vault.on("delete", (file: TAbstractFile) => {
                 if (!(file instanceof TFile)) return;
+                // Update tag index
+                queryContext.index.removeFile(file.path);
                 this.store.removeFile(file.path);
             })
         );
@@ -219,13 +234,7 @@ export default class PropsecPlugin extends Plugin {
                 if (!this.settings.validateOnFileOpen) return;
                 if (!file || file.extension !== "md") return;
 
-                const mapping = this.validator.getMatchingSchema(file);
-                if (mapping) {
-                    this.validator.validateFile(file, mapping);
-                } else {
-                    // File no longer matches any schema, remove its violations
-                    this.store.removeFile(file.path);
-                }
+                this.validator.validateFileAllSchemas(file);
             })
         );
     }
@@ -235,9 +244,9 @@ export default class PropsecPlugin extends Plugin {
      */
     onSchemaChange(mappingId?: string): void {
         if (mappingId) {
-            this.validator.revalidateMapping(mappingId);
+            void this.validator.revalidateMapping(mappingId);
         } else {
-            this.validator.validateAll();
+            void this.validator.validateAll();
         }
     }
 

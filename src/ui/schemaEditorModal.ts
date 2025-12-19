@@ -1,15 +1,14 @@
 import { App, Modal, Notice, setIcon, Setting, TFile, TFolder, AbstractInputSuggest } from "obsidian";
 import {
-    FieldType,
     SchemaField,
     SchemaMapping,
     CustomType,
     PropertyCondition,
     PropertyConditionOperator,
-    isPrimitiveType,
 } from "../types";
-import { extractSchemaFromTemplate, getAllFieldTypes, getTypeDisplayName } from "../schema/extractor";
+import { extractSchemaFromTemplate, getAllFieldTypes } from "../schema/extractor";
 import { getOperatorDisplayName } from "../query/matcher";
+import { FieldEditorModal } from "./fieldEditorModal";
 
 export interface SchemaEditorResult {
     saved: boolean;
@@ -19,30 +18,108 @@ export interface SchemaEditorResult {
 /**
  * Modal for editing a schema mapping
  */
-export class SchemaEditorModal extends Modal {
+export class SchemaEditorModal extends FieldEditorModal {
     private mapping: SchemaMapping;
     private onSave: (mapping: SchemaMapping) => void;
     private templatesFolder: string;
     private customTypes: CustomType[];
-    private fieldsContainer: HTMLElement | null = null;
-    private expandedFields: Set<number> = new Set();
-    private activeConstraintsSection: HTMLElement | null = null;
-    private scrollHandler: (() => void) | null = null;
+    private enablePropertySuggestions: boolean;
 
     constructor(
         app: App,
         mapping: SchemaMapping,
         templatesFolder: string,
         customTypes: CustomType[],
-        onSave: (mapping: SchemaMapping) => void
+        onSave: (mapping: SchemaMapping) => void,
+        enablePropertySuggestions: boolean = true
     ) {
         super(app);
-        // Deep copy the mapping to avoid mutating the original
         this.mapping = JSON.parse(JSON.stringify(mapping)) as SchemaMapping;
         this.templatesFolder = templatesFolder;
         this.customTypes = customTypes;
         this.onSave = onSave;
+        this.enablePropertySuggestions = enablePropertySuggestions;
     }
+
+    // ========== Abstract Method Implementations ==========
+
+    protected getFields(): SchemaField[] {
+        return this.mapping.fields;
+    }
+
+    protected setFields(fields: SchemaField[]): void {
+        this.mapping.fields = fields;
+    }
+
+    protected getAvailableTypes(): string[] {
+        const primitives = getAllFieldTypes();
+        const customTypeNames = this.customTypes.map(t => t.name);
+        return [...primitives, ...customTypeNames];
+    }
+
+    protected onFieldDeleted(index: number): void {
+        this.mapping.fields.splice(index, 1);
+    }
+
+    protected onAddField(): void {
+        this.mapping.fields.push({
+            name: "",
+            type: "string",
+            required: true,
+        });
+        this.doRenderFields();
+    }
+
+    // ========== Override for Property Suggestions ==========
+
+    private doRenderFields(): void {
+        if (!this.fieldsContainer) return;
+
+        this.removeConstraintsSection();
+        this.expandedFields.clear();
+        this.fieldsContainer.empty();
+
+        const fields = this.getFields();
+        if (fields.length === 0) {
+            this.fieldsContainer.createEl("p", {
+                text: "No fields defined. Add fields or import from a template.",
+                cls: "frontmatter-linter-no-fields",
+            });
+            return;
+        }
+
+        fields.forEach((field, index) => {
+            this.renderFieldCard(
+                this.fieldsContainer!,
+                field,
+                index,
+                this.enablePropertySuggestions ? (input) => this.attachPropertySuggest(input) : undefined
+            );
+        });
+    }
+
+    private attachPropertySuggest(input: HTMLInputElement): void {
+        const knownProperties = Object.keys(this.app.metadataTypeManager.properties);
+        new PropertySuggest(
+            this.app,
+            input,
+            knownProperties,
+            (prop) => this.getPropertyType(prop),
+            () => {},
+            (prop) => this.getPropertyDisplayName(prop)
+        );
+    }
+
+    // ========== Override renderConstraints to Add Conditions ==========
+
+    protected override renderConstraints(container: HTMLElement, field: SchemaField): void {
+        // Add condition section before type-specific constraints
+        this.renderConditionSection(container, field);
+        // Then render type-specific constraints from base class
+        super.renderConstraints(container, field);
+    }
+
+    // ========== Modal Lifecycle ==========
 
     onOpen(): void {
         const { contentEl } = this;
@@ -77,7 +154,7 @@ export class SchemaEditorModal extends Modal {
                     })
             );
 
-        // Property Filter section (collapsible)
+        // Property Filter section
         this.renderPropertyFilterSection(contentEl);
 
         // Separator
@@ -94,39 +171,23 @@ export class SchemaEditorModal extends Modal {
             cls: "frontmatter-linter-fields-container",
         });
 
-        // Close constraints overlay on scroll anywhere in modal to avoid detached state
-        this.scrollHandler = () => {
-            if (this.activeConstraintsSection && this.expandedFields.size > 0) {
-                this.closeAllExpanded();
-            }
-        };
-        this.containerEl.addEventListener("scroll", this.scrollHandler, true);
-
-        this.renderFields();
+        this.setupScrollHandler();
+        this.doRenderFields();
 
         // Add field button and import button
         const buttonsRow = contentEl.createDiv({
             cls: "frontmatter-linter-buttons-row",
         });
-        
+
         //eslint-disable-next-line obsidianmd/ui/sentence-case
         const addFieldBtn = buttonsRow.createEl("button", { text: "+ Add Field" });
-        addFieldBtn.addEventListener("click", () => {
-            this.mapping.fields.push({
-                name: "",
-                type: "string",
-                required: true,
-            });
-            this.renderFields();
-        });
+        addFieldBtn.addEventListener("click", () => this.onAddField());
 
         const importBtn = buttonsRow.createEl("button", {
             //eslint-disable-next-line obsidianmd/ui/sentence-case
             text: "Import from Template...",
         });
-        importBtn.addEventListener("click", () => {
-            this.showTemplateSelector();
-        });
+        importBtn.addEventListener("click", () => this.showTemplateSelector());
 
         // Separator
         contentEl.createEl("hr");
@@ -137,16 +198,13 @@ export class SchemaEditorModal extends Modal {
         });
 
         const cancelBtn = footerButtons.createEl("button", { text: "Cancel" });
-        cancelBtn.addEventListener("click", () => {
-            this.close();
-        });
+        cancelBtn.addEventListener("click", () => this.close());
 
         const saveBtn = footerButtons.createEl("button", {
             text: "Save",
             cls: "mod-cta",
         });
         saveBtn.addEventListener("click", () => {
-            // Filter out fields with empty names
             this.mapping.fields = this.mapping.fields.filter(
                 (f) => f.name.trim() !== ""
             );
@@ -155,451 +213,111 @@ export class SchemaEditorModal extends Modal {
         });
     }
 
-    private renderFields(): void {
-        if (!this.fieldsContainer) return;
+    onClose(): void {
+        this.cleanupScrollHandler();
+        const { contentEl } = this;
+        contentEl.empty();
+    }
 
-        // Remove any existing constraints overlay
-        this.removeConstraintsSection();
-        this.expandedFields.clear();
+    // ========== Field Conditions (Schema-specific) ==========
 
-        this.fieldsContainer.empty();
+    private renderConditionSection(container: HTMLElement, field: SchemaField): void {
+        const section = container.createDiv({ cls: "frontmatter-linter-condition-section" });
+        this.renderConditionSectionContent(section, field);
+    }
 
-        if (this.mapping.fields.length === 0) {
-            this.fieldsContainer.createEl("p", {
-                text: "No fields defined. Add fields or import from a template.",
-                cls: "frontmatter-linter-no-fields",
-            });
-            return;
-        }
+    private renderConditionSectionContent(section: HTMLElement, field: SchemaField): void {
+        section.empty();
 
-        this.mapping.fields.forEach((field, index) => {
-            this.renderFieldCard(this.fieldsContainer!, field, index);
+        const header = section.createDiv({ cls: "frontmatter-linter-condition-header" });
+        header.createEl("span", { text: "Conditions", cls: "frontmatter-linter-constraints-title" });
+
+        const addBtn = header.createEl("button", {
+            cls: "frontmatter-linter-add-condition-btn",
+            attr: { title: "Add condition" }
         });
-    }
+        setIcon(addBtn, "plus");
+        addBtn.addEventListener("click", () => {
+            if (!field.conditions) field.conditions = [];
+            field.conditions.push({ field: "", operator: "equals", value: "" });
+            this.renderConditionSectionContent(section, field);
+        });
 
-    private removeConstraintsSection(): void {
-        if (this.activeConstraintsSection) {
-            this.activeConstraintsSection.remove();
-            this.activeConstraintsSection = null;
-        }
-    }
+        if (field.conditions && field.conditions.length > 0) {
+            section.createEl("div", {
+                text: "Only validate when all conditions match:",
+                cls: "frontmatter-linter-condition-desc"
+            });
 
-    private closeAllExpanded(): void {
-        // Close overlay
-        this.removeConstraintsSection();
-        // Reset all expanded card states
-        for (const index of this.expandedFields) {
-            const card = this.fieldsContainer?.children[index] as HTMLElement;
-            if (card) {
-                card.removeClass("expanded");
-                const btn = card.querySelector(".frontmatter-linter-icon-btn");
-                if (btn) setIcon(btn as HTMLElement, "chevron-right");
+            const list = section.createDiv({ cls: "frontmatter-linter-conditions-list" });
+            for (let i = 0; i < field.conditions.length; i++) {
+                this.renderFieldConditionRow(list, field, i, section);
             }
         }
-        this.expandedFields.clear();
     }
 
-    private renderFieldCard(
-        container: HTMLElement,
-        field: SchemaField,
-        index: number
-    ): HTMLElement {
-        const card = container.createDiv({
-            cls: "frontmatter-linter-field-card",
-        });
+    private renderFieldConditionRow(container: HTMLElement, field: SchemaField, index: number, section: HTMLElement): void {
+        const condition = field.conditions![index];
+        const row = container.createDiv({ cls: "frontmatter-linter-field-condition-row" });
 
-        // Main row: name, type, required, expand, delete
-        const mainRow = card.createDiv({
-            cls: "frontmatter-linter-field-main-row",
-        });
-
-        // Name input
-        const nameInput = mainRow.createEl("input", {
+        // Field input
+        const fieldInput = row.createEl("input", {
             type: "text",
-            cls: "frontmatter-linter-field-name",
+            placeholder: "field",
+            cls: "frontmatter-linter-condition-field",
         });
-        nameInput.value = field.name;
-        nameInput.placeholder = "Field name";
-        nameInput.addEventListener("input", (e) => {
-            field.name = (e.target as HTMLInputElement).value;
-        });
+        fieldInput.value = condition.field;
 
-        // Type select
-        const typeSelect = mainRow.createEl("select", {
-            cls: "frontmatter-linter-field-type",
-        });
-        for (const type of this.getAvailableTypes()) {
-            const option = typeSelect.createEl("option", {
-                value: type,
-                text: getTypeDisplayName(type),
-            });
-            if (type === field.type) {
-                option.selected = true;
-            }
+        if (this.enablePropertySuggestions) {
+            this.attachPropertySuggest(fieldInput);
         }
-        typeSelect.addEventListener("change", (e) => {
-            field.type = (e.target as HTMLSelectElement).value;
-            // Clear constraints when type changes
-            delete field.stringConstraints;
-            delete field.numberConstraints;
-            delete field.arrayConstraints;
-            delete field.objectConstraints;
-            delete field.arrayElementType;
-            delete field.objectKeyType;
-            delete field.objectValueType;
-            // Close any open overlay and replace just this card
-            this.removeConstraintsSection();
-            this.expandedFields.delete(index);
-            this.replaceFieldCard(card, field, index);
+
+        fieldInput.addEventListener("input", (e) => {
+            condition.field = (e.target as HTMLInputElement).value;
         });
 
-        // Required checkbox with label
-        const requiredLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
-        });
-        const requiredCheckbox = requiredLabel.createEl("input", {
-            type: "checkbox",
-        });
-        requiredCheckbox.checked = field.required;
-        requiredLabel.appendText(" Req");
-
-        // Warn checkbox with label (mutually exclusive with required)
-        const warnLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
-            attr: { title: "Warn if missing (not an error)" },
-        });
-        const warnCheckbox = warnLabel.createEl("input", {
-            type: "checkbox",
-        });
-        warnCheckbox.checked = field.warn || false;
-        warnLabel.appendText(" Warn");
-
-        // Mutual exclusion handlers
-        requiredCheckbox.addEventListener("change", (e) => {
-            field.required = (e.target as HTMLInputElement).checked;
-            if (field.required) {
-                field.warn = false;
-                warnCheckbox.checked = false;
-            }
-        });
-        warnCheckbox.addEventListener("change", (e) => {
-            field.warn = (e.target as HTMLInputElement).checked;
-            if (field.warn) {
-                field.required = false;
-                requiredCheckbox.checked = false;
-            }
-        });
-
-        // Expand button (always rendered for consistent layout, disabled if no constraints)
-        const hasConstraints = this.typeSupportsConstraints(field.type);
-        const expandBtn = mainRow.createEl("button", {
-            cls: "frontmatter-linter-icon-btn",
-            attr: { title: hasConstraints ? "Toggle constraints" : "No constraints for this type" },
-        });
-        setIcon(expandBtn, "chevron-right");
-
-        if (hasConstraints) {
-            expandBtn.addEventListener("click", () => {
-                if (this.expandedFields.has(index)) {
-                    // Collapse: animate out, then clean up
-                    this.collapseField(index, card, expandBtn);
-                } else {
-                    // Close any other expanded field first
-                    if (this.expandedFields.size > 0) {
-                        this.removeConstraintsSection();
-                        // Update previous expanded card's icon
-                        const prevIndex = Array.from(this.expandedFields)[0];
-                        const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
-                        if (prevCard) {
-                            prevCard.removeClass("expanded");
-                            const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
-                            if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
-                        }
-                        this.expandedFields.clear();
-                    }
-                    // Expand this field
-                    this.expandedFields.add(index);
-                    card.addClass("expanded");
-                    setIcon(expandBtn, "chevron-down");
-                    this.showConstraintsOverlay(card, field);
-                }
-            });
-        } else {
-            expandBtn.addClass("frontmatter-linter-icon-btn-disabled");
-            expandBtn.disabled = true;
+        // Operator select
+        const operatorSelect = row.createEl("select", { cls: "frontmatter-linter-condition-operator" });
+        const operators: PropertyConditionOperator[] = [
+            "equals", "not_equals", "contains", "not_contains",
+            "greater_than", "less_than", "greater_or_equal", "less_or_equal"
+        ];
+        for (const op of operators) {
+            const option = operatorSelect.createEl("option", { value: op, text: getOperatorDisplayName(op) });
+            if (op === condition.operator) option.selected = true;
         }
+        operatorSelect.addEventListener("change", (e) => {
+            condition.operator = (e.target as HTMLSelectElement).value as PropertyConditionOperator;
+        });
+
+        // Value input
+        const valueInput = row.createEl("input", {
+            type: "text",
+            placeholder: "value",
+            cls: "frontmatter-linter-condition-value",
+        });
+        valueInput.value = condition.value;
+        valueInput.addEventListener("input", (e) => {
+            condition.value = (e.target as HTMLInputElement).value;
+        });
 
         // Delete button
-        const deleteBtn = mainRow.createEl("button", {
-            cls: "frontmatter-linter-icon-btn frontmatter-linter-delete-btn",
-            attr: { title: "Remove field" },
+        const deleteBtn = row.createEl("button", {
+            cls: "frontmatter-linter-condition-delete",
+            attr: { title: "Remove condition" }
         });
         setIcon(deleteBtn, "x");
         deleteBtn.addEventListener("click", () => {
-            this.mapping.fields.splice(index, 1);
-            this.expandedFields.delete(index);
-            this.renderFields();
-        });
-
-        return card;
-    }
-
-    private getAvailableTypes(): string[] {
-        // Get all primitive types
-        const primitives = getAllFieldTypes();
-
-        // Get custom types
-        const customTypeNames = this.customTypes.map(t => t.name);
-
-        return [...primitives, ...customTypeNames];
-    }
-
-    private typeSupportsConstraints(type: FieldType): boolean {
-        // Only primitive types support constraints
-        // Custom types have their own internal constraints
-        // Object type uses custom types for structure, not constraints
-        return isPrimitiveType(type) && ["string", "number", "array"].includes(type);
-    }
-
-    private replaceFieldCard(oldCard: HTMLElement, field: SchemaField, index: number): void {
-        // Create a temporary container to render the new card
-        const temp = document.createElement("div");
-        const newCard = this.renderFieldCard(temp, field, index);
-        // Replace old card with new one
-        oldCard.replaceWith(newCard);
-    }
-
-    private showConstraintsOverlay(card: HTMLElement, field: SchemaField): void {
-        const rect = card.getBoundingClientRect();
-
-        // Append to modal container so focus stays within modal
-        const section = this.containerEl.createDiv({
-            cls: "frontmatter-linter-constraints-section",
-        });
-
-        section.style.top = `${rect.bottom + 4}px`;
-        section.style.left = `${rect.left}px`;
-        section.style.width = `${rect.width}px`;
-
-        this.renderConstraints(section, field);
-        this.activeConstraintsSection = section;
-    }
-
-    private collapseField(index: number, card: HTMLElement, expandBtn: HTMLElement): void {
-        if (this.activeConstraintsSection) {
-            this.activeConstraintsSection.addClass("collapsing");
-            this.activeConstraintsSection.addEventListener("animationend", () => {
-                this.removeConstraintsSection();
-                this.expandedFields.delete(index);
-                card.removeClass("expanded");
-                setIcon(expandBtn, "chevron-right");
-            }, { once: true });
-        } else {
-            this.expandedFields.delete(index);
-            card.removeClass("expanded");
-            setIcon(expandBtn, "chevron-right");
-        }
-    }
-
-    private renderConstraints(container: HTMLElement, field: SchemaField): void {
-        switch (field.type) {
-            case "string":
-                this.renderStringConstraints(container, field);
-                break;
-            case "number":
-                this.renderNumberConstraints(container, field);
-                break;
-            case "array":
-                this.renderArrayConstraints(container, field);
-                break;
-        }
-    }
-
-    private renderStringConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.stringConstraints) {
-            field.stringConstraints = {};
-        }
-        const constraints = field.stringConstraints;
-
-        container.createEl("div", {
-            text: "String constraints",
-            cls: "frontmatter-linter-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
-        });
-
-        // Pattern (regex)
-        const patternRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        patternRow.createEl("label", { text: "Pattern (regex):" });
-        const patternInput = patternRow.createEl("input", {
-            type: "text",
-            placeholder: "e.g., ^[A-Z].*",
-        });
-        patternInput.value = constraints.pattern || "";
-        patternInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.pattern = val || undefined;
-        });
-
-        // Min length
-        const minLenRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        minLenRow.createEl("label", { text: "Min length:" });
-        const minLenInput = minLenRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        minLenInput.value = constraints.minLength !== undefined ? String(constraints.minLength) : "";
-        minLenInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.minLength = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Max length
-        const maxLenRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        maxLenRow.createEl("label", { text: "Max length:" });
-        const maxLenInput = maxLenRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        maxLenInput.value = constraints.maxLength !== undefined ? String(constraints.maxLength) : "";
-        maxLenInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.maxLength = val ? parseInt(val, 10) : undefined;
+            field.conditions!.splice(index, 1);
+            if (field.conditions!.length === 0) delete field.conditions;
+            this.renderConditionSectionContent(section, field);
         });
     }
 
-    private renderNumberConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.numberConstraints) {
-            field.numberConstraints = {};
-        }
-        const constraints = field.numberConstraints;
-
-        container.createEl("div", {
-            text: "Number constraints",
-            cls: "frontmatter-linter-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
-        });
-
-        // Min
-        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        minRow.createEl("label", { text: "Min value:" });
-        const minInput = minRow.createEl("input", { type: "number" });
-        minInput.value = constraints.min !== undefined ? String(constraints.min) : "";
-        minInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.min = val ? parseFloat(val) : undefined;
-        });
-
-        // Max
-        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        maxRow.createEl("label", { text: "Max value:" });
-        const maxInput = maxRow.createEl("input", { type: "number" });
-        maxInput.value = constraints.max !== undefined ? String(constraints.max) : "";
-        maxInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.max = val ? parseFloat(val) : undefined;
-        });
-    }
-
-    private renderArrayConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.arrayConstraints) {
-            field.arrayConstraints = {};
-        }
-        const constraints = field.arrayConstraints;
-
-        container.createEl("div", {
-            text: "Array configuration",
-            cls: "frontmatter-linter-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
-        });
-
-        // Element type selector
-        const elementTypeRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        elementTypeRow.createEl("label", { text: "Element type:" });
-        const elementTypeSelect = elementTypeRow.createEl("select");
-
-        // Add "any" option
-        const anyOption = elementTypeSelect.createEl("option", {
-            value: "",
-            text: "(any type)",
-        });
-        if (!field.arrayElementType) {
-            anyOption.selected = true;
-        }
-
-        const availableTypes = this.getAvailableTypes();
-        for (const type of availableTypes) {
-            const option = elementTypeSelect.createEl("option", {
-                value: type,
-                text: getTypeDisplayName(type),
-            });
-            if (type === field.arrayElementType) {
-                option.selected = true;
-            }
-        }
-
-        elementTypeSelect.addEventListener("change", (e) => {
-            const value = (e.target as HTMLSelectElement).value;
-            field.arrayElementType = value || undefined;
-        });
-
-        // Min items
-        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        minRow.createEl("label", { text: "Min items:" });
-        const minInput = minRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        minInput.value = constraints.minItems !== undefined ? String(constraints.minItems) : "";
-        minInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.minItems = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Max items
-        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        maxRow.createEl("label", { text: "Max items:" });
-        const maxInput = maxRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        maxInput.value = constraints.maxItems !== undefined ? String(constraints.maxItems) : "";
-        maxInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.maxItems = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Contains (comma-separated values that must be present)
-        const containsRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        containsRow.createEl("label", { text: "Contains:" });
-        const containsInput = containsRow.createEl("input", {
-            type: "text",
-            placeholder: "value1, value2",
-        });
-        containsInput.value = constraints.contains?.join(", ") || "";
-        containsInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            if (val.trim()) {
-                constraints.contains = val.split(",").map((v) => v.trim()).filter((v) => v);
-            } else {
-                constraints.contains = undefined;
-            }
-        });
-    }
+    // ========== Template Import ==========
 
     private showTemplateSelector(): void {
-        // Get template files from templates folder
-        const templatesFolder = this.app.vault.getAbstractFileByPath(
-            this.templatesFolder
-        );
+        const templatesFolder = this.app.vault.getAbstractFileByPath(this.templatesFolder);
 
         if (!templatesFolder || !(templatesFolder instanceof TFolder)) {
             new Notice(`Templates folder "${this.templatesFolder}" not found. Check your settings.`);
@@ -613,14 +331,12 @@ export class SchemaEditorModal extends Modal {
             return;
         }
 
-        // Create a simple dropdown modal
         const modal = new TemplateSelectorModal(
             this.app,
             templateFiles,
             //eslint-disable-next-line @typescript-eslint/no-misused-promises
             async (file) => {
                 const fields = await extractSchemaFromTemplate(this.app, file);
-                // Merge with existing fields (add new ones, don't overwrite)
                 const existingNames = new Set(this.mapping.fields.map((f) => f.name));
                 for (const newField of fields) {
                     if (!existingNames.has(newField.name)) {
@@ -628,7 +344,7 @@ export class SchemaEditorModal extends Modal {
                     }
                 }
                 this.mapping.sourceTemplatePath = file.path;
-                this.renderFields();
+                this.doRenderFields();
             }
         );
         void modal.open();
@@ -646,14 +362,14 @@ export class SchemaEditorModal extends Modal {
         return files;
     }
 
+    // ========== Property Filter Section ==========
+
     private renderPropertyFilterSection(container: HTMLElement): void {
-        // Initialize filter if not exists
         if (!this.mapping.propertyFilter) {
             this.mapping.propertyFilter = {};
         }
         const filter = this.mapping.propertyFilter;
 
-        // Collapsible section
         const section = container.createDiv({
             cls: "frontmatter-linter-filter-section",
         });
@@ -669,7 +385,6 @@ export class SchemaEditorModal extends Modal {
             cls: "frontmatter-linter-filter-content frontmatter-linter-hidden",
         });
 
-        // Check if any filter is set
         const hasFilters = filter.modifiedAfter || filter.modifiedBefore ||
             filter.createdAfter || filter.createdBefore ||
             filter.hasProperty || filter.notHasProperty ||
@@ -686,44 +401,13 @@ export class SchemaEditorModal extends Modal {
             setIcon(toggleIcon, isHidden ? "chevron-down" : "chevron-right");
         });
 
-        // Filter fields
         const grid = content.createDiv({ cls: "frontmatter-linter-filter-grid" });
 
-        // Modified after
-        const modAfterRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
-        modAfterRow.createEl("label", { text: "Modified after:" });
-        const modAfterInput = modAfterRow.createEl("input", { type: "date" });
-        modAfterInput.value = filter.modifiedAfter || "";
-        modAfterInput.addEventListener("change", (e) => {
-            filter.modifiedAfter = (e.target as HTMLInputElement).value || undefined;
-        });
-
-        // Modified before
-        const modBeforeRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
-        modBeforeRow.createEl("label", { text: "Modified before:" });
-        const modBeforeInput = modBeforeRow.createEl("input", { type: "date" });
-        modBeforeInput.value = filter.modifiedBefore || "";
-        modBeforeInput.addEventListener("change", (e) => {
-            filter.modifiedBefore = (e.target as HTMLInputElement).value || undefined;
-        });
-
-        // Created after
-        const createdAfterRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
-        createdAfterRow.createEl("label", { text: "Created after:" });
-        const createdAfterInput = createdAfterRow.createEl("input", { type: "date" });
-        createdAfterInput.value = filter.createdAfter || "";
-        createdAfterInput.addEventListener("change", (e) => {
-            filter.createdAfter = (e.target as HTMLInputElement).value || undefined;
-        });
-
-        // Created before
-        const createdBeforeRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
-        createdBeforeRow.createEl("label", { text: "Created before:" });
-        const createdBeforeInput = createdBeforeRow.createEl("input", { type: "date" });
-        createdBeforeInput.value = filter.createdBefore || "";
-        createdBeforeInput.addEventListener("change", (e) => {
-            filter.createdBefore = (e.target as HTMLInputElement).value || undefined;
-        });
+        // Date filters
+        this.createDateFilterRow(grid, "Modified after:", filter.modifiedAfter, (v) => filter.modifiedAfter = v);
+        this.createDateFilterRow(grid, "Modified before:", filter.modifiedBefore, (v) => filter.modifiedBefore = v);
+        this.createDateFilterRow(grid, "Created after:", filter.createdAfter, (v) => filter.createdAfter = v);
+        this.createDateFilterRow(grid, "Created before:", filter.createdBefore, (v) => filter.createdBefore = v);
 
         // Has property
         const hasPropRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
@@ -733,8 +417,9 @@ export class SchemaEditorModal extends Modal {
         hasPropInput.addEventListener("input", (e) => {
             filter.hasProperty = (e.target as HTMLInputElement).value || undefined;
         });
+        this.attachPropertySuggest(hasPropInput);
 
-        // Not has property
+        // Missing property
         const notHasPropRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
         notHasPropRow.createEl("label", { text: "Missing property:" });
         const notHasPropInput = notHasPropRow.createEl("input", { type: "text", placeholder: "e.g., draft" });
@@ -742,10 +427,10 @@ export class SchemaEditorModal extends Modal {
         notHasPropInput.addEventListener("input", (e) => {
             filter.notHasProperty = (e.target as HTMLInputElement).value || undefined;
         });
+        this.attachPropertySuggest(notHasPropInput);
 
-        // Property conditions section
+        // Property conditions
         const conditionsSection = content.createDiv({ cls: "frontmatter-linter-conditions-section" });
-
         const conditionsHeader = conditionsSection.createDiv({ cls: "frontmatter-linter-conditions-header" });
         conditionsHeader.createEl("span", { text: "Property conditions" });
         const addConditionBtn = conditionsHeader.createEl("button", { cls: "frontmatter-linter-add-condition-btn" });
@@ -753,7 +438,6 @@ export class SchemaEditorModal extends Modal {
 
         const conditionsList = conditionsSection.createDiv({ cls: "frontmatter-linter-conditions-list" });
 
-        // Initialize conditions array if needed
         if (!filter.conditions) {
             filter.conditions = [];
         }
@@ -761,23 +445,34 @@ export class SchemaEditorModal extends Modal {
         const renderConditions = () => {
             conditionsList.empty();
             for (let i = 0; i < filter.conditions!.length; i++) {
-                this.renderConditionRow(conditionsList, filter.conditions!, i, renderConditions);
+                this.renderPropertyConditionRow(conditionsList, filter.conditions!, i, renderConditions);
             }
         };
 
         addConditionBtn.addEventListener("click", () => {
-            filter.conditions!.push({
-                property: "",
-                operator: "equals",
-                value: "",
-            });
+            filter.conditions!.push({ property: "", operator: "equals", value: "" });
             renderConditions();
         });
 
         renderConditions();
     }
 
-    private renderConditionRow(
+    private createDateFilterRow(
+        grid: HTMLElement,
+        label: string,
+        value: string | undefined,
+        onChange: (value: string | undefined) => void
+    ): void {
+        const row = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        row.createEl("label", { text: label });
+        const input = row.createEl("input", { type: "date" });
+        input.value = value || "";
+        input.addEventListener("change", (e) => {
+            onChange((e.target as HTMLInputElement).value || undefined);
+        });
+    }
+
+    private renderPropertyConditionRow(
         container: HTMLElement,
         conditions: PropertyCondition[],
         index: number,
@@ -786,7 +481,7 @@ export class SchemaEditorModal extends Modal {
         const condition = conditions[index];
         const row = container.createDiv({ cls: "frontmatter-linter-condition-row" });
 
-        // Property input with Obsidian native suggest
+        // Property input
         const propInput = row.createEl("input", {
             type: "text",
             placeholder: "property",
@@ -812,7 +507,6 @@ export class SchemaEditorModal extends Modal {
                 }
             }
 
-            // If current operator isn't valid for this type, reset to first valid
             if (!operators.includes(condition.operator)) {
                 condition.operator = operators[0];
                 operatorSelect.value = operators[0];
@@ -821,14 +515,15 @@ export class SchemaEditorModal extends Modal {
 
         updateOperators();
 
-        // Set up property suggest with Obsidian native UI
+        // Property suggest
         const knownProperties = Object.keys(this.app.metadataTypeManager.properties);
         new PropertySuggest(
             this.app,
             propInput,
             knownProperties,
             (prop) => this.getPropertyType(prop),
-            () => updateOperators()
+            () => updateOperators(),
+            (prop) => this.getPropertyDisplayName(prop)
         );
 
         propInput.addEventListener("input", (e) => {
@@ -860,17 +555,16 @@ export class SchemaEditorModal extends Modal {
         });
     }
 
-    /**
-     * Get the Obsidian property type for a property name
-     */
     private getPropertyType(propertyName: string): string {
         const propInfo = this.app.metadataTypeManager.properties[propertyName];
         return propInfo?.widget ?? "text";
     }
 
-    /**
-     * Get valid operators for a property type
-     */
+    private getPropertyDisplayName(propertyKey: string): string {
+        const propInfo = this.app.metadataTypeManager.properties[propertyKey];
+        return propInfo?.name ?? propertyKey;
+    }
+
     private getOperatorsForType(propertyType: string): PropertyConditionOperator[] {
         switch (propertyType) {
             case "number":
@@ -889,16 +583,6 @@ export class SchemaEditorModal extends Modal {
                 return ["equals", "not_equals", "contains", "not_contains"];
         }
     }
-
-    onClose(): void {
-        // Clean up scroll listener
-        if (this.scrollHandler) {
-            this.containerEl.removeEventListener("scroll", this.scrollHandler, true);
-        }
-        this.removeConstraintsSection();
-        const { contentEl } = this;
-        contentEl.empty();
-    }
 }
 
 /**
@@ -908,6 +592,7 @@ class PropertySuggest extends AbstractInputSuggest<string> {
     private properties: string[];
     private onSelectCallback: (value: string) => void;
     private getType: (prop: string) => string;
+    private getDisplayName: (prop: string) => string;
     private textInput: HTMLInputElement;
 
     constructor(
@@ -915,13 +600,15 @@ class PropertySuggest extends AbstractInputSuggest<string> {
         inputEl: HTMLInputElement,
         properties: string[],
         getType: (prop: string) => string,
-        onSelect: (value: string) => void
+        onSelect: (value: string) => void,
+        getDisplayName?: (prop: string) => string
     ) {
         super(app, inputEl);
         this.textInput = inputEl;
         this.properties = properties;
         this.getType = getType;
         this.onSelectCallback = onSelect;
+        this.getDisplayName = getDisplayName || ((prop) => prop);
     }
 
     getSuggestions(query: string): string[] {
@@ -933,15 +620,17 @@ class PropertySuggest extends AbstractInputSuggest<string> {
 
     renderSuggestion(value: string, el: HTMLElement): void {
         el.addClass("frontmatter-linter-property-suggestion");
-        el.createSpan({ text: value, cls: "frontmatter-linter-property-name" });
+        const displayName = this.getDisplayName(value);
+        el.createSpan({ text: displayName, cls: "frontmatter-linter-property-name" });
         const propType = this.getType(value);
         el.createSpan({ text: propType, cls: "frontmatter-linter-property-type" });
     }
 
     selectSuggestion(value: string, _evt: MouseEvent | KeyboardEvent): void {
-        this.textInput.value = value;
+        const displayName = this.getDisplayName(value);
+        this.textInput.value = displayName;
         this.textInput.dispatchEvent(new Event("input", { bubbles: true }));
-        this.onSelectCallback(value);
+        this.onSelectCallback(displayName);
         this.close();
     }
 }
@@ -972,7 +661,7 @@ class TemplateSelectorModal extends Modal {
             const item = list.createEl("div", {
                 cls: "frontmatter-linter-template-item",
             });
-            item.setText(file.path);
+            item.setText(file.basename);
             item.addEventListener("click", () => {
                 this.onSelect(file);
                 this.close();

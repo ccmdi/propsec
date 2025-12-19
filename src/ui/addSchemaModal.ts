@@ -2,6 +2,7 @@ import { App, Modal, TFile, TFolder } from "obsidian";
 import { SchemaMapping, SchemaField, CustomType } from "../types";
 import { extractSchemaFromTemplate } from "../schema/extractor";
 import { SchemaEditorModal } from "./schemaEditorModal";
+import { generateUUID } from "../utils/id";
 
 /**
  * Modal for creating a new schema mapping
@@ -10,6 +11,7 @@ export class AddSchemaModal extends Modal {
     private templatesFolder: string;
     private customTypes: CustomType[];
     private onSave: (mapping: SchemaMapping) => void;
+    private enablePropertySuggestions: boolean;
     private selectedTemplate: TFile | null = null;
     private mode: "template" | "scratch" = "template";
 
@@ -17,12 +19,14 @@ export class AddSchemaModal extends Modal {
         app: App,
         templatesFolder: string,
         customTypes: CustomType[],
-        onSave: (mapping: SchemaMapping) => void
+        onSave: (mapping: SchemaMapping) => void,
+        enablePropertySuggestions: boolean = true
     ) {
         super(app);
         this.templatesFolder = templatesFolder;
         this.customTypes = customTypes;
         this.onSave = onSave;
+        this.enablePropertySuggestions = enablePropertySuggestions;
     }
 
     onOpen(): void {
@@ -71,7 +75,7 @@ export class AddSchemaModal extends Modal {
         const templateFiles = this.getTemplateFiles();
         for (const file of templateFiles) {
             templateSelect.createEl("option", {
-                text: file.path,
+                text: file.basename,
                 value: file.path,
             });
         }
@@ -189,7 +193,7 @@ export class AddSchemaModal extends Modal {
 
         // Create new mapping with UUID
         const newMapping: SchemaMapping = {
-            id: this.generateUUID(),
+            id: generateUUID(),
             name: defaultName,
             sourceTemplatePath,
             query: "",
@@ -207,18 +211,12 @@ export class AddSchemaModal extends Modal {
             this.customTypes,
             (mapping) => {
                 this.onSave(mapping);
-            }
+            },
+            this.enablePropertySuggestions
         );
         editorModal.open();
     }
 
-    private generateUUID(): string {
-        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-            const r = (Math.random() * 16) | 0;
-            const v = c === "x" ? r : (r & 0x3) | 0x8;
-            return v.toString(16);
-        });
-    }
 
     onClose(): void {
         const { contentEl } = this;
