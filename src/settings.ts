@@ -4,6 +4,7 @@ import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
 import { SchemaPreviewModal } from "./ui/schemaPreviewModal";
+import { TypePreviewModal } from "./ui/typePreviewModal";
 import { ConfirmModal } from "./ui/confirmModal";
 import { describePropertyFilter } from "./query/matcher";
 import { makeDraggable } from "./ui/draggable";
@@ -452,6 +453,15 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Buttons container
         const buttonsEl = headerRow.createDiv({
             cls: "frontmatter-linter-custom-type-buttons",
+        });
+
+        // Preview button
+        const previewBtn = buttonsEl.createEl("button", {
+            attr: { title: "Preview resolved type" },
+        });
+        setIcon(previewBtn, "eye");
+        previewBtn.addEventListener("click", () => {
+            new TypePreviewModal(this.app, customType).open();
         });
 
         // Edit button

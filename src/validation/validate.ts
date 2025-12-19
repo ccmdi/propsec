@@ -225,6 +225,7 @@ function validateArrayElements(
 
 /**
  * Validate an object against a custom type definition (recursive)
+ * Supports union types via multiple field entries with the same name
  */
 function validateCustomTypeObject(
     obj: Record<string, unknown>,
@@ -235,6 +236,7 @@ function validateCustomTypeObject(
 ): Violation[] {
     const violations: Violation[] = [];
     const typeFieldNames = new Set(customType.fields.map(f => f.name));
+    const fieldGroups = groupFieldsByName(customType.fields);
 
     // Check unknown fields in this object
     for (const key of Object.keys(obj)) {
@@ -249,43 +251,56 @@ function validateCustomTypeObject(
         }
     }
 
-    // Validate each field in the custom type
-    for (const field of customType.fields) {
-        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
-        const value = hasField ? obj[field.name] : undefined;
-        const fieldPath = `${path}.${field.name}`;
+    // Validate each field group (supporting union types)
+    for (const [fieldName, variants] of fieldGroups) {
+        const hasField = Object.prototype.hasOwnProperty.call(obj, fieldName);
+        const value = hasField ? obj[fieldName] : undefined;
+        const fieldPath = `${path}.${fieldName}`;
+        
+        const isRequired = variants.some(v => v.required);
+        const isWarned = !isRequired && variants.some(v => v.warn);
 
         // Check required
-        if (field.required && !hasField) {
-            violations.push({
-                filePath,
-                schemaMapping: schema,
-                field: fieldPath,
-                type: "missing_required",
-                message: `Missing required field: ${fieldPath}`,
-            });
+        if (!hasField) {
+            if (isRequired) {
+                violations.push({
+                    filePath,
+                    schemaMapping: schema,
+                    field: fieldPath,
+                    type: "missing_required",
+                    message: `Missing required field: ${fieldPath}`,
+                });
+            } else if (isWarned) {
+                violations.push({
+                    filePath,
+                    schemaMapping: schema,
+                    field: fieldPath,
+                    type: "missing_warned",
+                    message: `Missing recommended field: ${fieldPath}`,
+                });
+            }
             continue;
         }
 
-        if (!hasField) continue;
-
-        // Check type (null values require type: "null" to match)
-        if (!checkTypeMatch(value, field.type)) {
+        // Find matching type variant (union support)
+        const matchingVariant = variants.find(v => checkTypeMatch(value, v.type));
+        
+        if (!matchingVariant) {
+            const expectedTypes = variants.map(v => v.type).join(" | ");
             violations.push({
                 filePath,
                 schemaMapping: schema,
                 field: fieldPath,
-                type: "type_mismatch",
-                message: `Type mismatch: ${fieldPath} (expected ${field.type}, got ${getActualType(value)})`,
-                expected: field.type,
+                type: isWarned ? "type_mismatch_warned" : "type_mismatch",
+                message: `Type mismatch: ${fieldPath} (expected ${expectedTypes}, got ${getActualType(value)})`,
+                expected: expectedTypes,
                 actual: getActualType(value),
             });
             continue;
         }
 
-        // Recurse with constraints
-        violations.push(...validateValue(value, field, fieldPath, filePath, schema));
+        // Recurse with constraints using the matching variant
+        violations.push(...validateValue(value, matchingVariant, fieldPath, filePath, schema));
     }
 
     return violations;
@@ -327,18 +342,22 @@ function checkTypeMatch(value: unknown, expectedType: FieldType): boolean {
     return false;
 }
 
+
 function validateCustomTypeMatch(obj: Record<string, unknown>, customType: { fields: SchemaField[] }): boolean {
-    for (const field of customType.fields) {
-        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
+    const fieldGroups = groupFieldsByName(customType.fields);
+    
+    for (const [fieldName, variants] of fieldGroups) {
+        const hasField = Object.prototype.hasOwnProperty.call(obj, fieldName);
+        const isRequired = variants.some(v => v.required);
 
         // Required fields must have the key present
-        if (field.required && !hasField) return false;
+        if (isRequired && !hasField) return false;
 
-        // If field exists, check type (null values require type: "null")
+        // If field exists, check if value matches any variant type (union support)
         if (hasField) {
-            const value = obj[field.name];
-            if (!checkTypeMatch(value, field.type)) return false;
+            const value = obj[fieldName];
+            const matchesAny = variants.some(v => checkTypeMatch(value, v.type));
+            if (!matchesAny) return false;
         }
     }
     return true;
@@ -508,24 +527,26 @@ function getActualType(value: unknown): string {
 
 function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { name: string; fields: SchemaField[] }): string[] {
     const errors: string[] = [];
+    const fieldGroups = groupFieldsByName(customType.fields);
 
-    for (const field of customType.fields) {
-        //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const hasField = Object.prototype.hasOwnProperty.call(obj, field.name);
-
-        const value = hasField ? obj[field.name] : undefined;
+    for (const [fieldName, variants] of fieldGroups) {
+        const hasField = Object.prototype.hasOwnProperty.call(obj, fieldName);
+        const value = hasField ? obj[fieldName] : undefined;
+        const isRequired = variants.some(v => v.required);
 
         // Required fields must have the key present
-        if (field.required && !hasField) {
-            errors.push(`missing required field "${field.name}"`);
+        if (isRequired && !hasField) {
+            errors.push(`missing required field "${fieldName}"`);
             continue;
         }
 
         if (!hasField) continue;
 
-        // Check type (null values require type: "null")
-        if (!checkTypeMatch(value, field.type)) {
-            errors.push(`"${field.name}" expected ${field.type}, got ${getActualType(value)}`);
+        // Check type against all variants (union support)
+        const matchesAny = variants.some(v => checkTypeMatch(value, v.type));
+        if (!matchesAny) {
+            const expectedTypes = variants.map(v => v.type).join(" | ");
+            errors.push(`"${fieldName}" expected ${expectedTypes}, got ${getActualType(value)}`);
         }
     }
 
