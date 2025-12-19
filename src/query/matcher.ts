@@ -3,12 +3,14 @@ import { PropertyFilter, PropertyCondition, PropertyConditionOperator } from "..
 
 /**
  * Query syntax:
+ * - "*" - all files (wildcard)
  * - "folder" - files directly in folder
  * - "folder/*" - files in folder and subfolders
  * - "#tag" - files with tag
  * - "folder/* or #tag" - union of conditions (OR)
  *
  * Examples:
+ * - "*" - all markdown files in vault
  * - "Journal/Gym" - only files directly in Journal/Gym/
  * - "Journal/Gym/*" - files in Journal/Gym/ and all subfolders
  * - "#book" - all files with #book tag
@@ -16,7 +18,7 @@ import { PropertyFilter, PropertyCondition, PropertyConditionOperator } from "..
  */
 
 interface QueryCondition {
-    type: "folder" | "folder_recursive" | "tag";
+    type: "all" | "folder" | "folder_recursive" | "tag";
     value: string;
 }
 
@@ -33,7 +35,13 @@ export function parseQuery(query: string): QueryCondition[] {
         const trimmed = part.trim();
         if (!trimmed) continue;
 
-        if (trimmed.startsWith("#")) {
+        if (trimmed === "*") {
+            // All files wildcard
+            conditions.push({
+                type: "all",
+                value: "*",
+            });
+        } else if (trimmed.startsWith("#")) {
             // Tag query
             conditions.push({
                 type: "tag",
@@ -82,6 +90,8 @@ export function fileMatchesQuery(app: App, file: TFile, query: string): boolean 
  */
 function matchCondition(app: App, file: TFile, condition: QueryCondition): boolean {
     switch (condition.type) {
+        case "all":
+            return true;
         case "folder":
             return matchFolder(file, condition.value, false);
         case "folder_recursive":
@@ -158,6 +168,8 @@ export function describeQuery(query: string): string {
 
     const descriptions = conditions.map((c) => {
         switch (c.type) {
+            case "all":
+                return "all files";
             case "folder":
                 return `in ${c.value}/`;
             case "folder_recursive":

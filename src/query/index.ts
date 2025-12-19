@@ -232,6 +232,9 @@ export class QueryIndex {
             let paths: Set<string>;
 
             switch (condition.type) {
+                case "all":
+                    paths = this.getAllMarkdownFiles();
+                    break;
                 case "folder":
                     paths = this.getFilesInFolder(condition.value, false);
                     break;
@@ -260,6 +263,17 @@ export class QueryIndex {
         }
 
         return files;
+    }
+
+    /**
+     * Get all markdown files in the vault
+     */
+    private getAllMarkdownFiles(): Set<string> {
+        const result = new Set<string>();
+        for (const file of this.app.vault.getMarkdownFiles()) {
+            result.add(file.path);
+        }
+        return result;
     }
 
     /**
