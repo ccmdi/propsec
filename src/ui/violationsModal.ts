@@ -8,7 +8,7 @@ import { ViolationStore } from "../validation/store";
 export class ViolationsModal extends Modal {
     private store: ViolationStore;
     private searchQuery: string = "";
-    private filter: ViolationFilter = "all";
+    private filter: ViolationFilter = "errors";
     private container: HTMLElement | null = null;
 
     constructor(app: App, store: ViolationStore) {

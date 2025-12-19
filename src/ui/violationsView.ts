@@ -15,7 +15,7 @@ export class ViolationsView extends ItemView {
     private store: ViolationStore;
     private changeListener: () => void;
     private searchQuery: string = "";
-    private filter: ViolationFilter = "all";
+    private filter: ViolationFilter = "errors";
     private listContainer: HTMLElement | null = null;
     private summaryEl: HTMLElement | null = null;
     private filterContainer: HTMLElement | null = null;
