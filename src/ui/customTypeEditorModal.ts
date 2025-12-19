@@ -1,23 +1,16 @@
-import { App, Modal, Notice, setIcon, Setting } from "obsidian";
-import {
-    FieldType,
-    SchemaField,
-    CustomType,
-    isPrimitiveType,
-} from "../types";
-import { getAllFieldTypes, getTypeDisplayName } from "../schema/extractor";
+import { App, Notice, Setting } from "obsidian";
+import { SchemaField, CustomType, isPrimitiveType } from "../types";
+import { getAllFieldTypes } from "../schema/extractor";
+import { generatePrefixedId } from "../utils/id";
+import { FieldEditorModal } from "./fieldEditorModal";
 
 /**
  * Modal for editing a custom type definition
  */
-export class CustomTypeEditorModal extends Modal {
+export class CustomTypeEditorModal extends FieldEditorModal {
     private customType: CustomType;
     private existingTypes: CustomType[];
     private onSave: (customType: CustomType) => void;
-    private fieldsContainer: HTMLElement | null = null;
-    private expandedFields: Set<number> = new Set();
-    private activeConstraintsSection: HTMLElement | null = null;
-    private scrollHandler: (() => void) | null = null;
     private isNew: boolean;
 
     constructor(
@@ -34,7 +27,7 @@ export class CustomTypeEditorModal extends Modal {
             this.customType = JSON.parse(JSON.stringify(customType)) as CustomType;
         } else {
             this.customType = {
-                id: this.generateId(),
+                id: generatePrefixedId("ct"),
                 name: "",
                 fields: [],
             };
@@ -44,9 +37,39 @@ export class CustomTypeEditorModal extends Modal {
         this.onSave = onSave;
     }
 
-    private generateId(): string {
-        return `ct_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    // ========== Abstract Method Implementations ==========
+
+    protected getFields(): SchemaField[] {
+        return this.customType.fields;
     }
+
+    protected setFields(fields: SchemaField[]): void {
+        this.customType.fields = fields;
+    }
+
+    protected getAvailableTypes(): string[] {
+        const primitives = getAllFieldTypes();
+        // Exclude self to prevent direct self-reference
+        const otherCustomTypes = this.existingTypes
+            .filter(t => t.id !== this.customType.id)
+            .map(t => t.name);
+        return [...primitives, ...otherCustomTypes];
+    }
+
+    protected onFieldDeleted(index: number): void {
+        this.customType.fields.splice(index, 1);
+    }
+
+    protected onAddField(): void {
+        this.customType.fields.push({
+            name: "",
+            type: "string",
+            required: true,
+        });
+        this.renderFields("No fields defined. Add fields to define the structure of this custom type.");
+    }
+
+    // ========== Modal Lifecycle ==========
 
     onOpen(): void {
         const { contentEl } = this;
@@ -85,31 +108,17 @@ export class CustomTypeEditorModal extends Modal {
             cls: "frontmatter-linter-fields-container",
         });
 
-        // Close constraints overlay on scroll anywhere in modal
-        this.scrollHandler = () => {
-            if (this.activeConstraintsSection && this.expandedFields.size > 0) {
-                this.closeAllExpanded();
-            }
-        };
-        this.containerEl.addEventListener("scroll", this.scrollHandler, true);
-
-        this.renderFields();
+        this.setupScrollHandler();
+        this.renderFields("No fields defined. Add fields to define the structure of this custom type.");
 
         // Add field button
         const buttonsRow = contentEl.createDiv({
             cls: "frontmatter-linter-buttons-row",
         });
-        
+
         //eslint-disable-next-line obsidianmd/ui/sentence-case
         const addFieldBtn = buttonsRow.createEl("button", { text: "+ Add Field" });
-        addFieldBtn.addEventListener("click", () => {
-            this.customType.fields.push({
-                name: "",
-                type: "string",
-                required: true,
-            });
-            this.renderFields();
-        });
+        addFieldBtn.addEventListener("click", () => this.onAddField());
 
         // Separator
         contentEl.createEl("hr");
@@ -120,55 +129,54 @@ export class CustomTypeEditorModal extends Modal {
         });
 
         const cancelBtn = footerButtons.createEl("button", { text: "Cancel" });
-        cancelBtn.addEventListener("click", () => {
-            this.close();
-        });
+        cancelBtn.addEventListener("click", () => this.close());
 
         const saveBtn = footerButtons.createEl("button", {
             text: "Save",
             cls: "mod-cta",
         });
-        saveBtn.addEventListener("click", () => {
-            // Validate
-            if (!this.customType.name.trim()) {
-                new Notice("Please enter a type name");
-                return;
-            }
+        saveBtn.addEventListener("click", () => this.handleSave());
+    }
 
-            // Check for duplicate names (excluding self if editing)
-            const duplicate = this.existingTypes.find(
-                (t) => t.id !== this.customType.id && t.name === this.customType.name
-            );
-            if (duplicate) {
-                new Notice(`A custom type named "${this.customType.name}" already exists`);
-                return;
-            }
+    private handleSave(): void {
+        // Validate name
+        if (!this.customType.name.trim()) {
+            new Notice("Please enter a type name");
+            return;
+        }
 
-            // Check for name collision with primitive types
-            if (isPrimitiveType(this.customType.name)) {
-                new Notice(`"${this.customType.name}" is a built-in type name. Please choose a different name.`);
-                return;
-            }
+        // Check for duplicate names
+        const duplicate = this.existingTypes.find(
+            (t) => t.id !== this.customType.id && t.name === this.customType.name
+        );
+        if (duplicate) {
+            new Notice(`A custom type named "${this.customType.name}" already exists`);
+            return;
+        }
 
-            // Filter out fields with empty names
-            this.customType.fields = this.customType.fields.filter(
-                (f) => f.name.trim() !== ""
-            );
+        // Check for primitive type collision
+        if (isPrimitiveType(this.customType.name)) {
+            new Notice(`"${this.customType.name}" is a built-in type name. Please choose a different name.`);
+            return;
+        }
 
-            // Check for circular references
-            if (this.hasCircularReference()) {
-                //eslint-disable-next-line obsidianmd/ui/sentence-case
-                new Notice("Circular reference detected: A custom type cannot reference itself directly or indirectly.");
-                return;
-            }
+        // Filter empty fields
+        this.customType.fields = this.customType.fields.filter(
+            (f) => f.name.trim() !== ""
+        );
 
-            this.onSave(this.customType);
-            this.close();
-        });
+        // Check for circular references
+        if (this.hasCircularReference()) {
+            //eslint-disable-next-line obsidianmd/ui/sentence-case
+            new Notice("Circular reference detected: A custom type cannot reference itself directly or indirectly.");
+            return;
+        }
+
+        this.onSave(this.customType);
+        this.close();
     }
 
     private hasCircularReference(): boolean {
-        // Check if any field in this type references itself or creates a cycle
         const visited = new Set<string>();
         const recursionStack = new Set<string>();
 
@@ -185,7 +193,7 @@ export class CustomTypeEditorModal extends Modal {
                     // Check direct field type
                     if (!isPrimitiveType(field.type)) {
                         if (recursionStack.has(field.type)) {
-                            return true; // Cycle detected
+                            return true;
                         }
                         if (!visited.has(field.type) && detectCycle(field.type)) {
                             return true;
@@ -211,454 +219,8 @@ export class CustomTypeEditorModal extends Modal {
         return detectCycle(this.customType.name);
     }
 
-    private renderFields(): void {
-        if (!this.fieldsContainer) return;
-
-        // Remove any existing constraints overlay
-        this.removeConstraintsSection();
-        this.expandedFields.clear();
-
-        this.fieldsContainer.empty();
-
-        if (this.customType.fields.length === 0) {
-            this.fieldsContainer.createEl("p", {
-                text: "No fields defined. Add fields to define the structure of this custom type.",
-                cls: "frontmatter-linter-no-fields",
-            });
-            return;
-        }
-
-        this.customType.fields.forEach((field, index) => {
-            this.renderFieldCard(this.fieldsContainer!, field, index);
-        });
-    }
-
-    private removeConstraintsSection(): void {
-        if (this.activeConstraintsSection) {
-            this.activeConstraintsSection.remove();
-            this.activeConstraintsSection = null;
-        }
-    }
-
-    private closeAllExpanded(): void {
-        this.removeConstraintsSection();
-        for (const index of this.expandedFields) {
-            const card = this.fieldsContainer?.children[index] as HTMLElement;
-            if (card) {
-                card.removeClass("expanded");
-                const btn = card.querySelector(".frontmatter-linter-icon-btn");
-                if (btn) setIcon(btn as HTMLElement, "chevron-right");
-            }
-        }
-        this.expandedFields.clear();
-    }
-
-    private getAvailableTypes(): string[] {
-        // Get all primitive types
-        const primitives = getAllFieldTypes();
-
-        // Get other custom types (excluding the one being edited to prevent self-reference)
-        const otherCustomTypes = this.existingTypes
-            .filter(t => t.id !== this.customType.id)
-            .map(t => t.name);
-
-        return [...primitives, ...otherCustomTypes];
-    }
-
-    private renderFieldCard(
-        container: HTMLElement,
-        field: SchemaField,
-        index: number
-    ): HTMLElement {
-        const card = container.createDiv({
-            cls: "frontmatter-linter-field-card",
-        });
-
-        // Main row: name, type, required, expand, delete
-        const mainRow = card.createDiv({
-            cls: "frontmatter-linter-field-main-row",
-        });
-
-        // Name input
-        const nameInput = mainRow.createEl("input", {
-            type: "text",
-            cls: "frontmatter-linter-field-name",
-        });
-        nameInput.value = field.name;
-        nameInput.placeholder = "Field name";
-        nameInput.addEventListener("input", (e) => {
-            field.name = (e.target as HTMLInputElement).value;
-        });
-
-        // Type select
-        const typeSelect = mainRow.createEl("select", {
-            cls: "frontmatter-linter-field-type",
-        });
-
-        const availableTypes = this.getAvailableTypes();
-        for (const type of availableTypes) {
-            const option = typeSelect.createEl("option", {
-                value: type,
-                text: getTypeDisplayName(type),
-            });
-            if (type === field.type) {
-                option.selected = true;
-            }
-        }
-
-        typeSelect.addEventListener("change", (e) => {
-            field.type = (e.target as HTMLSelectElement).value;
-            // Clear constraints when type changes
-            //TODO: ugly, just set one constraint and delete it maybe?
-            //REPEATED in schema editor modal lol
-            delete field.stringConstraints;
-            delete field.numberConstraints;
-            delete field.arrayConstraints;
-            delete field.objectConstraints;
-            delete field.arrayElementType;
-            delete field.objectKeyType;
-            delete field.objectValueType;
-            // Close any open overlay and replace just this card
-            this.removeConstraintsSection();
-            this.expandedFields.delete(index);
-            this.replaceFieldCard(card, field, index);
-        });
-
-        // Required checkbox with label
-        const requiredLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
-        });
-        const requiredCheckbox = requiredLabel.createEl("input", {
-            type: "checkbox",
-        });
-        requiredCheckbox.checked = field.required;
-        requiredLabel.appendText(" Req");
-
-        // Warn checkbox with label
-        const warnLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
-            attr: { title: "Warn if missing (not an error)" },
-        });
-        const warnCheckbox = warnLabel.createEl("input", {
-            type: "checkbox",
-        });
-        warnCheckbox.checked = field.warn || false;
-        warnLabel.appendText(" Warn");
-
-        // Mutual exclusion handlers
-        requiredCheckbox.addEventListener("change", (e) => {
-            field.required = (e.target as HTMLInputElement).checked;
-            if (field.required) {
-                field.warn = false;
-                warnCheckbox.checked = false;
-            }
-        });
-        warnCheckbox.addEventListener("change", (e) => {
-            field.warn = (e.target as HTMLInputElement).checked;
-            if (field.warn) {
-                field.required = false;
-                requiredCheckbox.checked = false;
-            }
-        });
-
-        // Expand button
-        const hasConstraints = this.typeSupportsConstraints(field.type);
-        const expandBtn = mainRow.createEl("button", {
-            cls: "frontmatter-linter-icon-btn",
-            attr: { title: hasConstraints ? "Toggle constraints" : "No constraints for this type" },
-        });
-        setIcon(expandBtn, "chevron-right");
-
-        if (hasConstraints) {
-            expandBtn.addEventListener("click", () => {
-                if (this.expandedFields.has(index)) {
-                    this.collapseField(index, card, expandBtn);
-                } else {
-                    // Close any other expanded field first
-                    if (this.expandedFields.size > 0) {
-                        this.removeConstraintsSection();
-                        const prevIndex = Array.from(this.expandedFields)[0];
-                        const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
-                        if (prevCard) {
-                            prevCard.removeClass("expanded");
-                            const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
-                            if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
-                        }
-                        this.expandedFields.clear();
-                    }
-                    // Expand this field
-                    this.expandedFields.add(index);
-                    card.addClass("expanded");
-                    setIcon(expandBtn, "chevron-down");
-                    this.showConstraintsOverlay(card, field);
-                }
-            });
-        } else {
-            expandBtn.addClass("frontmatter-linter-icon-btn-disabled");
-            expandBtn.disabled = true;
-        }
-
-        // Delete button
-        const deleteBtn = mainRow.createEl("button", {
-            cls: "frontmatter-linter-icon-btn frontmatter-linter-delete-btn",
-            attr: { title: "Remove field" },
-        });
-        setIcon(deleteBtn, "x");
-        deleteBtn.addEventListener("click", () => {
-            this.customType.fields.splice(index, 1);
-            this.expandedFields.delete(index);
-            this.renderFields();
-        });
-
-        return card;
-    }
-
-    private typeSupportsConstraints(type: FieldType): boolean {
-        // Only primitive types support constraints
-        // Custom types have their own internal constraints
-        // Object type uses custom types for structure, not constraints
-        return isPrimitiveType(type) && ["string", "number", "array"].includes(type);
-    }
-
-    private replaceFieldCard(oldCard: HTMLElement, field: SchemaField, index: number): void {
-        const temp = document.createElement("div");
-        const newCard = this.renderFieldCard(temp, field, index);
-        oldCard.replaceWith(newCard);
-    }
-
-    private showConstraintsOverlay(card: HTMLElement, field: SchemaField): void {
-        const rect = card.getBoundingClientRect();
-
-        const section = this.containerEl.createDiv({
-            cls: "frontmatter-linter-constraints-section",
-        });
-
-        section.style.top = `${rect.bottom + 4}px`;
-        section.style.left = `${rect.left}px`;
-        section.style.width = `${rect.width}px`;
-
-        this.renderConstraints(section, field);
-        this.activeConstraintsSection = section;
-    }
-
-    private collapseField(index: number, card: HTMLElement, expandBtn: HTMLElement): void {
-        if (this.activeConstraintsSection) {
-            this.activeConstraintsSection.addClass("collapsing");
-            this.activeConstraintsSection.addEventListener("animationend", () => {
-                this.removeConstraintsSection();
-                this.expandedFields.delete(index);
-                card.removeClass("expanded");
-                setIcon(expandBtn, "chevron-right");
-            }, { once: true });
-        } else {
-            this.expandedFields.delete(index);
-            card.removeClass("expanded");
-            setIcon(expandBtn, "chevron-right");
-        }
-    }
-
-    private renderConstraints(container: HTMLElement, field: SchemaField): void {
-        switch (field.type) {
-            case "string":
-                this.renderStringConstraints(container, field);
-                break;
-            case "number":
-                this.renderNumberConstraints(container, field);
-                break;
-            case "array":
-                this.renderArrayTypeConstraints(container, field);
-                break;
-        }
-    }
-
-    private renderArrayTypeConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.arrayConstraints) {
-            field.arrayConstraints = {};
-        }
-
-        container.createEl("div", {
-            text: "Array configuration",
-            cls: "frontmatter-linter-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
-        });
-
-        // Element type selector
-        const elementTypeRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        elementTypeRow.createEl("label", { text: "Element type:" });
-        const elementTypeSelect = elementTypeRow.createEl("select");
-
-        // Add "any" option
-        const anyOption = elementTypeSelect.createEl("option", {
-            value: "",
-            text: "(any type)",
-        });
-        if (!field.arrayElementType) {
-            anyOption.selected = true;
-        }
-
-        const availableTypes = this.getAvailableTypes();
-        for (const type of availableTypes) {
-            const option = elementTypeSelect.createEl("option", {
-                value: type,
-                text: getTypeDisplayName(type),
-            });
-            if (type === field.arrayElementType) {
-                option.selected = true;
-            }
-        }
-
-        elementTypeSelect.addEventListener("change", (e) => {
-            const value = (e.target as HTMLSelectElement).value;
-            field.arrayElementType = value || undefined;
-        });
-
-        // Standard array constraints
-        const constraints = field.arrayConstraints;
-
-        // Min items
-        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        minRow.createEl("label", { text: "Min items:" });
-        const minInput = minRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        minInput.value = constraints.minItems !== undefined ? String(constraints.minItems) : "";
-        minInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.minItems = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Max items
-        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        maxRow.createEl("label", { text: "Max items:" });
-        const maxInput = maxRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        maxInput.value = constraints.maxItems !== undefined ? String(constraints.maxItems) : "";
-        maxInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.maxItems = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Contains
-        const containsRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        containsRow.createEl("label", { text: "Contains:" });
-        const containsInput = containsRow.createEl("input", {
-            type: "text",
-            placeholder: "value1, value2",
-        });
-        containsInput.value = constraints.contains?.join(", ") || "";
-        containsInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            if (val.trim()) {
-                constraints.contains = val.split(",").map((v) => v.trim()).filter((v) => v);
-            } else {
-                constraints.contains = undefined;
-            }
-        });
-    }
-
-    private renderStringConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.stringConstraints) {
-            field.stringConstraints = {};
-        }
-        const constraints = field.stringConstraints;
-
-        container.createEl("div", {
-            text: "String constraints",
-            cls: "frontmatter-linter-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
-        });
-
-        // Pattern
-        const patternRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        patternRow.createEl("label", { text: "Pattern (regex):" });
-        const patternInput = patternRow.createEl("input", {
-            type: "text",
-            placeholder: "e.g., ^[A-Z].*",
-        });
-        patternInput.value = constraints.pattern || "";
-        patternInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.pattern = val || undefined;
-        });
-
-        // Min length
-        const minLenRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        minLenRow.createEl("label", { text: "Min length:" });
-        const minLenInput = minLenRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        minLenInput.value = constraints.minLength !== undefined ? String(constraints.minLength) : "";
-        minLenInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.minLength = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Max length
-        const maxLenRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        maxLenRow.createEl("label", { text: "Max length:" });
-        const maxLenInput = maxLenRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        maxLenInput.value = constraints.maxLength !== undefined ? String(constraints.maxLength) : "";
-        maxLenInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.maxLength = val ? parseInt(val, 10) : undefined;
-        });
-    }
-
-    private renderNumberConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.numberConstraints) {
-            field.numberConstraints = {};
-        }
-        const constraints = field.numberConstraints;
-
-        container.createEl("div", {
-            text: "Number constraints",
-            cls: "frontmatter-linter-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
-        });
-
-        // Min
-        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        minRow.createEl("label", { text: "Min value:" });
-        const minInput = minRow.createEl("input", { type: "number" });
-        minInput.value = constraints.min !== undefined ? String(constraints.min) : "";
-        minInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.min = val ? parseFloat(val) : undefined;
-        });
-
-        // Max
-        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
-        maxRow.createEl("label", { text: "Max value:" });
-        const maxInput = maxRow.createEl("input", { type: "number" });
-        maxInput.value = constraints.max !== undefined ? String(constraints.max) : "";
-        maxInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.max = val ? parseFloat(val) : undefined;
-        });
-    }
-
     onClose(): void {
-        // Clean up scroll listener
-        if (this.scrollHandler) {
-            this.containerEl.removeEventListener("scroll", this.scrollHandler, true);
-        }
-        this.removeConstraintsSection();
+        this.cleanupScrollHandler();
         const { contentEl } = this;
         contentEl.empty();
     }

@@ -2,6 +2,7 @@ import { App, Modal, TFile, TFolder } from "obsidian";
 import { SchemaMapping, SchemaField, CustomType } from "../types";
 import { extractSchemaFromTemplate } from "../schema/extractor";
 import { SchemaEditorModal } from "./schemaEditorModal";
+import { generateUUID } from "../utils/id";
 
 /**
  * Modal for creating a new schema mapping
@@ -192,7 +193,7 @@ export class AddSchemaModal extends Modal {
 
         // Create new mapping with UUID
         const newMapping: SchemaMapping = {
-            id: this.generateUUID(),
+            id: generateUUID(),
             name: defaultName,
             sourceTemplatePath,
             query: "",
@@ -216,13 +217,6 @@ export class AddSchemaModal extends Modal {
         editorModal.open();
     }
 
-    private generateUUID(): string {
-        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-            const r = (Math.random() * 16) | 0;
-            const v = c === "x" ? r : (r & 0x3) | 0x8;
-            return v.toString(16);
-        });
-    }
 
     onClose(): void {
         const { contentEl } = this;
