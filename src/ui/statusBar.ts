@@ -1,3 +1,4 @@
+import { setIcon } from "obsidian";
 import { ViolationStore } from "../validation/store";
 
 /**
@@ -9,6 +10,8 @@ export class StatusBarItem {
     private onClick: () => void;
     private colorErrors: boolean = true;
     private excludeWarnings: boolean = true;
+    private lastWidth: number = 0;
+    private isLoading: boolean = false;
 
     constructor(
         statusBarEl: HTMLElement,
@@ -26,7 +29,56 @@ export class StatusBarItem {
         // Subscribe to store changes
         this.store.onChange(() => this.update());
 
-        // Initial update
+        this.store.onBatchStart(() => this.showLoading());
+        this.store.onBatchEnd(() => this.hideLoading());
+
+        if (this.store.getLastFullValidation() === 0) {
+            this.showInitialLoading();
+        } else {
+            this.update();
+        }
+    }
+
+    /**
+     * Show initial loading state (no width preservation since there's no prior content)
+     */
+    private showInitialLoading(): void {
+        this.isLoading = true;
+        this.statusBarEl.empty();
+        this.statusBarEl.addClass("frontmatter-linter-loading");
+
+        const spinnerEl = this.statusBarEl.createSpan({ cls: "frontmatter-linter-spinner" });
+        setIcon(spinnerEl, "loader-2");
+    }
+
+    /**
+     * Show loading spinner, preserving current width
+     */
+    private showLoading(): void {
+        this.isLoading = true;
+        // Capture current width before changing content
+        this.lastWidth = this.statusBarEl.offsetWidth;
+
+        this.statusBarEl.empty();
+        this.statusBarEl.removeClass("frontmatter-linter-ok");
+        this.statusBarEl.removeClass("frontmatter-linter-error");
+        this.statusBarEl.addClass("frontmatter-linter-loading");
+
+        // Set fixed width to prevent layout shift
+        this.statusBarEl.style.width = `${this.lastWidth}px`;
+
+        // Add spinner icon
+        const spinnerEl = this.statusBarEl.createSpan({ cls: "frontmatter-linter-spinner" });
+        setIcon(spinnerEl, "loader-2");
+    }
+
+    /**
+     * Hide loading spinner and update display
+     */
+    private hideLoading(): void {
+        this.isLoading = false;
+        this.statusBarEl.removeClass("frontmatter-linter-loading");
+        this.statusBarEl.style.width = "";
         this.update();
     }
 
@@ -50,6 +102,8 @@ export class StatusBarItem {
      * Update the status bar display
      */
     update(): void {
+        if (this.isLoading) return;
+
         const totalViolations = this.store.getTotalViolationCount(this.excludeWarnings);
         const fileCount = this.store.getFileCount(this.excludeWarnings);
 

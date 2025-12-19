@@ -6,12 +6,68 @@ import { Violation, ValidationState, isWarningViolation, ViolationFilter } from 
 export class ViolationStore {
     private state: ValidationState;
     private changeListeners: Array<() => void> = [];
+    private batchStartListeners: Array<() => void> = [];
+    private batchEndListeners: Array<() => void> = [];
+    private batchDepth: number = 0;
+    private batchHasChanges: boolean = false;
 
     constructor() {
         this.state = {
             violations: new Map(),
             lastFullValidation: 0,
         };
+    }
+
+    /**
+     * Begin a batch update - notifications are suppressed until endBatch()
+     */
+    beginBatch(): void {
+        const wasZero = this.batchDepth === 0;
+        this.batchDepth++;
+        if (wasZero) {
+            for (const listener of this.batchStartListeners) {
+                listener();
+            }
+        }
+    }
+
+    /**
+     * End a batch update - notify listeners if there were changes
+     */
+    endBatch(): void {
+        if (this.batchDepth > 0) {
+            this.batchDepth--;
+            if (this.batchDepth === 0) {
+                for (const listener of this.batchEndListeners) {
+                    listener();
+                }
+                if (this.batchHasChanges) {
+                    this.batchHasChanges = false;
+                    this.notifyListeners();
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if currently in a batch update
+     */
+    isBatching(): boolean {
+        return this.batchDepth > 0;
+    }
+
+    /**
+     * Register a listener for batch start
+     */
+    onBatchStart(listener: () => void): void {
+        this.batchStartListeners.push(listener);
+    }
+
+    /**
+     * Register a listener for batch end
+     */
+    onBatchEnd(listener: () => void): void {
+        this.batchEndListeners.push(listener);
     }
 
     /**
@@ -220,6 +276,10 @@ export class ViolationStore {
      * Notify all listeners of state change
      */
     private notifyListeners(): void {
+        if (this.batchDepth > 0) {
+            this.batchHasChanges = true;
+            return;
+        }
         for (const listener of this.changeListeners) {
             listener();
         }

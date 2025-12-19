@@ -128,16 +128,18 @@ export class Validator {
     async validateAll(): Promise<void> {
         const settings = this.settings();
 
-        // Clear existing violations
-        this.store.clear();
+        this.store.beginBatch();
+        try {
+            this.store.clear();
 
-        // Validate each mapping
-        for (const mapping of settings.schemaMappings) {
-            await this.validateMapping(mapping);
+            for (const mapping of settings.schemaMappings) {
+                await this.validateMapping(mapping);
+            }
+
+            this.store.setLastFullValidation(Date.now());
+        } finally {
+            this.store.endBatch();
         }
-
-        // Update timestamp
-        this.store.setLastFullValidation(Date.now());
     }
 
     /**

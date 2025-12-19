@@ -98,6 +98,35 @@
     font-weight: 600;
 }
 
+.frontmatter-linter-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.frontmatter-linter-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1em;
+    width: 1em;
+
+    svg {
+        height: 1em;
+        width: 1em;
+        animation: frontmatter-linter-spin 1s linear infinite;
+    }
+}
+
+@keyframes frontmatter-linter-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 // ============================================
 // Modals
 // ============================================
