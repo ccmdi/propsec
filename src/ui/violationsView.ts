@@ -285,21 +285,46 @@ export class ViolationsView extends ItemView {
     }
 
     /**
-     * Render a file section with its violations
+     * Render a file section with its violations, grouped by schema
      */
     private renderFileSection(container: HTMLElement, filePath: string, violations: Violation[]): void {
         const section = container.createDiv({
             cls: "frontmatter-linter-view-file",
         });
 
-        this.renderFileHeader(section, filePath, violations[0]?.schemaMapping.name || "Unknown");
+        // Render file header (just the file name, no schema badge)
+        this.renderFileHeader(section, filePath);
         
-        const violationsList = section.createDiv({
-            cls: "frontmatter-linter-view-violations",
-        });
+        // Group violations by schema
+        const bySchema = new Map<string, Violation[]>();
+        for (const v of violations) {
+            const schemaId = v.schemaMapping.id;
+            if (!bySchema.has(schemaId)) {
+                bySchema.set(schemaId, []);
+            }
+            bySchema.get(schemaId)!.push(v);
+        }
 
-        for (const violation of violations) {
-            this.renderViolationItem(violationsList, violation);
+        // Render each schema's violations
+        for (const [, schemaViolations] of bySchema) {
+            const schemaName = schemaViolations[0].schemaMapping.name;
+            
+            const schemaGroup = section.createDiv({
+                cls: "frontmatter-linter-view-schema-group",
+            });
+            
+            schemaGroup.createEl("span", {
+                text: schemaName,
+                cls: "frontmatter-linter-view-schema",
+            });
+            
+            const violationsList = schemaGroup.createDiv({
+                cls: "frontmatter-linter-view-violations",
+            });
+
+            for (const violation of schemaViolations) {
+                this.renderViolationItem(violationsList, violation);
+            }
         }
     }
 
@@ -318,9 +343,9 @@ export class ViolationsView extends ItemView {
     }
 
     /**
-     * Render a file header row
+     * Render a file header row (just the file link, no schema badge)
      */
-    private renderFileHeader(container: HTMLElement, filePath: string, schemaName: string): void {
+    private renderFileHeader(container: HTMLElement, filePath: string): void {
         const header = container.createDiv({
             cls: "frontmatter-linter-view-file-header",
         });
@@ -352,12 +377,6 @@ export class ViolationsView extends ItemView {
             if (e.button === 1) {
                 await openFile(e, true);
             }
-        });
-
-        // Schema badge
-        header.createEl("span", {
-            text: schemaName,
-            cls: "frontmatter-linter-view-schema",
         });
     }
 

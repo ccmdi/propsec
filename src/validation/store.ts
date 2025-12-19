@@ -15,25 +15,63 @@ export class ViolationStore {
     }
 
     /**
-     * Set violations for a specific file
+     * Add violations for a specific file (accumulates with existing)
      */
-    setFileViolations(filePath: string, violations: Violation[]): void {
-        if (violations.length === 0) {
-            this.state.violations.delete(filePath);
-        } else {
-            this.state.violations.set(filePath, violations);
-        }
+    addFileViolations(filePath: string, violations: Violation[]): void {
+        if (violations.length === 0) return;
+        
+        const existing = this.state.violations.get(filePath) || [];
+        this.state.violations.set(filePath, [...existing, ...violations]);
         this.notifyListeners();
     }
 
     /**
-     * Remove violations for a specific file
+     * Remove all violations for a specific file
      */
     removeFile(filePath: string): void {
         if (this.state.violations.has(filePath)) {
             this.state.violations.delete(filePath);
             this.notifyListeners();
         }
+    }
+
+    /**
+     * Remove all violations from a specific schema - O(files with violations * violations per file)
+     */
+    removeSchemaViolations(schemaId: string): void {
+        let changed = false;
+        for (const [filePath, violations] of this.state.violations) {
+            const filtered = violations.filter(v => v.schemaMapping.id !== schemaId);
+            if (filtered.length !== violations.length) {
+                changed = true;
+                if (filtered.length === 0) {
+                    this.state.violations.delete(filePath);
+                } else {
+                    this.state.violations.set(filePath, filtered);
+                }
+            }
+        }
+        if (changed) {
+            this.notifyListeners();
+        }
+    }
+
+    /**
+     * Remove violations for a specific file from a specific schema
+     */
+    removeFileSchemaViolations(filePath: string, schemaId: string): void {
+        const violations = this.state.violations.get(filePath);
+        if (!violations) return;
+        
+        const filtered = violations.filter(v => v.schemaMapping.id !== schemaId);
+        if (filtered.length === violations.length) return; // No change
+        
+        if (filtered.length === 0) {
+            this.state.violations.delete(filePath);
+        } else {
+            this.state.violations.set(filePath, filtered);
+        }
+        this.notifyListeners();
     }
 
     /**

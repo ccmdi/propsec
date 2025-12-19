@@ -89,10 +89,7 @@ export default class PropsecPlugin extends Plugin {
                 const file = this.app.workspace.getActiveFile();
                 if (file && file.extension === "md") {
                     if (!checking) {
-                        const mapping = this.validator.getMatchingSchema(file);
-                        if (mapping) {
-                            this.validator.validateFile(file, mapping);
-                        }
+                        this.validator.validateFileAllSchemas(file);
                     }
                     return true;
                 }
@@ -186,13 +183,8 @@ export default class PropsecPlugin extends Plugin {
                 // Update tag index
                 queryContext.index.updateFile(file);
 
-                const mapping = this.validator.getMatchingSchema(file);
-                if (mapping) {
-                    this.validator.validateFile(file, mapping);
-                } else {
-                    // File no longer matches any schema, remove its violations
-                    this.store.removeFile(file.path);
-                }
+                // Validate against all matching schemas (accumulation model)
+                this.validator.validateFileAllSchemas(file);
             })
         );
 
@@ -212,12 +204,7 @@ export default class PropsecPlugin extends Plugin {
                     if (handled) return;
                     handled = true;
                     this.app.metadataCache.off("changed", onCacheUpdate);
-                    const mapping = this.validator.getMatchingSchema(file);
-                    if (mapping) {
-                        this.validator.validateFile(file, mapping);
-                    } else {
-                        this.store.removeFile(file.path);
-                    }
+                    this.validator.validateFileAllSchemas(file);
                 };
                 const onCacheUpdate = (updatedFile: TFile) => {
                     if (updatedFile.path === file.path) {
@@ -247,13 +234,7 @@ export default class PropsecPlugin extends Plugin {
                 if (!this.settings.validateOnFileOpen) return;
                 if (!file || file.extension !== "md") return;
 
-                const mapping = this.validator.getMatchingSchema(file);
-                if (mapping) {
-                    this.validator.validateFile(file, mapping);
-                } else {
-                    // File no longer matches any schema, remove its violations
-                    this.store.removeFile(file.path);
-                }
+                this.validator.validateFileAllSchemas(file);
             })
         );
     }

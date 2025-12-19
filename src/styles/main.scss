@@ -653,8 +653,29 @@
     flex-shrink: 0;
 }
 
-.frontmatter-linter-view-violations {
+// Schema group for accumulation model (multiple schemas per file)
+.frontmatter-linter-view-schema-group,
+.frontmatter-linter-schema-group {
     padding: 6px 10px;
+    
+    &:not(:last-child) {
+        border-bottom: 1px solid var(--background-modifier-border);
+    }
+    
+    .frontmatter-linter-view-schema,
+    .frontmatter-linter-schema-badge {
+        display: inline-block;
+        margin-bottom: 6px;
+    }
+}
+
+.frontmatter-linter-view-violations {
+    padding: 0; // Padding now handled by schema-group
+    
+    // Only add padding when not inside a schema group (backwards compat)
+    .frontmatter-linter-view-file > & {
+        padding: 6px 10px;
+    }
 }
 
 .frontmatter-linter-view-item {

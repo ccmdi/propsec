@@ -41,37 +41,32 @@ export class Validator {
     }
 
     /**
-     * Check if a file matches any schema mapping
+     * Get all schema mappings that match a file (accumulation model)
      */
-    getMatchingSchema(file: TFile): SchemaMapping | null {
+    getMatchingSchemas(file: TFile): SchemaMapping[] {
         const settings = this.settings();
-
-        for (const mapping of settings.schemaMappings) {
-            if (this.fileMatchesMapping(file, mapping)) {
-                return mapping;
-            }
-        }
-        return null;
+        return settings.schemaMappings.filter(m => this.fileMatchesMapping(file, m));
     }
 
     /**
-     * Validate a single file against its schema mapping
+     * Get the first matching schema (for backwards compatibility)
      */
-    validateFile(file: TFile, mapping?: SchemaMapping): Violation[] {
-        const schema = mapping || this.getMatchingSchema(file);
+    getMatchingSchema(file: TFile): SchemaMapping | null {
+        const matches = this.getMatchingSchemas(file);
+        return matches.length > 0 ? matches[0] : null;
+    }
 
-        if (!schema) {
-            // File doesn't match any schema, clear any existing violations
-            this.store.removeFile(file.path);
-            return [];
-        }
-
+    /**
+     * Validate a single file against a specific schema
+     * Accumulates violations - doesn't overwrite other schemas' violations
+     */
+    validateFile(file: TFile, mapping: SchemaMapping): Violation[] {
         const settings = this.settings();
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
         validationContext.setCustomTypes(settings.customTypes);
 
-        let violations = validateFrontmatter(frontmatter, schema, file.path, {
+        let violations = validateFrontmatter(frontmatter, mapping, file.path, {
             checkUnknownFields: settings.warnOnUnknownFields,
         });
 
@@ -81,10 +76,26 @@ export class Validator {
             );
         }
 
-        // Update store
-        this.store.setFileViolations(file.path, violations);
+        // Remove old violations from this schema for this file, then add new ones
+        this.store.removeFileSchemaViolations(file.path, mapping.id);
+        this.store.addFileViolations(file.path, violations);
 
         return violations;
+    }
+
+    /**
+     * Validate a single file against ALL matching schemas (accumulation model)
+     * Used when a file changes
+     */
+    validateFileAllSchemas(file: TFile): void {
+        // Remove all existing violations for this file
+        this.store.removeFile(file.path);
+        
+        // Validate against all matching schemas
+        const matchingSchemas = this.getMatchingSchemas(file);
+        for (const schema of matchingSchemas) {
+            this.validateFile(file, schema);
+        }
     }
 
     /**
@@ -131,22 +142,16 @@ export class Validator {
 
     /**
      * Re-validate all files affected by a specific schema mapping
-     * (used when schema is edited)
+     * (used when schema is edited or toggled)
      */
     async revalidateMapping(mappingId: string): Promise<void> {
+        // Remove all violations from this schema
+        this.store.removeSchemaViolations(mappingId);
+
+        // Re-validate if schema exists and is enabled
         const settings = this.settings();
         const mapping = settings.schemaMappings.find((m) => m.id === mappingId);
-
         if (mapping) {
-            // Clear violations for files that were in this mapping
-            const allViolations = this.store.getAllViolations();
-            for (const [filePath, violations] of allViolations) {
-                if (violations.some((v) => v.schemaMapping.id === mappingId)) {
-                    this.store.removeFile(filePath);
-                }
-            }
-
-            // Re-validate
             await this.validateMapping(mapping);
         }
     }
