@@ -1,4 +1,4 @@
-import { FieldType, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
+import { FieldType, FieldCondition, PropertyConditionOperator, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
 import { validationContext } from "./context";
 
 // Date regex for ISO format YYYY-MM-DD
@@ -26,7 +26,7 @@ export function validateFrontmatter(
         const value = hasField ? frontmatter[fieldName] : undefined;
 
         //eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema));
+        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter));
     }
 
     // Check for unknown fields at top level
@@ -58,13 +58,25 @@ function validateField(
     variants: SchemaField[],
     path: string,
     filePath: string,
-    schema: SchemaMapping
+    schema: SchemaMapping,
+    frontmatter: Record<string, unknown> | undefined
 ): Violation[] {
     const violations: Violation[] = [];
 
-    // Check required/warned
-    const isRequired = variants.some(v => v.required);
-    const isWarned = !isRequired && variants.some(v => v.warn);
+    // Check field conditions - filter to variants whose conditions are met
+    const applicableVariants = variants.filter(v => {
+        if (!v.condition) return true;  // No condition = always applicable
+        return evaluateFieldCondition(v.condition, frontmatter);
+    });
+
+    // If no variants are applicable (all had conditions, none met), skip this field
+    if (applicableVariants.length === 0) {
+        return violations;
+    }
+
+    // Check required/warned from applicable variants only
+    const isRequired = applicableVariants.some(v => v.required);
+    const isWarned = !isRequired && applicableVariants.some(v => v.warn);
 
     // Key is missing entirely - required fields must have the key present
     if (!hasField) {
@@ -89,14 +101,14 @@ function validateField(
     }
 
     // Key exists - find matching type variant (null is now a type, so null values need a null variant)
-    const matchingVariant = findMatchingVariant(value, variants);
+    const matchingVariant = findMatchingVariant(value, applicableVariants);
 
     if (!matchingVariant) {
-        const expectedTypes = variants.map(v => v.type).join(" | ");
+        const expectedTypes = applicableVariants.map(v => v.type).join(" | ");
         let message = `Type mismatch: ${path} (expected ${expectedTypes}, got ${getActualType(value)})`;
 
         // Detailed errors for custom type mismatches
-        for (const variant of variants) {
+        for (const variant of applicableVariants) {
             const customType = validationContext.getCustomType(variant.type);
             if (customType && typeof value === "object" && value !== null && !Array.isArray(value)) {
                 const errors = getCustomTypeFieldErrors(value as Record<string, unknown>, customType);
@@ -504,4 +516,49 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
     }
 
     return errors;
+}
+
+/**
+ * Evaluate a field condition against frontmatter values
+ */
+function evaluateFieldCondition(
+    condition: FieldCondition,
+    frontmatter: Record<string, unknown> | undefined
+): boolean {
+    if (!frontmatter) return false;
+
+    const fieldValue = frontmatter[condition.field];
+    const conditionValue = condition.value;
+
+    // Convert values for comparison
+    const fieldStr = fieldValue === null || fieldValue === undefined ? "" : String(fieldValue);
+    const conditionNum = parseFloat(conditionValue);
+    const fieldNum = typeof fieldValue === "number" ? fieldValue : parseFloat(fieldStr);
+
+    switch (condition.operator) {
+        case "equals":
+            return fieldStr === conditionValue;
+        case "not_equals":
+            return fieldStr !== conditionValue;
+        case "contains":
+            if (Array.isArray(fieldValue)) {
+                return fieldValue.some(v => String(v) === conditionValue);
+            }
+            return fieldStr.includes(conditionValue);
+        case "not_contains":
+            if (Array.isArray(fieldValue)) {
+                return !fieldValue.some(v => String(v) === conditionValue);
+            }
+            return !fieldStr.includes(conditionValue);
+        case "greater_than":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum > conditionNum;
+        case "less_than":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum < conditionNum;
+        case "greater_or_equal":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum >= conditionNum;
+        case "less_or_equal":
+            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum <= conditionNum;
+        default:
+            return false;
+    }
 }

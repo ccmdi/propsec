@@ -6,7 +6,6 @@ import {
     CustomType,
     PropertyCondition,
     PropertyConditionOperator,
-    isPrimitiveType,
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes, getTypeDisplayName } from "../schema/extractor";
 import { getOperatorDisplayName } from "../query/matcher";
@@ -305,44 +304,40 @@ export class SchemaEditorModal extends Modal {
             }
         });
 
-        // Expand button (always rendered for consistent layout, disabled if no constraints)
-        const hasConstraints = this.typeSupportsConstraints(field.type);
+        // Expand button for conditions and constraints
         const expandBtn = mainRow.createEl("button", {
             cls: "frontmatter-linter-icon-btn",
-            attr: { title: hasConstraints ? "Toggle constraints" : "No constraints for this type" },
+            attr: { title: "Configure conditions and constraints" },
         });
+        // Show indicator if field has a condition set
         setIcon(expandBtn, "chevron-right");
 
-        if (hasConstraints) {
-            expandBtn.addEventListener("click", () => {
-                if (this.expandedFields.has(index)) {
-                    // Collapse: animate out, then clean up
-                    this.collapseField(index, card, expandBtn);
-                } else {
-                    // Close any other expanded field first
-                    if (this.expandedFields.size > 0) {
-                        this.removeConstraintsSection();
-                        // Update previous expanded card's icon
-                        const prevIndex = Array.from(this.expandedFields)[0];
-                        const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
-                        if (prevCard) {
-                            prevCard.removeClass("expanded");
-                            const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
-                            if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
-                        }
-                        this.expandedFields.clear();
+        expandBtn.addEventListener("click", () => {
+            if (this.expandedFields.has(index)) {
+                // Collapse: animate out, then clean up
+                this.collapseField(index, card, expandBtn, field);
+            } else {
+                // Close any other expanded field first
+                if (this.expandedFields.size > 0) {
+                    this.removeConstraintsSection();
+                    // Update previous expanded card's icon
+                    const prevIndex = Array.from(this.expandedFields)[0];
+                    const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
+                    if (prevCard) {
+                        prevCard.removeClass("expanded");
+                        const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
+                        const prevField = this.mapping.fields[prevIndex];
+                        if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
                     }
-                    // Expand this field
-                    this.expandedFields.add(index);
-                    card.addClass("expanded");
-                    setIcon(expandBtn, "chevron-down");
-                    this.showConstraintsOverlay(card, field);
+                    this.expandedFields.clear();
                 }
-            });
-        } else {
-            expandBtn.addClass("frontmatter-linter-icon-btn-disabled");
-            expandBtn.disabled = true;
-        }
+                // Expand this field
+                this.expandedFields.add(index);
+                card.addClass("expanded");
+                setIcon(expandBtn, "chevron-down");
+                this.showConstraintsOverlay(card, field);
+            }
+        });
 
         // Delete button
         const deleteBtn = mainRow.createEl("button", {
@@ -369,13 +364,6 @@ export class SchemaEditorModal extends Modal {
         return [...primitives, ...customTypeNames];
     }
 
-    private typeSupportsConstraints(type: FieldType): boolean {
-        // Only primitive types support constraints
-        // Custom types have their own internal constraints
-        // Object type uses custom types for structure, not constraints
-        return isPrimitiveType(type) && ["string", "number", "array"].includes(type);
-    }
-
     private replaceFieldCard(oldCard: HTMLElement, field: SchemaField, index: number): void {
         // Create a temporary container to render the new card
         const temp = document.createElement("div");
@@ -400,23 +388,28 @@ export class SchemaEditorModal extends Modal {
         this.activeConstraintsSection = section;
     }
 
-    private collapseField(index: number, card: HTMLElement, expandBtn: HTMLElement): void {
+    private collapseField(index: number, card: HTMLElement, expandBtn: HTMLElement, field: SchemaField): void {
+        const icon = "chevron-right";
         if (this.activeConstraintsSection) {
             this.activeConstraintsSection.addClass("collapsing");
             this.activeConstraintsSection.addEventListener("animationend", () => {
                 this.removeConstraintsSection();
                 this.expandedFields.delete(index);
                 card.removeClass("expanded");
-                setIcon(expandBtn, "chevron-right");
+                setIcon(expandBtn, icon);
             }, { once: true });
         } else {
             this.expandedFields.delete(index);
             card.removeClass("expanded");
-            setIcon(expandBtn, "chevron-right");
+            setIcon(expandBtn, icon);
         }
     }
 
     private renderConstraints(container: HTMLElement, field: SchemaField): void {
+        // Condition section (applies to all field types)
+        this.renderConditionSection(container, field);
+
+        // Type-specific constraints
         switch (field.type) {
             case "string":
                 this.renderStringConstraints(container, field);
@@ -428,6 +421,137 @@ export class SchemaEditorModal extends Modal {
                 this.renderArrayConstraints(container, field);
                 break;
         }
+    }
+
+    private renderConditionSection(container: HTMLElement, field: SchemaField): void {
+        const section = container.createDiv({ cls: "frontmatter-linter-condition-section" });
+
+        const header = section.createDiv({ cls: "frontmatter-linter-condition-header" });
+        header.createEl("span", { text: "Condition", cls: "frontmatter-linter-constraints-title" });
+
+        const hasCondition = !!field.condition;
+
+        if (!hasCondition) {
+            const addBtn = header.createEl("button", {
+                cls: "frontmatter-linter-add-condition-btn",
+                attr: { title: "Add condition" }
+            });
+            setIcon(addBtn, "plus");
+            addBtn.addEventListener("click", () => {
+                field.condition = {
+                    field: "",
+                    operator: "equals",
+                    value: "",
+                };
+                this.rerenderConditionSection(section, field);
+            });
+        } else {
+            this.renderFieldConditionRow(section, field);
+        }
+    }
+
+    private rerenderConditionSection(section: HTMLElement, field: SchemaField): void {
+        section.empty();
+
+        const header = section.createDiv({ cls: "frontmatter-linter-condition-header" });
+        header.createEl("span", { text: "Condition", cls: "frontmatter-linter-constraints-title" });
+
+        if (!field.condition) {
+            const addBtn = header.createEl("button", {
+                cls: "frontmatter-linter-add-condition-btn",
+                attr: { title: "Add condition" }
+            });
+            setIcon(addBtn, "plus");
+            addBtn.addEventListener("click", () => {
+                field.condition = {
+                    field: "",
+                    operator: "equals",
+                    value: "",
+                };
+                this.rerenderConditionSection(section, field);
+            });
+        } else {
+            this.renderFieldConditionRow(section, field);
+        }
+    }
+
+    private renderFieldConditionRow(container: HTMLElement, field: SchemaField): void {
+        if (!field.condition) return;
+
+        const desc = container.createEl("div", {
+            text: "Only validate this field when:",
+            cls: "frontmatter-linter-condition-desc"
+        });
+
+        const row = container.createDiv({ cls: "frontmatter-linter-field-condition-row" });
+
+        // Field input
+        const fieldInput = row.createEl("input", {
+            type: "text",
+            placeholder: "field name",
+            cls: "frontmatter-linter-condition-field",
+        });
+        fieldInput.value = field.condition.field;
+
+        // Property suggestions
+        if (this.enablePropertySuggestions) {
+            const knownProperties = Object.keys(this.app.metadataTypeManager.properties);
+            new PropertySuggest(
+                this.app,
+                fieldInput,
+                knownProperties,
+                (prop) => this.getPropertyType(prop),
+                () => {}
+            );
+        }
+
+        fieldInput.addEventListener("input", (e) => {
+            field.condition!.field = (e.target as HTMLInputElement).value;
+        });
+
+        // Operator select
+        const operatorSelect = row.createEl("select", { cls: "frontmatter-linter-condition-operator" });
+        const operators: PropertyConditionOperator[] = [
+            "equals", "not_equals", "contains", "not_contains",
+            "greater_than", "less_than", "greater_or_equal", "less_or_equal"
+        ];
+        for (const op of operators) {
+            const option = operatorSelect.createEl("option", {
+                value: op,
+                text: getOperatorDisplayName(op),
+            });
+            if (op === field.condition.operator) {
+                option.selected = true;
+            }
+        }
+        operatorSelect.addEventListener("change", (e) => {
+            field.condition!.operator = (e.target as HTMLSelectElement).value as PropertyConditionOperator;
+        });
+
+        // Value input
+        const valueInput = row.createEl("input", {
+            type: "text",
+            placeholder: "value",
+            cls: "frontmatter-linter-condition-value",
+        });
+        valueInput.value = field.condition.value;
+        valueInput.addEventListener("input", (e) => {
+            field.condition!.value = (e.target as HTMLInputElement).value;
+        });
+
+        // Delete button
+        const deleteBtn = row.createEl("button", {
+            cls: "frontmatter-linter-condition-delete",
+            attr: { title: "Remove condition" }
+        });
+        setIcon(deleteBtn, "x");
+        deleteBtn.addEventListener("click", () => {
+            delete field.condition;
+            const section = container.closest(".frontmatter-linter-condition-section") as HTMLElement;
+            if (section) {
+                this.rerenderConditionSection(section, field);
+            }
+        });
     }
 
     private renderStringConstraints(container: HTMLElement, field: SchemaField): void {

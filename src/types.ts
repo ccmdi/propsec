@@ -57,6 +57,9 @@ export interface SchemaField {
     //TODO discrim union
     warn?: boolean;
 
+    // Conditional validation: only validate this field if condition is met
+    condition?: FieldCondition;
+
     // For arrays: specify what type the elements should be
     arrayElementType?: FieldType;
 
@@ -87,6 +90,13 @@ export interface PropertyCondition {
     property: string;
     operator: PropertyConditionOperator;
     value: string;
+}
+
+// Condition for when a field should be validated (e.g., "if type=book then isbn is required")
+export interface FieldCondition {
+    field: string;  // The field to check (e.g., "type")
+    operator: PropertyConditionOperator;
+    value: string;  // The value to compare (e.g., "book")
 }
 
 // Property filter for fine-grained schema application
