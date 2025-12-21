@@ -8,34 +8,52 @@ import {
 import {
     PropsecSettings,
     DEFAULT_SETTINGS,
+    Violation,
 } from "./types";
 import { ViolationStore } from "./validation/store";
 import { Validator } from "./validation/validator";
+import { ValidationCache } from "./validation/cache";
 import { StatusBarItem } from "./ui/statusBar";
 import { ViolationsModal } from "./ui/violationsModal";
 import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./ui/violationsView";
 import { PropsecSettingTab } from "./settings";
 import { queryContext } from "./query/context";
+import { debug } from "./debug";
 
 export default class PropsecPlugin extends Plugin {
     settings: PropsecSettings;
     private store: ViolationStore;
+    private cache: ValidationCache;
     private validator: Validator;
     private statusBarItem: StatusBarItem | null = null;
     private statusBarEl: HTMLElement | null = null;
+    private startupComplete: boolean = false;
+    private pendingFileChanges: Set<string> = new Set(); // Files changed during startup
 
     async onload(): Promise<void> {
         await this.loadSettings();
 
         queryContext.initialize(this.app, this.manifest.id);
         this.store = new ViolationStore();
-        this.validator = new Validator(
-            this.app,
-            this.store,
-            () => this.settings
-        );
+        this.cache = new ValidationCache(this.app, this.manifest.id, () => this.settings);
+        this.validator = new Validator(this.app, this.store, () => this.settings);
+
+        this.validator.hooks = {
+            onFileValidated: (file, schemaIds, violations) => {
+                this.cache.updateFile(file.path, file.stat.mtime, schemaIds, violations);
+            },
+            onSchemaValidated: (schema) => {
+                this.cache.updateSchemaHash(schema);
+            },
+            onCleared: () => {
+                this.cache.clear();
+            },
+        };
 
         this.detectTemplatesFolder();
+
+        // Preload cache: load data IMMEDIATELY
+        await this.preloadCache();
 
         this.registerView(
             VIOLATIONS_VIEW_TYPE,
@@ -101,20 +119,100 @@ export default class PropsecPlugin extends Plugin {
 
         this.registerEvents();
 
-        // Initialize query index first, then validate
         this.app.workspace.onLayoutReady(() => {
             void this.initializeAndValidate();
         });
     }
 
+    /**
+     * Preload cached violations into store before views open.
+     * This prevents the empty state flash on startup.
+     * Does NOT check mtimes (vault not ready yet) - just loads optimistically.
+     */
+    private async preloadCache(): Promise<void> {
+        const cacheLoaded = await this.cache.load();
+        if (!cacheLoaded) return;
+
+        // Load all cached violations optimistically (vault not ready for mtime checks)
+        const violations = this.cache.loadCachedViolations();
+
+        // Group by file and add to store
+        const violationsByFile = new Map<string, Violation[]>();
+        for (const v of violations) {
+            const arr = violationsByFile.get(v.filePath) || [];
+            arr.push(v);
+            violationsByFile.set(v.filePath, arr);
+        }
+        for (const [filePath, fileViolations] of violationsByFile) {
+            this.store.addFileViolations(filePath, fileViolations);
+        }
+
+        // avoid loading state on status bar on successful cache load
+        this.store.setLastFullValidation(1);
+
+        debug(`Preloaded ${violations.length} cached violations`);
+    }
+
     private async initializeAndValidate(): Promise<void> {
         await queryContext.index.initialize();
-        await this.validator.validateAll();
+
+        const startTime = performance.now();
+
+        // Now vault is ready - analyze what needs revalidation
+        const analysis = this.cache.analyzeCache();
+
+        this.store.beginBatch();
+        try {
+            if (analysis.fullRevalidationNeeded) {
+                // Settings changed - full validation needed
+                this.store.clear();
+                await this.validator.validateAll();
+            } else {
+                // Remove stale violations for files that need revalidation
+                for (const filePath of analysis.filesToRevalidate) {
+                    this.store.removeFile(filePath);
+                }
+
+                // Revalidate changed schemas
+                for (const schemaId of analysis.schemasToRevalidate) {
+                    const mapping = this.settings.schemaMappings.find(m => m.id === schemaId);
+                    if (mapping) {
+                        await this.validator.validateMapping(mapping);
+                    }
+                }
+
+                // Revalidate modified files
+                for (const filePath of analysis.filesToRevalidate) {
+                    const file = this.app.vault.getAbstractFileByPath(filePath);
+                    if (file instanceof TFile) {
+                        this.validator.validateFileAllSchemas(file);
+                    }
+                }
+
+                this.store.setLastFullValidation(Date.now());
+            }
+        } finally {
+            this.store.endBatch();
+        }
+
+        debug(`Startup validation completed in ${(performance.now() - startTime).toFixed(1)}ms`);
+        this.startupComplete = true;
+
+        // Process any file changes that occurred during startup
+        if (this.pendingFileChanges.size > 0) {
+            debug(`Processing ${this.pendingFileChanges.size} file changes queued during startup`);
+            for (const path of this.pendingFileChanges) {
+                const file = this.app.vault.getAbstractFileByPath(path);
+                if (file instanceof TFile) {
+                    this.validator.validateFileAllSchemas(file);
+                }
+            }
+            this.pendingFileChanges.clear();
+        }
     }
 
     /**
      * Force rebuild the tag index and re-validate everything
-     * Nuclear option for when things seem out of sync
      */
     private async rebuildAndValidate(): Promise<void> {
         await queryContext.index.buildFullIndex();
@@ -129,6 +227,8 @@ export default class PropsecPlugin extends Plugin {
         if (queryContext.isInitialized) {
             void queryContext.index.saveToDisk();
         }
+        // Flush validation cache
+        void this.cache.flush();
     }
 
     async loadSettings(): Promise<void> {
@@ -140,7 +240,6 @@ export default class PropsecPlugin extends Plugin {
     }
 
     private detectTemplatesFolder(): void {
-        // Skip if user has already set a templates folder
         if (this.settings.templatesFolder) return;
 
         const coreTemplates = this.app.internalPlugins.plugins.templates;
@@ -180,8 +279,14 @@ export default class PropsecPlugin extends Plugin {
             this.app.metadataCache.on("changed", (file: TFile) => {
                 if (file.extension !== "md") return;
 
-                // Update tag index
+                // Always update tag index
                 queryContext.index.updateFile(file);
+
+                // Queue changes during startup, process after
+                if (!this.startupComplete) {
+                    this.pendingFileChanges.add(file.path);
+                    return;
+                }
 
                 // Validate against all matching schemas (accumulation model)
                 this.validator.validateFileAllSchemas(file);
@@ -197,6 +302,9 @@ export default class PropsecPlugin extends Plugin {
 
                 // Update violation store path
                 this.store.renameFile(oldPath, file.path);
+
+                // Update validation cache path
+                this.cache.renameFile(oldPath, file.path);
 
                 // Wait for metadata cache to update before re-validating
                 let handled = false;
@@ -225,12 +333,15 @@ export default class PropsecPlugin extends Plugin {
                 // Update tag index
                 queryContext.index.removeFile(file.path);
                 this.store.removeFile(file.path);
+                // Update validation cache
+                this.cache.removeFile(file.path);
             })
         );
 
         // Validate on file open (optional)
         this.registerEvent(
             this.app.workspace.on("file-open", (file: TFile | null) => {
+                if (!this.startupComplete) return; // Skip until initial validation done
                 if (!this.settings.validateOnFileOpen) return;
                 if (!file || file.extension !== "md") return;
 
@@ -244,6 +355,8 @@ export default class PropsecPlugin extends Plugin {
      */
     onSchemaChange(mappingId?: string): void {
         if (mappingId) {
+            // Invalidate cache for this schema before revalidating
+            this.cache.invalidateSchema(mappingId);
             void this.validator.revalidateMapping(mappingId);
         } else {
             void this.validator.validateAll();

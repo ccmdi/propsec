@@ -41,6 +41,9 @@ const jsContext = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	define: {
+		"__DEV__": prod ? "false" : "true",
+	},
 });
 
 // Build CSS from SCSS

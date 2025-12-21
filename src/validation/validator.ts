@@ -5,11 +5,21 @@ import { validateFrontmatter } from "./validate";
 import { validationContext } from "./context";
 import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
 import { queryContext } from "../query/context";
+import { debug } from "../debug";
 
 const BATCH_SIZE = 50;
 
 function yieldToMain(): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+/**
+ * Hooks for cache integration (optional, called if set)
+ */
+export interface ValidatorHooks {
+    onFileValidated?: (file: TFile, schemaIds: string[], violations: Violation[]) => void;
+    onSchemaValidated?: (schema: SchemaMapping) => void;
+    onCleared?: () => void;
 }
 
 /**
@@ -19,6 +29,8 @@ export class Validator {
     private app: App;
     private store: ViolationStore;
     private settings: () => PropsecSettings;
+
+    hooks: ValidatorHooks = {};
 
     constructor(
         app: App,
@@ -90,12 +102,18 @@ export class Validator {
     validateFileAllSchemas(file: TFile): void {
         // Remove all existing violations for this file
         this.store.removeFile(file.path);
-        
+
         // Validate against all matching schemas
         const matchingSchemas = this.getMatchingSchemas(file);
         for (const schema of matchingSchemas) {
             this.validateFile(file, schema);
         }
+
+        this.hooks.onFileValidated?.(
+            file,
+            matchingSchemas.map(s => s.id),
+            this.store.getFileViolations(file.path)
+        );
     }
 
     /**
@@ -114,29 +132,41 @@ export class Validator {
             if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
                 continue;
             }
+
             this.validateFile(file, mapping);
+
+            this.hooks.onFileValidated?.(
+                file,
+                this.getMatchingSchemas(file).map(s => s.id),
+                this.store.getFileViolations(file.path)
+            );
+
             processed++;
             if (processed % BATCH_SIZE === 0) {
                 await yieldToMain();
             }
         }
+
+        this.hooks.onSchemaValidated?.(mapping);
     }
 
     /**
      * Validate all notes across all schema mappings
      */
     async validateAll(): Promise<void> {
-        const settings = this.settings();
+        const startTime = performance.now();
 
         this.store.beginBatch();
         try {
             this.store.clear();
+            this.hooks.onCleared?.();
 
-            for (const mapping of settings.schemaMappings) {
+            for (const mapping of this.settings().schemaMappings) {
                 await this.validateMapping(mapping);
             }
 
             this.store.setLastFullValidation(Date.now());
+            debug(`Full validation completed in ${(performance.now() - startTime).toFixed(1)}ms`);
         } finally {
             this.store.endBatch();
         }
@@ -151,8 +181,7 @@ export class Validator {
         this.store.removeSchemaViolations(mappingId);
 
         // Re-validate if schema exists and is enabled
-        const settings = this.settings();
-        const mapping = settings.schemaMappings.find((m) => m.id === mappingId);
+        const mapping = this.settings().schemaMappings.find((m) => m.id === mappingId);
         if (mapping) {
             await this.validateMapping(mapping);
         }

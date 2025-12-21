@@ -1,5 +1,6 @@
 import { App, TFile, TFolder, TAbstractFile, Notice } from "obsidian";
 import { parseQuery } from "./matcher";
+import { debug } from "../debug";
 
 /**
  * Tag index structure persisted to disk
@@ -58,7 +59,7 @@ export class QueryIndex {
                 this.tagIndex.set(tag, new Set(files));
             }
 
-            console.debug(`Propsec: Loaded tag index with ${this.tagIndex.size} tags`);
+            debug(`Loaded tag index with ${this.tagIndex.size} tags`);
             return true;
         } catch {
             // File doesn't exist or is corrupted

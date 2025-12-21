@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, TFile, setIcon, ViewStateResult } from "obsidian";
 import { Violation, ViolationFilter, isWarningViolation } from "../types";
 import { ViolationStore } from "../validation/store";
+import { debug } from "../debug";
 import { getViolationIcon } from "../utils/violation";
 
 export const VIOLATIONS_VIEW_TYPE = "frontmatter-linter-violations";
@@ -20,7 +21,7 @@ export class ViolationsView extends ItemView {
     private listContainer: HTMLElement | null = null;
     private summaryEl: HTMLElement | null = null;
     private filterContainer: HTMLElement | null = null;
-    
+
     // Incremental loading state
     private allFileEntries: Array<[string, Violation[]]> = [];
     private renderedCount: number = 0;
@@ -109,6 +110,7 @@ export class ViolationsView extends ItemView {
         searchInput.addEventListener("input", (e) => {
             this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
             this.renderList();
+            this.app.workspace.requestSaveLayout();
         });
 
         // Summary
@@ -167,6 +169,7 @@ export class ViolationsView extends ItemView {
                 this.filter = filterDef.value;
                 this.renderFilterButtons();
                 this.renderList();
+                this.app.workspace.requestSaveLayout();
             });
         }
     }
@@ -175,6 +178,7 @@ export class ViolationsView extends ItemView {
      * Render the list with incremental loading
      */
     private renderList(): void {
+        const startTime = performance.now();
         if (!this.listContainer || !this.summaryEl) return;
         this.listContainer.empty();
 
@@ -244,6 +248,7 @@ export class ViolationsView extends ItemView {
         // Render initial batch
         this.renderedCount = 0;
         this.renderMoreFiles(INITIAL_RENDER_COUNT);
+        debug(`renderList() completed in ${(performance.now() - startTime).toFixed(1)}ms, ${this.allFileEntries.length} files`);
     }
 
     /**

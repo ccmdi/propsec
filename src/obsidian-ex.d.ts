@@ -1,5 +1,8 @@
 import "obsidian";
 
+// Build-time constant injected by esbuild
+declare const __DEV__: boolean;
+
 declare module "obsidian" {
 
     interface TemplatesPlugin extends Plugin {
