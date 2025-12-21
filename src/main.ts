@@ -147,6 +147,9 @@ export default class PropsecPlugin extends Plugin {
             this.store.addFileViolations(filePath, fileViolations);
         }
 
+        // avoid loading state on status bar on successful cache load
+        this.store.setLastFullValidation(1);
+
         debug(`Preloaded ${violations.length} cached violations`);
     }
 
