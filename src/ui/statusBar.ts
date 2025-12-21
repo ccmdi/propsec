@@ -22,11 +22,9 @@ export class StatusBarItem {
         this.store = store;
         this.onClick = onClick;
 
-        // Set up click handler
         this.statusBarEl.addClass("mod-clickable");
         this.statusBarEl.addEventListener("click", this.onClick);
 
-        // Subscribe to store changes
         this.store.onChange(() => this.update());
 
         this.store.onBatchStart(() => this.showLoading());
@@ -40,7 +38,7 @@ export class StatusBarItem {
     }
 
     /**
-     * Show initial loading state (no width preservation since there's no prior content)
+     * Show initial loading state
      */
     private showInitialLoading(): void {
         this.isLoading = true;
@@ -56,7 +54,6 @@ export class StatusBarItem {
      */
     private showLoading(): void {
         this.isLoading = true;
-        // Capture current width before changing content
         this.lastWidth = this.statusBarEl.offsetWidth;
 
         this.statusBarEl.empty();
@@ -67,7 +64,6 @@ export class StatusBarItem {
         // Set fixed width to prevent layout shift
         this.statusBarEl.style.width = `${this.lastWidth}px`;
 
-        // Add spinner icon
         const spinnerEl = this.statusBarEl.createSpan({ cls: "frontmatter-linter-spinner" });
         setIcon(spinnerEl, "loader-2");
     }

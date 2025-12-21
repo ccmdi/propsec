@@ -139,13 +139,11 @@ export class CustomTypeEditorModal extends FieldEditorModal {
     }
 
     private handleSave(): void {
-        // Validate name
         if (!this.customType.name.trim()) {
             new Notice("Please enter a type name");
             return;
         }
 
-        // Check for duplicate names
         const duplicate = this.existingTypes.find(
             (t) => t.id !== this.customType.id && t.name === this.customType.name
         );
@@ -154,18 +152,15 @@ export class CustomTypeEditorModal extends FieldEditorModal {
             return;
         }
 
-        // Check for primitive type collision
         if (isPrimitiveType(this.customType.name)) {
             new Notice(`"${this.customType.name}" is a built-in type name. Please choose a different name.`);
             return;
         }
 
-        // Filter empty fields
         this.customType.fields = this.customType.fields.filter(
             (f) => f.name.trim() !== ""
         );
 
-        // Check for circular references
         if (this.hasCircularReference()) {
             //eslint-disable-next-line obsidianmd/ui/sentence-case
             new Notice("Circular reference detected: A custom type cannot reference itself directly or indirectly.");

@@ -31,7 +31,7 @@ export function validateFrontmatter(
     // Check for unknown fields at top level (case-insensitive)
     if (options.checkUnknownFields && frontmatter) {
         for (const key of Object.keys(frontmatter)) {
-            if (key === "position") continue; // Skip Obsidian internal field
+            if (key === "position") continue; // Skip Obsidian internal field TODO
 
             if (!schemaFieldNamesLower.has(key.toLowerCase())) {
                 violations.push({

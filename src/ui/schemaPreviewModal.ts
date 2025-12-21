@@ -102,7 +102,6 @@ export class SchemaPreviewModal extends Modal {
     private countMatchingNotes(): number {
         const files = queryContext.index.getFilesForQuery(this.mapping.query);
         
-        // Apply property filter if present
         if (this.mapping.propertyFilter) {
             return files.filter(f => 
                 fileMatchesPropertyFilter(this.app, f, this.mapping.propertyFilter!)

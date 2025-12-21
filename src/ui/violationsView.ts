@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf, TFile, setIcon, ViewStateResult } from "obsidi
 import { Violation, ViolationFilter, isWarningViolation } from "../types";
 import { ViolationStore } from "../validation/store";
 import { debug } from "../debug";
+import { getViolationIcon } from "../utils/violation";
 
 export const VIOLATIONS_VIEW_TYPE = "frontmatter-linter-violations";
 
@@ -394,7 +395,7 @@ export class ViolationsView extends ItemView {
             cls: `frontmatter-linter-view-item frontmatter-linter-view-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
         });
 
-        const icon = this.getViolationIcon(violation.type);
+        const icon = getViolationIcon(violation.type);
         item.createEl("span", {
             text: icon,
             cls: "frontmatter-linter-view-icon",
@@ -404,21 +405,5 @@ export class ViolationsView extends ItemView {
             text: violation.message,
             cls: "frontmatter-linter-view-message",
         });
-    }
-
-    private getViolationIcon(type: string): string {
-        switch (type) {
-            case "missing_required":
-                return "!";
-            case "missing_warned":
-                return "*";
-            case "type_mismatch":
-            case "type_mismatch_warned":
-                return "~";
-            case "unknown_field":
-                return "?";
-            default:
-                return "-";
-        }
     }
 }
