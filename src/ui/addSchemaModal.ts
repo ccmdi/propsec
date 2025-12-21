@@ -187,11 +187,9 @@ export class AddSchemaModal extends Modal {
             }
             fields = await extractSchemaFromTemplate(this.app, this.selectedTemplate);
             sourceTemplatePath = this.selectedTemplate.path;
-            // Use template file name (without extension) as default schema name
             defaultName = this.selectedTemplate.basename;
         }
 
-        // Create new mapping with UUID
         const newMapping: SchemaMapping = {
             id: generateUUID(),
             name: defaultName,
@@ -201,7 +199,6 @@ export class AddSchemaModal extends Modal {
             fields,
         };
 
-        // Close this modal and open the editor
         this.close();
 
         const editorModal = new SchemaEditorModal(

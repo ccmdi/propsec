@@ -1,6 +1,7 @@
 import { App, Modal, TFile, setIcon } from "obsidian";
 import { Violation, ViolationFilter, isWarningViolation } from "../types";
 import { ViolationStore } from "../validation/store";
+import { getViolationIcon } from "../utils/violation";
 
 /**
  * Modal displaying all frontmatter violations
@@ -191,7 +192,7 @@ export class ViolationsModal extends Modal {
                 });
 
                 // Icon based on violation type
-                const icon = this.getViolationIcon(violation.type);
+                const icon = getViolationIcon(violation.type);
                 item.createEl("span", {
                     text: icon + " ",
                     cls: "frontmatter-linter-violation-icon",
@@ -202,21 +203,6 @@ export class ViolationsModal extends Modal {
                     cls: "frontmatter-linter-violation-message",
                 });
             }
-        }
-    }
-
-    private getViolationIcon(type: string): string {
-        switch (type) {
-            case "missing_required":
-                return "!";
-            case "missing_warned":
-                return "*";
-            case "type_mismatch":
-                return "~";
-            case "unknown_field":
-                return "?";
-            default:
-                return "-";
         }
     }
 

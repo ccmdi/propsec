@@ -39,7 +39,6 @@ export function inferFieldType(value: unknown): FieldType {
     }
 
     if (typeof value === "string") {
-        // Check if it's a date string
         if (ISO_DATE_REGEX.test(value)) {
             return "date";
         }
@@ -72,7 +71,6 @@ export function inferFieldTypeWithObsidian(app: App, key: string, value: unknown
     // First try to infer from actual value
     const inferredType = inferFieldType(value);
 
-    // If we got a concrete type, use it
     if (inferredType !== "unknown") {
         return inferredType;
     }
@@ -102,8 +100,7 @@ export async function extractSchemaFromTemplate(
     const fields: SchemaField[] = [];
 
     for (const [key, value] of Object.entries(frontmatter)) {
-        // Skip internal position field added by Obsidian
-        if (key === "position") continue;
+        if (key === "position") continue; //TODO
 
         fields.push({
             name: key,

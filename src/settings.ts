@@ -105,7 +105,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Separator
         containerEl.createEl("hr");
 
-        // Schema Mappings section
+        // Schema section
         new Setting(containerEl).setName("Schema").setHeading();
 
         // Schema list
@@ -271,7 +271,6 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: `frontmatter-linter-schema-item ${mapping.enabled ? "" : "frontmatter-linter-schema-disabled"}`,
         });
 
-        // Make item draggable
         //eslint-disable-next-line @typescript-eslint/no-misused-promises
         makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
             const [moved] = this.settings.schemaMappings.splice(fromIndex, 1);
@@ -347,7 +346,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         this.settings.schemaMappings[idx] = updatedMapping;
                         await this.onSettingsChange();
                         this.onSchemaChange(updatedMapping.id);
-                        // Replace item instead of re-rendering everything
+                        // Replace item instead of re-rendering everything TODO function
                         const temp = document.createElement("div");
                         this.renderSchemaMappingItem(temp, updatedMapping, idx);
                         itemEl.replaceWith(temp.firstChild!);
@@ -424,7 +423,6 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "frontmatter-linter-custom-type-item",
         });
 
-        // Make item draggable
         //eslint-disable-next-line @typescript-eslint/no-misused-promises
         makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
             const [moved] = this.settings.customTypes.splice(fromIndex, 1);
@@ -481,7 +479,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                     if (idx >= 0) {
                         this.settings.customTypes[idx] = updatedType;
                         await this.onSettingsChange();
-                        // Replace item instead of re-rendering everything
+                        // Replace item instead of re-rendering everything TODO function
                         const temp = document.createElement("div");
                         this.renderCustomTypeItem(temp, updatedType, idx);
                         itemEl.replaceWith(temp.firstChild!);
