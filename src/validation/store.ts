@@ -10,6 +10,9 @@ export class ViolationStore {
     private batchEndListeners: Array<() => void> = [];
     private batchDepth: number = 0;
     private batchHasChanges: boolean = false;
+    
+    // Microtask-based notification coalescing
+    private notificationPending: boolean = false;
 
     constructor() {
         this.state = {
@@ -273,15 +276,24 @@ export class ViolationStore {
     }
 
     /**
-     * Notify all listeners of state change
+     * Notify all listeners of state change.
+     * Uses microtask scheduling to coalesce multiple rapid changes into a single notification.
      */
     private notifyListeners(): void {
         if (this.batchDepth > 0) {
             this.batchHasChanges = true;
             return;
         }
-        for (const listener of this.changeListeners) {
-            listener();
-        }
+        
+        // Coalesce notifications within the same microtask
+        if (this.notificationPending) return;
+        this.notificationPending = true;
+        
+        queueMicrotask(() => {
+            this.notificationPending = false;
+            for (const listener of this.changeListeners) {
+                listener();
+            }
+        });
     }
 }
