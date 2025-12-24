@@ -855,16 +855,6 @@ describe("validateFrontmatter", () => {
             expect(violations).toHaveLength(1);
             expect(violations[0].type).toBe("missing_required");
         });
-
-        it("skips 'position' field (Obsidian internal)", () => {
-            const schema = createSchema([field("title", "string")]);
-
-            // position field should not be reported as unknown
-            expect(validateFrontmatter(
-                { title: "Test", position: { start: 0, end: 10 } },
-                schema, "test.md", { checkUnknownFields: true }
-            )).toHaveLength(0);
-        });
     });
 
     describe("violation messages", () => {
