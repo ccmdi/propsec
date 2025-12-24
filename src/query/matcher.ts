@@ -1,5 +1,6 @@
 import { App, TFile } from "obsidian";
 import { PropertyFilter, PropertyCondition, PropertyConditionOperator } from "../types";
+import { findKeyCaseInsensitive, hasKeyCaseInsensitive } from "../utils/object";
 
 /**
  * Query syntax:
@@ -182,28 +183,6 @@ export function describeQuery(query: string): string {
     });
 
     return descriptions.join(" or ");
-}
-
-/**
- * Find a key in an object case-insensitively
- */
-function hasKeyCaseInsensitive(obj: Record<string, unknown>, key: string): boolean {
-    const lowerKey = key.toLowerCase();
-    return Object.keys(obj).some(k => k.toLowerCase() === lowerKey);
-}
-
-/**
- * Find a key in an object case-insensitively, return the actual key
- */
-function findKeyCaseInsensitive(obj: Record<string, unknown>, key: string): string | undefined {
-    //TODO
-    const lowerKey = key.toLowerCase();
-    for (const k of Object.keys(obj)) {
-        if (k.toLowerCase() === lowerKey) {
-            return k;
-        }
-    }
-    return undefined;
 }
 
 /**

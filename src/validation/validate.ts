@@ -1,5 +1,7 @@
 import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
 import { validationContext } from "./context";
+import { findKeyCaseInsensitive } from "../utils/object";
+import { EXCLUDE_FIELDS } from "../utils/constant";
 
 // Date regex for ISO format YYYY-MM-DD
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -31,7 +33,7 @@ export function validateFrontmatter(
     // Check for unknown fields at top level (case-insensitive)
     if (options.checkUnknownFields && frontmatter) {
         for (const key of Object.keys(frontmatter)) {
-            if (key === "position") continue; // Skip Obsidian internal field TODO
+            if (EXCLUDE_FIELDS.includes(key)) continue;
 
             if (!schemaFieldNamesLower.has(key.toLowerCase())) {
                 violations.push({
@@ -493,20 +495,6 @@ function checkArrayConstraints(
 
 // ============ Helpers ============
 
-/**
- * Find a key in an object case-insensitively
- * Returns the actual key if found, or undefined
- */
-function findKeyCaseInsensitive(obj: Record<string, unknown>, key: string): string | undefined {
-    const lowerKey = key.toLowerCase();
-    for (const k of Object.keys(obj)) {
-        if (k.toLowerCase() === lowerKey) {
-            return k;
-        }
-    }
-    return undefined;
-}
-
 function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
     const groups = new Map<string, SchemaField[]>();
     for (const field of fields) {
@@ -560,6 +548,7 @@ function evaluateFieldCondition(
     condition: FieldCondition,
     frontmatter: Record<string, unknown> | undefined
 ): boolean {
+    //TODO: evaluateCondition is similar
     if (!frontmatter) return false;
     
     const actualKey = findKeyCaseInsensitive(frontmatter, condition.field);
