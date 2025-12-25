@@ -38,6 +38,11 @@ export interface NumberConstraints {
     max?: number;
 }
 
+export interface DateConstraints {
+    min?: string;  // ISO date string YYYY-MM-DD
+    max?: string;  // ISO date string YYYY-MM-DD
+}
+
 export interface ArrayConstraints {
     minItems?: number;
     maxItems?: number;
@@ -70,6 +75,7 @@ export interface SchemaField {
     // Optional constraints based on type
     stringConstraints?: StringConstraints;
     numberConstraints?: NumberConstraints;
+    dateConstraints?: DateConstraints;
     arrayConstraints?: ArrayConstraints;
     objectConstraints?: ObjectConstraints;
 }
@@ -167,6 +173,8 @@ export type ViolationType =
     | "string_too_long"
     | "number_too_small"
     | "number_too_large"
+    | "date_too_early"
+    | "date_too_late"
     | "array_too_few"
     | "array_too_many"
     | "array_missing_value"

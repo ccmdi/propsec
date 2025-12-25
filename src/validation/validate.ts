@@ -1,4 +1,4 @@
-import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
+import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType, DateConstraints } from "../types";
 import { validationContext } from "./context";
 import { findKeyCaseInsensitive } from "../utils/object";
 import { EXCLUDE_FIELDS } from "../utils/constant";
@@ -159,6 +159,11 @@ function validateValue(
     // Number constraints
     if (field.type === "number" && typeof value === "number" && field.numberConstraints) {
         violations.push(...checkNumberConstraints(value, field.numberConstraints, path, filePath, schema));
+    }
+
+    // Date constraints
+    if (field.type === "date" && field.dateConstraints) {
+        violations.push(...checkDateConstraints(value, field.dateConstraints, path, filePath, schema));
     }
 
     // Array: check constraints + recurse into elements
@@ -442,6 +447,60 @@ function checkNumberConstraints(
             message: `Number too large: ${path} is ${value} (max: ${constraints.max})`,
             expected: `<= ${constraints.max}`, actual: String(value),
         });
+    }
+
+    return violations;
+}
+
+function checkDateConstraints(
+    value: unknown,
+    constraints: DateConstraints,
+    path: string,
+    filePath: string,
+    schema: SchemaMapping
+): Violation[] {
+    const violations: Violation[] = [];
+
+    // Parse the value as a date
+    let dateValue: Date;
+    if (value instanceof Date) {
+        dateValue = value;
+    } else if (typeof value === "string") {
+        dateValue = new Date(value);
+    } else {
+        // Not a valid date format, skip constraint checking (type mismatch handles this)
+        return violations;
+    }
+
+    // Invalid date
+    if (isNaN(dateValue.getTime())) {
+        return violations;
+    }
+
+    const actualDateStr = dateValue.toISOString().split("T")[0];
+
+    if (constraints.min) {
+        const minDate = new Date(constraints.min);
+        if (!isNaN(minDate.getTime()) && dateValue < minDate) {
+            violations.push({
+                filePath, schemaMapping: schema, field: path,
+                type: "date_too_early",
+                message: `Date too early: ${path} is ${actualDateStr} (min: ${constraints.min})`,
+                expected: `>= ${constraints.min}`, actual: actualDateStr,
+            });
+        }
+    }
+
+    if (constraints.max) {
+        const maxDate = new Date(constraints.max);
+        if (!isNaN(maxDate.getTime()) && dateValue > maxDate) {
+            violations.push({
+                filePath, schemaMapping: schema, field: path,
+                type: "date_too_late",
+                message: `Date too late: ${path} is ${actualDateStr} (max: ${constraints.max})`,
+                expected: `<= ${constraints.max}`, actual: actualDateStr,
+            });
+        }
     }
 
     return violations;

@@ -263,7 +263,7 @@ export abstract class FieldEditorModal extends Modal {
     }
 
     protected typeSupportsConstraints(type: FieldType): boolean {
-        return isPrimitiveType(type) && ["string", "number", "array"].includes(type);
+        return isPrimitiveType(type) && ["string", "number", "date", "array"].includes(type);
     }
 
     // ========== Constraints Overlay ==========
@@ -309,6 +309,9 @@ export abstract class FieldEditorModal extends Modal {
                 break;
             case "number":
                 this.renderNumberConstraints(container, field);
+                break;
+            case "date":
+                this.renderDateConstraints(container, field);
                 break;
             case "array":
                 this.renderArrayConstraints(container, field);
@@ -404,6 +407,42 @@ export abstract class FieldEditorModal extends Modal {
         maxInput.addEventListener("input", (e) => {
             const val = (e.target as HTMLInputElement).value;
             constraints.max = val ? parseFloat(val) : undefined;
+        });
+    }
+
+    protected renderDateConstraints(container: HTMLElement, field: SchemaField): void {
+        if (!field.dateConstraints) {
+            field.dateConstraints = {};
+        }
+        const constraints = field.dateConstraints;
+
+        container.createEl("div", {
+            text: "Date constraints",
+            cls: "frontmatter-linter-constraints-title",
+        });
+
+        const grid = container.createDiv({
+            cls: "frontmatter-linter-constraints-grid",
+        });
+
+        // Min date
+        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        minRow.createEl("label", { text: "Min date:" });
+        const minInput = minRow.createEl("input", { type: "date" });
+        minInput.value = constraints.min || "";
+        minInput.addEventListener("input", (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            constraints.min = val || undefined;
+        });
+
+        // Max date
+        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        maxRow.createEl("label", { text: "Max date:" });
+        const maxInput = maxRow.createEl("input", { type: "date" });
+        maxInput.value = constraints.max || "";
+        maxInput.addEventListener("input", (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            constraints.max = val || undefined;
         });
     }
 

@@ -7,6 +7,7 @@ import { SchemaField } from "../types";
 export function clearFieldConstraints(field: SchemaField): void {
     delete field.stringConstraints;
     delete field.numberConstraints;
+    delete field.dateConstraints;
     delete field.arrayConstraints;
     delete field.objectConstraints;
     delete field.arrayElementType;
