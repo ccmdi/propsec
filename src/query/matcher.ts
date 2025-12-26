@@ -1,6 +1,6 @@
 import { App, TFile } from "obsidian";
 import { PropertyFilter, PropertyCondition, PropertyConditionOperator } from "../types";
-import { findKeyCaseInsensitive, hasKeyCaseInsensitive } from "../utils/object";
+import { buildLowerKeyMap, lookupKey, hasKey, LowerKeyMap } from "../utils/object";
 
 /**
  * Query syntax:
@@ -320,18 +320,21 @@ export function fileMatchesPropertyFilter(app: App, file: TFile, filter: Propert
     const cache = app.metadataCache.getFileCache(file);
     const frontmatter = cache?.frontmatter;
 
+    // Build lowercase key map once for O(1) lookups
+    const keyMap = frontmatter ? buildLowerKeyMap(frontmatter) : new Map<string, string>();
+
     if (filter.hasProperty) {
-        if (!frontmatter || !hasKeyCaseInsensitive(frontmatter, filter.hasProperty)) return false;
+        if (!frontmatter || !hasKey(keyMap, filter.hasProperty)) return false;
     }
 
     if (filter.notHasProperty) {
-        if (frontmatter && hasKeyCaseInsensitive(frontmatter, filter.notHasProperty)) return false;
+        if (frontmatter && hasKey(keyMap, filter.notHasProperty)) return false;
     }
 
     // Check property conditions (AND logic - all must match)
     if (filter.conditions && filter.conditions.length > 0) {
         for (const condition of filter.conditions) {
-            if (!evaluateCondition(frontmatter, condition)) {
+            if (!evaluateCondition(frontmatter, condition, keyMap)) {
                 return false;
             }
         }
@@ -343,11 +346,11 @@ export function fileMatchesPropertyFilter(app: App, file: TFile, filter: Propert
 /**
  * Evaluate a single property condition against frontmatter
  */
-function evaluateCondition(frontmatter: Record<string, unknown> | undefined, condition: PropertyCondition): boolean {
+function evaluateCondition(frontmatter: Record<string, unknown> | undefined, condition: PropertyCondition, keyMap: LowerKeyMap): boolean {
     const { property, operator, value } = condition;
 
-    // Case-insensitive property lookup
-    const actualKey = frontmatter ? findKeyCaseInsensitive(frontmatter, property) : undefined;
+    // O(1) case-insensitive property lookup
+    const actualKey = lookupKey(keyMap, property);
 
     // If no frontmatter or property doesn't exist
     if (!frontmatter || !actualKey) {

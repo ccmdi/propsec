@@ -1,6 +1,6 @@
 import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType, DateConstraints, CrossFieldConstraint, CrossFieldOperator } from "../types";
 import { validationContext } from "./context";
-import { findKeyCaseInsensitive } from "../utils/object";
+import { buildLowerKeyMap, lookupKey, LowerKeyMap } from "../utils/object";
 import { EXCLUDE_FIELDS } from "../utils/constant";
 
 // Date regex for ISO format YYYY-MM-DD
@@ -19,15 +19,18 @@ export function validateFrontmatter(
     const fieldGroups = groupFieldsByName(schema.fields);
     const schemaFieldNamesLower = new Set(schema.fields.map(f => f.name.toLowerCase()));
 
+    // Build lowercase key map once for O(1) lookups (optimization: O(n) upfront vs O(n²) total)
+    const keyMap = frontmatter ? buildLowerKeyMap(frontmatter) : new Map<string, string>();
+
     // Check each schema field
     for (const [fieldName, variants] of fieldGroups) {
-        // Case-insensitive field lookup in frontmatter
-        const actualKey = frontmatter ? findKeyCaseInsensitive(frontmatter, fieldName) : undefined;
+        // O(1) case-insensitive field lookup
+        const actualKey = lookupKey(keyMap, fieldName);
         const hasField = actualKey !== undefined;
 
         const value = hasField ? frontmatter![actualKey] : undefined;
 
-        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter));
+        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter, keyMap));
     }
 
     // Check for unknown fields at top level (case-insensitive)
@@ -60,7 +63,8 @@ function validateField(
     path: string,
     filePath: string,
     schema: SchemaMapping,
-    frontmatter: Record<string, unknown> | undefined
+    frontmatter: Record<string, unknown> | undefined,
+    keyMap: LowerKeyMap
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -68,7 +72,7 @@ function validateField(
     const applicableVariants = variants.filter(v => {
         if (!v.conditions || v.conditions.length === 0) return true;  // No conditions = always applicable
         // All conditions must be met (AND logic)
-        return v.conditions.every(c => evaluateFieldCondition(c, frontmatter));
+        return v.conditions.every(c => evaluateFieldCondition(c, frontmatter, keyMap));
     });
 
     // If no variants are applicable (all had conditions, none met), skip this field
@@ -134,7 +138,7 @@ function validateField(
     }
 
     // Validate value with constraints and recurse into nested structures
-    violations.push(...validateValue(value, matchingVariant, path, filePath, schema, frontmatter));
+    violations.push(...validateValue(value, matchingVariant, path, filePath, schema, frontmatter, keyMap));
 
     return violations;
 }
@@ -148,7 +152,8 @@ function validateValue(
     path: string,
     filePath: string,
     schema: SchemaMapping,
-    frontmatter?: Record<string, unknown>
+    frontmatter?: Record<string, unknown>,
+    keyMap?: LowerKeyMap
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -184,8 +189,8 @@ function validateValue(
     }
 
     // Cross-field constraint
-    if (field.crossFieldConstraint && frontmatter) {
-        violations.push(...checkCrossFieldConstraint(value, field.crossFieldConstraint, path, filePath, schema, frontmatter));
+    if (field.crossFieldConstraint && frontmatter && keyMap) {
+        violations.push(...checkCrossFieldConstraint(value, field.crossFieldConstraint, path, filePath, schema, frontmatter, keyMap));
     }
 
     return violations;
@@ -518,12 +523,13 @@ function checkCrossFieldConstraint(
     path: string,
     filePath: string,
     schema: SchemaMapping,
-    frontmatter: Record<string, unknown>
+    frontmatter: Record<string, unknown>,
+    keyMap: LowerKeyMap
 ): Violation[] {
     const violations: Violation[] = [];
 
-    // Get the other field's value (case-insensitive)
-    const otherKey = findKeyCaseInsensitive(frontmatter, constraint.field);
+    // Get the other field's value (O(1) case-insensitive lookup)
+    const otherKey = lookupKey(keyMap, constraint.field);
     if (!otherKey) {
         // Other field doesn't exist, can't compare
         return violations;
@@ -738,12 +744,14 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
  */
 function evaluateFieldCondition(
     condition: FieldCondition,
-    frontmatter: Record<string, unknown> | undefined
+    frontmatter: Record<string, unknown> | undefined,
+    keyMap: LowerKeyMap
 ): boolean {
     //TODO: evaluateCondition is similar
     if (!frontmatter) return false;
     
-    const actualKey = findKeyCaseInsensitive(frontmatter, condition.field);
+    // O(1) case-insensitive lookup
+    const actualKey = lookupKey(keyMap, condition.field);
     const fieldValue = actualKey ? frontmatter[actualKey] : undefined;
     const conditionValue = condition.value;
 

@@ -1,20 +1,31 @@
 /**
- * Find a key in an object case-insensitively.
- * Returns the actual key if found, or undefined.
+ * A pre-built map for O(1) case-insensitive key lookups.
+ * Maps lowercase key -> actual key in the object.
  */
-export function findKeyCaseInsensitive(obj: Record<string, unknown>, key: string): string | undefined {
-    const lowerKey = key.toLowerCase();
-    for (const k of Object.keys(obj)) {
-        if (k.toLowerCase() === lowerKey) {
-            return k;
-        }
+export type LowerKeyMap = Map<string, string>;
+
+/**
+ * Build a lowercase key map for an object.
+ * Call once, then use lookupKey for O(1) lookups.
+ */
+export function buildLowerKeyMap(obj: Record<string, unknown>): LowerKeyMap {
+    const map = new Map<string, string>();
+    for (const key of Object.keys(obj)) {
+        map.set(key.toLowerCase(), key);
     }
-    return undefined;
+    return map;
 }
 
 /**
- * Check if an object has a key (case-insensitive).
+ * O(1) case-insensitive key lookup using a pre-built map.
  */
-export function hasKeyCaseInsensitive(obj: Record<string, unknown>, key: string): boolean {
-    return findKeyCaseInsensitive(obj, key) !== undefined;
+export function lookupKey(map: LowerKeyMap, key: string): string | undefined {
+    return map.get(key.toLowerCase());
+}
+
+/**
+ * O(1) check if a key exists (case-insensitive) using a pre-built map.
+ */
+export function hasKey(map: LowerKeyMap, key: string): boolean {
+    return map.has(key.toLowerCase());
 }

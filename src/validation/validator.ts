@@ -6,7 +6,7 @@ import { validationContext } from "./context";
 import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
 import { queryContext } from "../query/context";
 import { debug } from "../debug";
-import { findKeyCaseInsensitive } from "../utils/object";
+import { buildLowerKeyMap, lookupKey } from "../utils/object";
 
 const BATCH_SIZE = 50;
 
@@ -207,7 +207,9 @@ export class Validator {
                 const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
                 if (!frontmatter) continue;
 
-                const actualKey = findKeyCaseInsensitive(frontmatter, field.name);
+                // Build key map for O(1) lookup
+                const keyMap = buildLowerKeyMap(frontmatter);
+                const actualKey = lookupKey(keyMap, field.name);
                 if (!actualKey) continue;
 
                 const value = frontmatter[actualKey];
