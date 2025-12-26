@@ -8,6 +8,7 @@ import { TypePreviewModal } from "./ui/typePreviewModal";
 import { ConfirmModal } from "./ui/confirmModal";
 import { describePropertyFilter } from "./query/matcher";
 import { makeDraggable } from "./ui/draggable";
+import { getReferencedCustomTypes } from "./validation/cache";
 import PropsecPlugin from "./main";
 
 export class PropsecSettingTab extends PluginSettingTab {
@@ -483,6 +484,14 @@ export class PropsecSettingTab extends PluginSettingTab {
                         const temp = document.createElement("div");
                         this.renderCustomTypeItem(temp, updatedType, idx);
                         itemEl.replaceWith(temp.firstChild!);
+
+                        // Revalidate schemas using this custom type
+                        for (const schema of this.settings.schemaMappings) {
+                            const referencedTypes = getReferencedCustomTypes(schema.fields, this.settings.customTypes);
+                            if (referencedTypes.some((t) => t.name === updatedType.name)) {
+                                this.onSchemaChange(schema.id);
+                            }
+                        }
                     }
                 }
             );
@@ -496,9 +505,10 @@ export class PropsecSettingTab extends PluginSettingTab {
         setIcon(deleteBtn, "x");
         deleteBtn.addEventListener("click", () => {
             // Check if any schema is using this type
-            const usedInSchemas = this.settings.schemaMappings.filter((mapping) =>
-                mapping.fields.some((field) => field.type === customType.name)
-            );
+            const usedInSchemas = this.settings.schemaMappings.filter((mapping) => {
+                const referencedTypes = getReferencedCustomTypes(mapping.fields, this.settings.customTypes);
+                return referencedTypes.some((t) => t.name === customType.name);
+            });
 
             if (usedInSchemas.length > 0) {
                 const schemaNames = usedInSchemas.map((m) => m.name).join(", ");

@@ -50,7 +50,7 @@ function hashString(str: string): string {
 /**
  * Get all custom types referenced by a schema's fields (recursively)
  */
-function getReferencedCustomTypes(
+export function getReferencedCustomTypes(
     fields: SchemaField[],
     allCustomTypes: CustomType[],
     visited: Set<string> = new Set()
