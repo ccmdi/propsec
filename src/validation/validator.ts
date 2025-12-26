@@ -1,11 +1,12 @@
 import { App, TFile } from "obsidian";
-import { PropsecSettings, SchemaMapping, Violation, OBSIDIAN_NATIVE_PROPERTIES } from "../types";
+import { PropsecSettings, SchemaMapping, SchemaField, Violation, OBSIDIAN_NATIVE_PROPERTIES } from "../types";
 import { ViolationStore } from "./store";
 import { validateFrontmatter } from "./validate";
 import { validationContext } from "./context";
 import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
 import { queryContext } from "../query/context";
 import { debug } from "../debug";
+import { findKeyCaseInsensitive } from "../utils/object";
 
 const BATCH_SIZE = 50;
 
@@ -109,11 +110,43 @@ export class Validator {
             this.validateFile(file, schema);
         }
 
+        // Re-validate unique constraints for schemas that have them
+        // This is needed because the file's value change might affect other files
+        for (const schema of matchingSchemas) {
+            if (schema.fields.some(f => f.unique)) {
+                this.revalidateSchemaUniqueConstraints(schema);
+            }
+        }
+
         this.hooks.onFileValidated?.(
             file,
             matchingSchemas.map(s => s.id),
             this.store.getFileViolations(file.path)
         );
+    }
+
+    /**
+     * Re-validate unique constraints for a schema
+     * Clears existing duplicate_value violations and re-checks
+     */
+    private revalidateSchemaUniqueConstraints(mapping: SchemaMapping): void {
+        if (!mapping.enabled || !mapping.query) return;
+
+        // Get all files matching this schema
+        const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
+        const matchedFiles: TFile[] = [];
+
+        for (const file of candidateFiles) {
+            if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
+                continue;
+            }
+            // Remove existing duplicate_value violations for this file/schema
+            this.store.removeFileSchemaViolationsByType(file.path, mapping.id, "duplicate_value");
+            matchedFiles.push(file);
+        }
+
+        // Re-run unique validation
+        this.validateUniqueConstraints(mapping, matchedFiles);
     }
 
     /**
@@ -126,6 +159,9 @@ export class Validator {
         // Get files that match the query using the index (fast!)
         const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
 
+        // Track files that match for unique validation
+        const matchedFiles: TFile[] = [];
+
         let processed = 0;
         for (const file of candidateFiles) {
             // Apply property filter if present
@@ -134,6 +170,7 @@ export class Validator {
             }
 
             this.validateFile(file, mapping);
+            matchedFiles.push(file);
 
             this.hooks.onFileValidated?.(
                 file,
@@ -147,7 +184,74 @@ export class Validator {
             }
         }
 
+        // Check unique constraints across all matched files
+        this.validateUniqueConstraints(mapping, matchedFiles);
+
         this.hooks.onSchemaValidated?.(mapping);
+    }
+
+    /**
+     * Check unique constraints for a schema across all matched files
+     * Adds duplicate_value violations for fields marked as unique
+     */
+    private validateUniqueConstraints(mapping: SchemaMapping, files: TFile[]): void {
+        // Find fields with unique constraint
+        const uniqueFields = mapping.fields.filter(f => f.unique);
+        if (uniqueFields.length === 0) return;
+
+        // Build value -> files map for each unique field
+        for (const field of uniqueFields) {
+            const valueToFiles = new Map<string, TFile[]>();
+
+            for (const file of files) {
+                const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+                if (!frontmatter) continue;
+
+                const actualKey = findKeyCaseInsensitive(frontmatter, field.name);
+                if (!actualKey) continue;
+
+                const value = frontmatter[actualKey];
+                if (value === null || value === undefined) continue;
+
+                // Normalize value to string for comparison
+                const valueStr = this.normalizeValueForUnique(value);
+
+                const existing = valueToFiles.get(valueStr) || [];
+                existing.push(file);
+                valueToFiles.set(valueStr, existing);
+            }
+
+            // Add violations for duplicate values
+            for (const [value, duplicateFiles] of valueToFiles) {
+                if (duplicateFiles.length > 1) {
+                    const otherFiles = duplicateFiles.map(f => f.basename);
+                    for (const file of duplicateFiles) {
+                        const othersExceptCurrent = otherFiles.filter(name => name !== file.basename);
+                        const violation: Violation = {
+                            filePath: file.path,
+                            schemaMapping: mapping,
+                            field: field.name,
+                            type: "duplicate_value",
+                            message: `Duplicate value: "${value}" also in: ${othersExceptCurrent.join(", ")}`,
+                            actual: value,
+                        };
+                        this.store.addFileViolations(file.path, [violation]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Normalize a value for unique comparison
+     */
+    private normalizeValueForUnique(value: unknown): string {
+        if (typeof value === "string") return value;
+        if (typeof value === "number" || typeof value === "boolean") return String(value);
+        if (value instanceof Date) return value.toISOString();
+        if (Array.isArray(value)) return JSON.stringify(value.sort());
+        if (typeof value === "object" && value !== null) return JSON.stringify(value);
+        return String(value);
     }
 
     /**

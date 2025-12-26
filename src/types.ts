@@ -61,6 +61,8 @@ export interface SchemaField {
     // Warn if missing (mutually exclusive with required - either warn or required, not both)
     //TODO discrim union
     warn?: boolean;
+    // Value must be unique across all files matching the schema
+    unique?: boolean;
 
     // Conditional validation: only validate this field if ALL conditions are met
     conditions?: FieldCondition[];
@@ -178,7 +180,8 @@ export type ViolationType =
     | "array_too_few"
     | "array_too_many"
     | "array_missing_value"
-    | "object_missing_key";
+    | "object_missing_key"
+    | "duplicate_value";
 
 export interface Violation {
     filePath: string;

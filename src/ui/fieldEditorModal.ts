@@ -197,7 +197,18 @@ export abstract class FieldEditorModal extends Modal {
         warnCheckbox.checked = field.warn || false;
         warnLabel.appendText(" Warn");
 
-        // Mutual exclusion handlers
+        // Unique checkbox
+        const uniqueLabel = mainRow.createEl("label", {
+            cls: "frontmatter-linter-required-label",
+            attr: { title: "Value must be unique across all files in schema" },
+        });
+        const uniqueCheckbox = uniqueLabel.createEl("input", {
+            type: "checkbox",
+        });
+        uniqueCheckbox.checked = field.unique || false;
+        uniqueLabel.appendText(" Uniq");
+
+        // Mutual exclusion handlers for required/warn
         requiredCheckbox.addEventListener("change", (e) => {
             field.required = (e.target as HTMLInputElement).checked;
             if (field.required) {
@@ -211,6 +222,9 @@ export abstract class FieldEditorModal extends Modal {
                 field.required = false;
                 requiredCheckbox.checked = false;
             }
+        });
+        uniqueCheckbox.addEventListener("change", (e) => {
+            field.unique = (e.target as HTMLInputElement).checked;
         });
 
         // Expand button

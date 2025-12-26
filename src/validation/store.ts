@@ -1,4 +1,4 @@
-import { Violation, ValidationState, isWarningViolation, ViolationFilter } from "../types";
+import { Violation, ValidationState, isWarningViolation, ViolationFilter, ViolationType } from "../types";
 
 /**
  * In-memory store for validation violations
@@ -121,10 +121,30 @@ export class ViolationStore {
     removeFileSchemaViolations(filePath: string, schemaId: string): void {
         const violations = this.state.violations.get(filePath);
         if (!violations) return;
-        
+
         const filtered = violations.filter(v => v.schemaMapping.id !== schemaId);
         if (filtered.length === violations.length) return; // No change
-        
+
+        if (filtered.length === 0) {
+            this.state.violations.delete(filePath);
+        } else {
+            this.state.violations.set(filePath, filtered);
+        }
+        this.notifyListeners();
+    }
+
+    /**
+     * Remove violations of a specific type for a file from a specific schema
+     */
+    removeFileSchemaViolationsByType(filePath: string, schemaId: string, violationType: ViolationType): void {
+        const violations = this.state.violations.get(filePath);
+        if (!violations) return;
+
+        const filtered = violations.filter(v =>
+            !(v.schemaMapping.id === schemaId && v.type === violationType)
+        );
+        if (filtered.length === violations.length) return; // No change
+
         if (filtered.length === 0) {
             this.state.violations.delete(filePath);
         } else {
