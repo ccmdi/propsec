@@ -1,15 +1,13 @@
 import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType, DateConstraints, CrossFieldConstraint } from "../types";
 import { validationContext } from "./context";
 import { buildLowerKeyMap, lookupKey, LowerKeyMap } from "../utils/object";
-import { EXCLUDE_FIELDS } from "../utils/constant";
+import { EXCLUDE_FIELDS, ISO_DATE_REGEX } from "../utils/constant";
 import {
     ComparisonOperator,
     getCrossFieldOperatorDisplay,
     compareCrossFieldValues,
     evaluatePropertyOperator,
 } from "../operators";
-
-const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Main entry point: validate frontmatter against a schema
