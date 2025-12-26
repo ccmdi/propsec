@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/logo.png" alt="Propsec Logo" width="360">
+  <img src="images/logo.jpg" alt="Propsec Logo">
 </p>
 
 # Propsec
