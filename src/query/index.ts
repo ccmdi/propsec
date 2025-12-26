@@ -21,6 +21,7 @@ const INDEX_VERSION = 1;
 export class QueryIndex {
     private app: App;
     private tagIndex: Map<string, Set<string>> = new Map();
+    private fileToTags: Map<string, Set<string>> = new Map(); // Reverse index for O(1) file->tags lookup
     private indexPath: string;
     private dirty: boolean = false;
     private saveTimeout: NodeJS.Timeout | null = null;
@@ -38,6 +39,24 @@ export class QueryIndex {
         if (!loaded) {
             await this.buildFullIndex();
         }
+        this.buildReverseIndex();
+    }
+
+    /**
+     * Build reverse index (file -> tags) from tagIndex
+     */
+    private buildReverseIndex(): void {
+        const start = Date.now();
+        this.fileToTags.clear();
+        for (const [tag, files] of this.tagIndex) {
+            for (const filePath of files) {
+                if (!this.fileToTags.has(filePath)) {
+                    this.fileToTags.set(filePath, new Set());
+                }
+                this.fileToTags.get(filePath)!.add(tag);
+            }
+        }
+        debug(`Built reverse index in ${Date.now() - start}ms`, this.fileToTags);
     }
 
     /**
@@ -45,6 +64,7 @@ export class QueryIndex {
      */
     private async loadFromDisk(): Promise<boolean> {
         try {
+            const start = Date.now();
             const data = await this.app.vault.adapter.read(
                 this.app.vault.configDir + "/plugins/" + this.indexPath
             );
@@ -59,7 +79,7 @@ export class QueryIndex {
                 this.tagIndex.set(tag, new Set(files));
             }
 
-            debug(`Loaded tag index with ${this.tagIndex.size} tags`);
+            debug(`Loaded tag index with ${this.tagIndex.size} tags in ${Date.now() - start}ms`);
             return true;
         } catch {
             // File doesn't exist or is corrupted
@@ -133,15 +153,22 @@ export class QueryIndex {
         const filePath = file.path;
         const newTags = this.getFileTags(file);
 
-        // Remove file from all tags it was in
-        for (const [tag, files] of this.tagIndex) {
-            if (files.has(filePath)) {
-                files.delete(filePath);
-                if (files.size === 0) {
-                    this.tagIndex.delete(tag);
+        // Remove file from old tags using reverse index - O(t) instead of O(T)
+        const oldTags = this.fileToTags.get(filePath);
+        if (oldTags) {
+            for (const tag of oldTags) {
+                const files = this.tagIndex.get(tag);
+                if (files) {
+                    files.delete(filePath);
+                    if (files.size === 0) {
+                        this.tagIndex.delete(tag);
+                    }
                 }
             }
         }
+
+        // Update reverse index
+        this.fileToTags.set(filePath, new Set(newTags));
 
         // Add file to its current tags
         for (const tag of newTags) {
@@ -155,13 +182,19 @@ export class QueryIndex {
      * Remove a file from the index
      */
     removeFile(filePath: string): void {
-        for (const [tag, files] of this.tagIndex) {
-            if (files.has(filePath)) {
-                files.delete(filePath);
-                if (files.size === 0) {
-                    this.tagIndex.delete(tag);
+        // Use reverse index - O(t) instead of O(T)
+        const tags = this.fileToTags.get(filePath);
+        if (tags) {
+            for (const tag of tags) {
+                const files = this.tagIndex.get(tag);
+                if (files) {
+                    files.delete(filePath);
+                    if (files.size === 0) {
+                        this.tagIndex.delete(tag);
+                    }
                 }
             }
+            this.fileToTags.delete(filePath);
         }
         this.scheduleSave();
     }
@@ -170,11 +203,19 @@ export class QueryIndex {
      * Handle file rename
      */
     renameFile(oldPath: string, newPath: string): void {
-        for (const files of this.tagIndex.values()) {
-            if (files.has(oldPath)) {
-                files.delete(oldPath);
-                files.add(newPath);
+        // Use reverse index - O(t) instead of O(T)
+        const tags = this.fileToTags.get(oldPath);
+        if (tags) {
+            for (const tag of tags) {
+                const files = this.tagIndex.get(tag);
+                if (files) {
+                    files.delete(oldPath);
+                    files.add(newPath);
+                }
             }
+            // Update reverse index
+            this.fileToTags.delete(oldPath);
+            this.fileToTags.set(newPath, tags);
         }
         this.scheduleSave();
     }

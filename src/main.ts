@@ -249,7 +249,7 @@ export default class PropsecPlugin extends Plugin {
         }
 
         const templater = this.app.plugins.plugins["templater-obsidian"];
-        if (templater.settings.templates_folder) {
+        if (templater && templater.settings.templates_folder) {
             this.settings.templatesFolder = templater.settings.templates_folder;
         }
     }

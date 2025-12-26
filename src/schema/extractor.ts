@@ -1,6 +1,7 @@
 import { App, TFile } from "obsidian";
 import { FieldType, SchemaField } from "../types";
 import "../obsidian-ex.d.ts";
+import { EXCLUDE_FIELDS } from "../utils/constant";
 
 // Date regex for ISO format YYYY-MM-DD
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -100,7 +101,7 @@ export async function extractSchemaFromTemplate(
     const fields: SchemaField[] = [];
 
     for (const [key, value] of Object.entries(frontmatter)) {
-        if (key === "position") continue; //TODO
+        if (EXCLUDE_FIELDS.includes(key)) continue;
 
         fields.push({
             name: key,
