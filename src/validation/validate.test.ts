@@ -471,6 +471,59 @@ describe("validateFrontmatter", () => {
             expect(violations).toHaveLength(1);
             expect(violations[0].type).toBe("array_missing_value");
         });
+
+        it("validates date min constraint", () => {
+            const schema = createSchema([
+                field("published", "date", {
+                    required: true,
+                    dateConstraints: { min: "2024-01-01" },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ published: "2024-06-15" }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            const violations = validateFrontmatter({ published: "2023-12-31" }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("date_too_early");
+        });
+
+        it("validates date max constraint", () => {
+            const schema = createSchema([
+                field("deadline", "date", {
+                    required: true,
+                    dateConstraints: { max: "2024-12-31" },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ deadline: "2024-06-15" }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            const violations = validateFrontmatter({ deadline: "2025-01-01" }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("date_too_late");
+        });
+
+        it("validates date min and max constraints together", () => {
+            const schema = createSchema([
+                field("event", "date", {
+                    required: true,
+                    dateConstraints: { min: "2024-01-01", max: "2024-12-31" },
+                }),
+            ]);
+
+            // Within range
+            expect(validateFrontmatter({ event: "2024-06-15" }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            // Before min
+            expect(validateFrontmatter({ event: "2023-06-15" }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(1);
+
+            // After max
+            expect(validateFrontmatter({ event: "2025-06-15" }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(1);
+        });
     });
 
     describe("unknown fields", () => {
@@ -524,6 +577,166 @@ describe("validateFrontmatter", () => {
                 .toHaveLength(0);
             expect(validateFrontmatter({ TITLE: "Hello" }, schema, "test.md", { checkUnknownFields: false }))
                 .toHaveLength(0);
+        });
+    });
+
+    describe("cross-field constraints", () => {
+        it("validates endDate greater than startDate", () => {
+            const schema = createSchema([
+                field("startDate", "date", { required: true }),
+                field("endDate", "date", {
+                    required: true,
+                    crossFieldConstraint: { operator: "greater_than", field: "startDate" },
+                }),
+            ]);
+
+            // endDate > startDate - valid
+            expect(validateFrontmatter(
+                { startDate: "2024-01-01", endDate: "2024-12-31" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // endDate < startDate - invalid
+            const violations = validateFrontmatter(
+                { startDate: "2024-12-31", endDate: "2024-01-01" },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("cross_field_violation");
+        });
+
+        it("validates number greater_or_equal constraint", () => {
+            const schema = createSchema([
+                field("minValue", "number", { required: true }),
+                field("maxValue", "number", {
+                    required: true,
+                    crossFieldConstraint: { operator: "greater_or_equal", field: "minValue" },
+                }),
+            ]);
+
+            // maxValue >= minValue - valid
+            expect(validateFrontmatter(
+                { minValue: 10, maxValue: 20 },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // Equal values - valid
+            expect(validateFrontmatter(
+                { minValue: 10, maxValue: 10 },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // maxValue < minValue - invalid
+            const violations = validateFrontmatter(
+                { minValue: 20, maxValue: 10 },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("cross_field_violation");
+        });
+
+        it("validates string equals constraint", () => {
+            const schema = createSchema([
+                field("password", "string", { required: true }),
+                field("confirmPassword", "string", {
+                    required: true,
+                    crossFieldConstraint: { operator: "equals", field: "password" },
+                }),
+            ]);
+
+            // Matching passwords - valid
+            expect(validateFrontmatter(
+                { password: "secret123", confirmPassword: "secret123" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // Non-matching - invalid
+            const violations = validateFrontmatter(
+                { password: "secret123", confirmPassword: "different" },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("cross_field_violation");
+        });
+
+        it("validates not_equals constraint", () => {
+            const schema = createSchema([
+                field("oldValue", "string", { required: true }),
+                field("newValue", "string", {
+                    required: true,
+                    crossFieldConstraint: { operator: "not_equals", field: "oldValue" },
+                }),
+            ]);
+
+            // Different values - valid
+            expect(validateFrontmatter(
+                { oldValue: "abc", newValue: "xyz" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // Same values - invalid
+            const violations = validateFrontmatter(
+                { oldValue: "abc", newValue: "abc" },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("cross_field_violation");
+        });
+
+        it("skips validation when other field is missing", () => {
+            const schema = createSchema([
+                field("startDate", "date"),
+                field("endDate", "date", {
+                    required: true,
+                    crossFieldConstraint: { operator: "greater_than", field: "startDate" },
+                }),
+            ]);
+
+            // startDate missing - should not trigger cross-field violation
+            expect(validateFrontmatter(
+                { endDate: "2024-01-01" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+        });
+
+        it("validates less_than constraint", () => {
+            const schema = createSchema([
+                field("max", "number", { required: true }),
+                field("current", "number", {
+                    required: true,
+                    crossFieldConstraint: { operator: "less_than", field: "max" },
+                }),
+            ]);
+
+            // current < max - valid
+            expect(validateFrontmatter(
+                { max: 100, current: 50 },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // current >= max - invalid
+            const violations = validateFrontmatter(
+                { max: 100, current: 100 },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("cross_field_violation");
+        });
+
+        it("handles case-insensitive field reference", () => {
+            const schema = createSchema([
+                field("StartDate", "date", { required: true }),
+                field("endDate", "date", {
+                    required: true,
+                    crossFieldConstraint: { operator: "greater_than", field: "startdate" }, // lowercase reference
+                }),
+            ]);
+
+            // Should still find the field case-insensitively
+            expect(validateFrontmatter(
+                { StartDate: "2024-01-01", endDate: "2024-12-31" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
         });
     });
 

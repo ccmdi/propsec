@@ -1,7 +1,16 @@
 import { App, Modal, setIcon } from "obsidian";
-import { FieldType, SchemaField, isPrimitiveType } from "../types";
+import { FieldType, SchemaField, isPrimitiveType, CrossFieldOperator } from "../types";
 import { getTypeDisplayName } from "../schema/extractor";
 import { clearFieldConstraints } from "../utils/schema";
+
+const CROSS_FIELD_OPERATORS: { value: CrossFieldOperator; label: string }[] = [
+    { value: "equals", label: "equals" },
+    { value: "not_equals", label: "not equals" },
+    { value: "greater_than", label: "greater than" },
+    { value: "less_than", label: "less than" },
+    { value: "greater_or_equal", label: ">=" },
+    { value: "less_or_equal", label: "<=" },
+];
 
 /**
  * Base class for modals that edit a list of schema fields with expandable constraint overlays.
@@ -197,7 +206,18 @@ export abstract class FieldEditorModal extends Modal {
         warnCheckbox.checked = field.warn || false;
         warnLabel.appendText(" Warn");
 
-        // Mutual exclusion handlers
+        // Unique checkbox
+        const uniqueLabel = mainRow.createEl("label", {
+            cls: "frontmatter-linter-required-label",
+            attr: { title: "Value must be unique across all files in schema" },
+        });
+        const uniqueCheckbox = uniqueLabel.createEl("input", {
+            type: "checkbox",
+        });
+        uniqueCheckbox.checked = field.unique || false;
+        uniqueLabel.appendText(" Uniq");
+
+        // Mutual exclusion handlers for required/warn
         requiredCheckbox.addEventListener("change", (e) => {
             field.required = (e.target as HTMLInputElement).checked;
             if (field.required) {
@@ -211,6 +231,9 @@ export abstract class FieldEditorModal extends Modal {
                 field.required = false;
                 requiredCheckbox.checked = false;
             }
+        });
+        uniqueCheckbox.addEventListener("change", (e) => {
+            field.unique = (e.target as HTMLInputElement).checked;
         });
 
         // Expand button
@@ -263,7 +286,7 @@ export abstract class FieldEditorModal extends Modal {
     }
 
     protected typeSupportsConstraints(type: FieldType): boolean {
-        return isPrimitiveType(type) && ["string", "number", "array"].includes(type);
+        return isPrimitiveType(type) && ["string", "number", "date", "array"].includes(type);
     }
 
     // ========== Constraints Overlay ==========
@@ -309,6 +332,9 @@ export abstract class FieldEditorModal extends Modal {
                 break;
             case "number":
                 this.renderNumberConstraints(container, field);
+                break;
+            case "date":
+                this.renderDateConstraints(container, field);
                 break;
             case "array":
                 this.renderArrayConstraints(container, field);
@@ -369,6 +395,9 @@ export abstract class FieldEditorModal extends Modal {
             const val = (e.target as HTMLInputElement).value;
             constraints.maxLength = val ? parseInt(val, 10) : undefined;
         });
+
+        // Cross-field constraint
+        this.renderCrossFieldConstraint(container, field);
     }
 
     protected renderNumberConstraints(container: HTMLElement, field: SchemaField): void {
@@ -405,6 +434,111 @@ export abstract class FieldEditorModal extends Modal {
             const val = (e.target as HTMLInputElement).value;
             constraints.max = val ? parseFloat(val) : undefined;
         });
+
+        // Cross-field constraint
+        this.renderCrossFieldConstraint(container, field);
+    }
+
+    protected renderDateConstraints(container: HTMLElement, field: SchemaField): void {
+        if (!field.dateConstraints) {
+            field.dateConstraints = {};
+        }
+        const constraints = field.dateConstraints;
+
+        container.createEl("div", {
+            text: "Date constraints",
+            cls: "frontmatter-linter-constraints-title",
+        });
+
+        const grid = container.createDiv({
+            cls: "frontmatter-linter-constraints-grid",
+        });
+
+        // Min date
+        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        minRow.createEl("label", { text: "Min date:" });
+        const minInput = minRow.createEl("input", { type: "date" });
+        minInput.value = constraints.min || "";
+        minInput.addEventListener("input", (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            constraints.min = val || undefined;
+        });
+
+        // Max date
+        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        maxRow.createEl("label", { text: "Max date:" });
+        const maxInput = maxRow.createEl("input", { type: "date" });
+        maxInput.value = constraints.max || "";
+        maxInput.addEventListener("input", (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            constraints.max = val || undefined;
+        });
+
+        // Cross-field constraint
+        this.renderCrossFieldConstraint(container, field);
+    }
+
+    protected renderCrossFieldConstraint(container: HTMLElement, field: SchemaField): void {
+        const title = container.createEl("div", {
+            text: "Compare to another field",
+            cls: "frontmatter-linter-constraints-title",
+        });
+        title.style.marginTop = "12px";
+
+        const grid = container.createDiv({
+            cls: "frontmatter-linter-constraints-grid",
+        });
+
+        // Operator select
+        const operatorRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        operatorRow.createEl("label", { text: "Must be:" });
+        const operatorSelect = operatorRow.createEl("select");
+
+        // Add empty option
+        const emptyOption = operatorSelect.createEl("option", {
+            value: "",
+            text: "(none)",
+        });
+        if (!field.crossFieldConstraint) {
+            emptyOption.selected = true;
+        }
+
+        for (const op of CROSS_FIELD_OPERATORS) {
+            const option = operatorSelect.createEl("option", {
+                value: op.value,
+                text: op.label,
+            });
+            if (field.crossFieldConstraint?.operator === op.value) {
+                option.selected = true;
+            }
+        }
+
+        // Field name input
+        const fieldRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        fieldRow.createEl("label", { text: "Field:" });
+        const fieldInput = fieldRow.createEl("input", {
+            type: "text",
+            placeholder: "other field name",
+        });
+        fieldInput.value = field.crossFieldConstraint?.field || "";
+
+        // Update handlers
+        const updateConstraint = () => {
+            const operator = operatorSelect.value as CrossFieldOperator | "";
+            const fieldName = fieldInput.value.trim();
+
+            if (operator && fieldName) {
+                field.crossFieldConstraint = {
+                    operator: operator as CrossFieldOperator,
+                    field: fieldName,
+                };
+            } else {
+                delete field.crossFieldConstraint;
+            }
+        };
+
+        operatorSelect.addEventListener("change", updateConstraint);
+        fieldInput.addEventListener("input", updateConstraint);
     }
 
     protected renderArrayConstraints(container: HTMLElement, field: SchemaField): void {

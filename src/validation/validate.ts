@@ -1,6 +1,6 @@
-import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType } from "../types";
+import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType, DateConstraints, CrossFieldConstraint, CrossFieldOperator } from "../types";
 import { validationContext } from "./context";
-import { findKeyCaseInsensitive } from "../utils/object";
+import { buildLowerKeyMap, lookupKey, LowerKeyMap } from "../utils/object";
 import { EXCLUDE_FIELDS } from "../utils/constant";
 
 // Date regex for ISO format YYYY-MM-DD
@@ -19,15 +19,18 @@ export function validateFrontmatter(
     const fieldGroups = groupFieldsByName(schema.fields);
     const schemaFieldNamesLower = new Set(schema.fields.map(f => f.name.toLowerCase()));
 
+    // Build lowercase key map once for O(1) lookups (optimization: O(n) upfront vs O(n²) total)
+    const keyMap = frontmatter ? buildLowerKeyMap(frontmatter) : new Map<string, string>();
+
     // Check each schema field
     for (const [fieldName, variants] of fieldGroups) {
-        // Case-insensitive field lookup in frontmatter
-        const actualKey = frontmatter ? findKeyCaseInsensitive(frontmatter, fieldName) : undefined;
+        // O(1) case-insensitive field lookup
+        const actualKey = lookupKey(keyMap, fieldName);
         const hasField = actualKey !== undefined;
 
         const value = hasField ? frontmatter![actualKey] : undefined;
 
-        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter));
+        violations.push(...validateField(value, hasField, variants, fieldName, filePath, schema, frontmatter, keyMap));
     }
 
     // Check for unknown fields at top level (case-insensitive)
@@ -60,7 +63,8 @@ function validateField(
     path: string,
     filePath: string,
     schema: SchemaMapping,
-    frontmatter: Record<string, unknown> | undefined
+    frontmatter: Record<string, unknown> | undefined,
+    keyMap: LowerKeyMap
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -68,7 +72,7 @@ function validateField(
     const applicableVariants = variants.filter(v => {
         if (!v.conditions || v.conditions.length === 0) return true;  // No conditions = always applicable
         // All conditions must be met (AND logic)
-        return v.conditions.every(c => evaluateFieldCondition(c, frontmatter));
+        return v.conditions.every(c => evaluateFieldCondition(c, frontmatter, keyMap));
     });
 
     // If no variants are applicable (all had conditions, none met), skip this field
@@ -134,7 +138,7 @@ function validateField(
     }
 
     // Validate value with constraints and recurse into nested structures
-    violations.push(...validateValue(value, matchingVariant, path, filePath, schema));
+    violations.push(...validateValue(value, matchingVariant, path, filePath, schema, frontmatter, keyMap));
 
     return violations;
 }
@@ -147,7 +151,9 @@ function validateValue(
     field: SchemaField,
     path: string,
     filePath: string,
-    schema: SchemaMapping
+    schema: SchemaMapping,
+    frontmatter?: Record<string, unknown>,
+    keyMap?: LowerKeyMap
 ): Violation[] {
     const violations: Violation[] = [];
 
@@ -159,6 +165,11 @@ function validateValue(
     // Number constraints
     if (field.type === "number" && typeof value === "number" && field.numberConstraints) {
         violations.push(...checkNumberConstraints(value, field.numberConstraints, path, filePath, schema));
+    }
+
+    // Date constraints
+    if (field.type === "date" && field.dateConstraints) {
+        violations.push(...checkDateConstraints(value, field.dateConstraints, path, filePath, schema));
     }
 
     // Array: check constraints + recurse into elements
@@ -175,6 +186,11 @@ function validateValue(
     const customType = validationContext.getCustomType(field.type);
     if (customType && typeof value === "object" && value !== null && !Array.isArray(value)) {
         violations.push(...validateCustomTypeObject(value as Record<string, unknown>, customType, path, filePath, schema));
+    }
+
+    // Cross-field constraint
+    if (field.crossFieldConstraint && frontmatter && keyMap) {
+        violations.push(...checkCrossFieldConstraint(value, field.crossFieldConstraint, path, filePath, schema, frontmatter, keyMap));
     }
 
     return violations;
@@ -447,6 +463,188 @@ function checkNumberConstraints(
     return violations;
 }
 
+function checkDateConstraints(
+    value: unknown,
+    constraints: DateConstraints,
+    path: string,
+    filePath: string,
+    schema: SchemaMapping
+): Violation[] {
+    const violations: Violation[] = [];
+
+    // Parse the value as a date
+    let dateValue: Date;
+    if (value instanceof Date) {
+        dateValue = value;
+    } else if (typeof value === "string") {
+        dateValue = new Date(value);
+    } else {
+        // Not a valid date format, skip constraint checking (type mismatch handles this)
+        return violations;
+    }
+
+    // Invalid date
+    if (isNaN(dateValue.getTime())) {
+        return violations;
+    }
+
+    const actualDateStr = dateValue.toISOString().split("T")[0];
+
+    if (constraints.min) {
+        const minDate = new Date(constraints.min);
+        if (!isNaN(minDate.getTime()) && dateValue < minDate) {
+            violations.push({
+                filePath, schemaMapping: schema, field: path,
+                type: "date_too_early",
+                message: `Date too early: ${path} is ${actualDateStr} (min: ${constraints.min})`,
+                expected: `>= ${constraints.min}`, actual: actualDateStr,
+            });
+        }
+    }
+
+    if (constraints.max) {
+        const maxDate = new Date(constraints.max);
+        if (!isNaN(maxDate.getTime()) && dateValue > maxDate) {
+            violations.push({
+                filePath, schemaMapping: schema, field: path,
+                type: "date_too_late",
+                message: `Date too late: ${path} is ${actualDateStr} (max: ${constraints.max})`,
+                expected: `<= ${constraints.max}`, actual: actualDateStr,
+            });
+        }
+    }
+
+    return violations;
+}
+
+function checkCrossFieldConstraint(
+    value: unknown,
+    constraint: CrossFieldConstraint,
+    path: string,
+    filePath: string,
+    schema: SchemaMapping,
+    frontmatter: Record<string, unknown>,
+    keyMap: LowerKeyMap
+): Violation[] {
+    const violations: Violation[] = [];
+
+    // Get the other field's value (O(1) case-insensitive lookup)
+    const otherKey = lookupKey(keyMap, constraint.field);
+    if (!otherKey) {
+        // Other field doesn't exist, can't compare
+        return violations;
+    }
+
+    const otherValue = frontmatter[otherKey];
+    if (otherValue === null || otherValue === undefined) {
+        return violations;
+    }
+
+    // Compare based on types
+    const result = compareCrossFieldValues(value, otherValue, constraint.operator);
+
+    if (result === false) {
+        const operatorDisplay = getCrossFieldOperatorDisplay(constraint.operator);
+        violations.push({
+            filePath, schemaMapping: schema, field: path,
+            type: "cross_field_violation",
+            message: `Cross-field constraint failed: ${path} must be ${operatorDisplay} ${constraint.field}`,
+            expected: `${operatorDisplay} ${constraint.field}`,
+            actual: String(value),
+        });
+    }
+
+    return violations;
+}
+
+function compareCrossFieldValues(
+    value: unknown,
+    otherValue: unknown,
+    operator: CrossFieldOperator
+): boolean | null {
+    // Try numeric comparison first
+    const numA = toNumber(value);
+    const numB = toNumber(otherValue);
+
+    if (numA !== null && numB !== null) {
+        switch (operator) {
+            case "equals": return numA === numB;
+            case "not_equals": return numA !== numB;
+            case "greater_than": return numA > numB;
+            case "less_than": return numA < numB;
+            case "greater_or_equal": return numA >= numB;
+            case "less_or_equal": return numA <= numB;
+        }
+    }
+
+    // Try date comparison
+    const dateA = toDate(value);
+    const dateB = toDate(otherValue);
+
+    if (dateA !== null && dateB !== null) {
+        const timeA = dateA.getTime();
+        const timeB = dateB.getTime();
+        switch (operator) {
+            case "equals": return timeA === timeB;
+            case "not_equals": return timeA !== timeB;
+            case "greater_than": return timeA > timeB;
+            case "less_than": return timeA < timeB;
+            case "greater_or_equal": return timeA >= timeB;
+            case "less_or_equal": return timeA <= timeB;
+        }
+    }
+
+    // Fall back to string comparison
+    const strA = String(value);
+    const strB = String(otherValue);
+
+    switch (operator) {
+        case "equals": return strA === strB;
+        case "not_equals": return strA !== strB;
+        case "greater_than": return strA > strB;
+        case "less_than": return strA < strB;
+        case "greater_or_equal": return strA >= strB;
+        case "less_or_equal": return strA <= strB;
+    }
+
+    return null;
+}
+
+function toNumber(value: unknown): number | null {
+    if (typeof value === "number") return value;
+    if (typeof value === "string") {
+        // Only treat as number if the entire string is a valid number
+        // This prevents date strings like "2024-12-31" from being parsed as 2024
+        const trimmed = value.trim();
+        if (trimmed === "" || !/^-?\d+(\.\d+)?$/.test(trimmed)) {
+            return null;
+        }
+        const num = parseFloat(trimmed);
+        return isNaN(num) ? null : num;
+    }
+    return null;
+}
+
+function toDate(value: unknown): Date | null {
+    if (value instanceof Date) return value;
+    if (typeof value === "string") {
+        const date = new Date(value);
+        return isNaN(date.getTime()) ? null : date;
+    }
+    return null;
+}
+
+function getCrossFieldOperatorDisplay(operator: CrossFieldOperator): string {
+    switch (operator) {
+        case "equals": return "equal to";
+        case "not_equals": return "not equal to";
+        case "greater_than": return "greater than";
+        case "less_than": return "less than";
+        case "greater_or_equal": return "greater than or equal to";
+        case "less_or_equal": return "less than or equal to";
+    }
+}
+
 function checkArrayConstraints(
     value: unknown[],
     field: SchemaField,
@@ -546,12 +744,14 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
  */
 function evaluateFieldCondition(
     condition: FieldCondition,
-    frontmatter: Record<string, unknown> | undefined
+    frontmatter: Record<string, unknown> | undefined,
+    keyMap: LowerKeyMap
 ): boolean {
     //TODO: evaluateCondition is similar
     if (!frontmatter) return false;
     
-    const actualKey = findKeyCaseInsensitive(frontmatter, condition.field);
+    // O(1) case-insensitive lookup
+    const actualKey = lookupKey(keyMap, condition.field);
     const fieldValue = actualKey ? frontmatter[actualKey] : undefined;
     const conditionValue = condition.value;
 

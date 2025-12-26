@@ -1,5 +1,5 @@
 import { App, TFile, TFolder, TAbstractFile, Notice } from "obsidian";
-import { parseQuery } from "./matcher";
+import { parseQuerySegments, QueryCondition, QuerySegment } from "./matcher";
 import { debug } from "../debug";
 
 /**
@@ -262,35 +262,18 @@ export class QueryIndex {
     }
 
     /**
-     * Get files matching a query
+     * Get files matching a query with AND/OR/NOT support
      */
     getFilesForQuery(query: string): TFile[] {
-        const conditions = parseQuery(query);
-        if (conditions.length === 0) return [];
+        const segments = parseQuerySegments(query);
+        if (segments.length === 0) return [];
 
         const matchingPaths = new Set<string>();
 
-        for (const condition of conditions) {
-            let paths: Set<string>;
-
-            switch (condition.type) {
-                case "all":
-                    paths = this.getAllMarkdownFiles();
-                    break;
-                case "folder":
-                    paths = this.getFilesInFolder(condition.value, false);
-                    break;
-                case "folder_recursive":
-                    paths = this.getFilesInFolder(condition.value, true);
-                    break;
-                case "tag":
-                    paths = this.getFilesWithTag(condition.value);
-                    break;
-                default:
-                    continue;
-            }
-
-            for (const path of paths) {
+        // OR across segments
+        for (const segment of segments) {
+            const segmentPaths = this.getFilesForSegment(segment);
+            for (const path of segmentPaths) {
                 matchingPaths.add(path);
             }
         }
@@ -305,6 +288,74 @@ export class QueryIndex {
         }
 
         return files;
+    }
+
+    /**
+     * Get files matching a single segment (AND conditions, excluding NOT conditions)
+     */
+    private getFilesForSegment(segment: QuerySegment): Set<string> {
+        if (segment.andConditions.length === 0) return new Set();
+
+        // Start with first AND condition
+        let result = this.getFilesForCondition(segment.andConditions[0]);
+
+        // Intersect with remaining AND conditions
+        for (let i = 1; i < segment.andConditions.length; i++) {
+            const conditionPaths = this.getFilesForCondition(segment.andConditions[i]);
+            result = this.intersect(result, conditionPaths);
+        }
+
+        // Subtract NOT conditions
+        for (const notCondition of segment.notConditions) {
+            const excludePaths = this.getFilesForCondition(notCondition);
+            result = this.subtract(result, excludePaths);
+        }
+
+        return result;
+    }
+
+    /**
+     * Get files matching a single condition
+     */
+    private getFilesForCondition(condition: QueryCondition): Set<string> {
+        switch (condition.type) {
+            case "all":
+                return this.getAllMarkdownFiles();
+            case "folder":
+                return this.getFilesInFolder(condition.value, false);
+            case "folder_recursive":
+                return this.getFilesInFolder(condition.value, true);
+            case "tag":
+                return this.getFilesWithTag(condition.value);
+            default:
+                return new Set();
+        }
+    }
+
+    /**
+     * Intersect two sets (AND operation)
+     */
+    private intersect(a: Set<string>, b: Set<string>): Set<string> {
+        const result = new Set<string>();
+        for (const item of a) {
+            if (b.has(item)) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Subtract set b from set a (NOT operation)
+     */
+    private subtract(a: Set<string>, b: Set<string>): Set<string> {
+        const result = new Set<string>();
+        for (const item of a) {
+            if (!b.has(item)) {
+                result.add(item);
+            }
+        }
+        return result;
     }
 
     /**

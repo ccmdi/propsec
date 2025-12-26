@@ -38,6 +38,26 @@ export interface NumberConstraints {
     max?: number;
 }
 
+export interface DateConstraints {
+    min?: string;  // ISO date string YYYY-MM-DD
+    max?: string;  // ISO date string YYYY-MM-DD
+}
+
+// Operators for cross-field comparison
+export type CrossFieldOperator =
+    | "equals"
+    | "not_equals"
+    | "greater_than"
+    | "less_than"
+    | "greater_or_equal"
+    | "less_or_equal";
+
+// Cross-field constraint: compare this field's value to another field's value
+export interface CrossFieldConstraint {
+    operator: CrossFieldOperator;
+    field: string;  // The other field to compare against
+}
+
 export interface ArrayConstraints {
     minItems?: number;
     maxItems?: number;
@@ -56,6 +76,8 @@ export interface SchemaField {
     // Warn if missing (mutually exclusive with required - either warn or required, not both)
     //TODO discrim union
     warn?: boolean;
+    // Value must be unique across all files matching the schema
+    unique?: boolean;
 
     // Conditional validation: only validate this field if ALL conditions are met
     conditions?: FieldCondition[];
@@ -70,8 +92,12 @@ export interface SchemaField {
     // Optional constraints based on type
     stringConstraints?: StringConstraints;
     numberConstraints?: NumberConstraints;
+    dateConstraints?: DateConstraints;
     arrayConstraints?: ArrayConstraints;
     objectConstraints?: ObjectConstraints;
+
+    // Cross-field constraint: compare this field to another field
+    crossFieldConstraint?: CrossFieldConstraint;
 }
 
 // Operators for property conditions
@@ -167,10 +193,14 @@ export type ViolationType =
     | "string_too_long"
     | "number_too_small"
     | "number_too_large"
+    | "date_too_early"
+    | "date_too_late"
     | "array_too_few"
     | "array_too_many"
     | "array_missing_value"
-    | "object_missing_key";
+    | "object_missing_key"
+    | "duplicate_value"
+    | "cross_field_violation";
 
 export interface Violation {
     filePath: string;
