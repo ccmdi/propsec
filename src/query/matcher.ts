@@ -76,10 +76,7 @@ export function parseQuerySegments(query: string): QuerySegment[] {
             notConditions: [],
         };
 
-        // Split by " not " first (higher precedence than AND)
-        // Pattern: "base AND more NOT excluded NOT excluded2"
-        // We need to handle: "A AND B NOT C AND D NOT E" -> AND:[A,B], NOT:[C AND D, E]
-        // Actually simpler: split by NOT, first part is ANDs, rest are NOTs
+        // split by NOT, first part is ANDs, rest are NOTs
         const notParts = trimmed.split(/\s+not\s+/i);
 
         // First part contains AND conditions
@@ -113,20 +110,6 @@ export function parseQuerySegments(query: string): QuerySegment[] {
     }
 
     return segments;
-}
-
-/**
- * Parse a query string into conditions (legacy format for backward compatibility)
- * @deprecated Use parseQuerySegments for AND/NOT support
- */
-export function parseQuery(query: string): QueryCondition[] {
-    // For backward compatibility, flatten segments to conditions
-    const segments = parseQuerySegments(query);
-    const conditions: QueryCondition[] = [];
-    for (const segment of segments) {
-        conditions.push(...segment.andConditions);
-    }
-    return conditions;
 }
 
 /**
