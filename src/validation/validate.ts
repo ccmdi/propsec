@@ -607,7 +607,13 @@ function compareCrossFieldValues(
 function toNumber(value: unknown): number | null {
     if (typeof value === "number") return value;
     if (typeof value === "string") {
-        const num = parseFloat(value);
+        // Only treat as number if the entire string is a valid number
+        // This prevents date strings like "2024-12-31" from being parsed as 2024
+        const trimmed = value.trim();
+        if (trimmed === "" || !/^-?\d+(\.\d+)?$/.test(trimmed)) {
+            return null;
+        }
+        const num = parseFloat(trimmed);
         return isNaN(num) ? null : num;
     }
     return null;
