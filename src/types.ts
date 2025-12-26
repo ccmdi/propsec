@@ -43,6 +43,21 @@ export interface DateConstraints {
     max?: string;  // ISO date string YYYY-MM-DD
 }
 
+// Operators for cross-field comparison
+export type CrossFieldOperator =
+    | "equals"
+    | "not_equals"
+    | "greater_than"
+    | "less_than"
+    | "greater_or_equal"
+    | "less_or_equal";
+
+// Cross-field constraint: compare this field's value to another field's value
+export interface CrossFieldConstraint {
+    operator: CrossFieldOperator;
+    field: string;  // The other field to compare against
+}
+
 export interface ArrayConstraints {
     minItems?: number;
     maxItems?: number;
@@ -80,6 +95,9 @@ export interface SchemaField {
     dateConstraints?: DateConstraints;
     arrayConstraints?: ArrayConstraints;
     objectConstraints?: ObjectConstraints;
+
+    // Cross-field constraint: compare this field to another field
+    crossFieldConstraint?: CrossFieldConstraint;
 }
 
 // Operators for property conditions
@@ -181,7 +199,8 @@ export type ViolationType =
     | "array_too_many"
     | "array_missing_value"
     | "object_missing_key"
-    | "duplicate_value";
+    | "duplicate_value"
+    | "cross_field_violation";
 
 export interface Violation {
     filePath: string;

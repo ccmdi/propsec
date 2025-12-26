@@ -13,4 +13,5 @@ export function clearFieldConstraints(field: SchemaField): void {
     delete field.arrayElementType;
     delete field.objectKeyType;
     delete field.objectValueType;
+    delete field.crossFieldConstraint;
 }
