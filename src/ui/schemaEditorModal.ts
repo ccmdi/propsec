@@ -7,7 +7,7 @@ import {
     PropertyConditionOperator,
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes } from "../schema/extractor";
-import { getOperatorDisplayName } from "../query/matcher";
+import { getOperatorDisplayName, getOperatorsForPropertyType, PROPERTY_OPERATORS } from "../operators";
 import { FieldEditorModal } from "./fieldEditorModal";
 
 export interface SchemaEditorResult {
@@ -278,11 +278,7 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         // Operator select
         const operatorSelect = row.createEl("select", { cls: "frontmatter-linter-condition-operator" });
-        const operators: PropertyConditionOperator[] = [
-            "equals", "not_equals", "contains", "not_contains",
-            "greater_than", "less_than", "greater_or_equal", "less_or_equal"
-        ];
-        for (const op of operators) {
+        for (const op of PROPERTY_OPERATORS) {
             const option = operatorSelect.createEl("option", { value: op, text: getOperatorDisplayName(op) });
             if (op === condition.operator) option.selected = true;
         }
@@ -494,7 +490,7 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         const updateOperators = () => {
             const propertyType = this.getPropertyType(condition.property);
-            const operators = this.getOperatorsForType(propertyType);
+            const operators = getOperatorsForPropertyType(propertyType);
 
             operatorSelect.empty();
             for (const op of operators) {
@@ -565,24 +561,6 @@ export class SchemaEditorModal extends FieldEditorModal {
         return propInfo?.name ?? propertyKey;
     }
 
-    private getOperatorsForType(propertyType: string): PropertyConditionOperator[] {
-        switch (propertyType) {
-            case "number":
-                return ["equals", "not_equals", "greater_than", "less_than", "greater_or_equal", "less_or_equal"];
-            case "checkbox":
-                return ["equals", "not_equals"];
-            case "date":
-            case "datetime":
-                return ["equals", "not_equals", "greater_than", "less_than", "greater_or_equal", "less_or_equal"];
-            case "tags":
-            case "aliases":
-            case "multitext":
-                return ["contains", "not_contains", "equals", "not_equals"];
-            case "text":
-            default:
-                return ["equals", "not_equals", "contains", "not_contains"];
-        }
-    }
 }
 
 /**

@@ -1,5 +1,21 @@
 // Core type definitions for Frontmatter Linter
 
+// Import operator types from centralized module
+import type {
+    ComparisonOperator,
+    PropertyOperator,
+    CrossFieldOperator,
+    PropertyConditionOperator,
+} from "./operators";
+
+// Re-export for backwards compatibility
+export type {
+    ComparisonOperator,
+    PropertyOperator,
+    CrossFieldOperator,
+    PropertyConditionOperator,
+};
+
 // Built-in primitive types
 export type PrimitiveFieldType =
     | "string"
@@ -42,15 +58,6 @@ export interface DateConstraints {
     min?: string;  // ISO date string YYYY-MM-DD
     max?: string;  // ISO date string YYYY-MM-DD
 }
-
-// Operators for cross-field comparison
-export type CrossFieldOperator =
-    | "equals"
-    | "not_equals"
-    | "greater_than"
-    | "less_than"
-    | "greater_or_equal"
-    | "less_or_equal";
 
 // Cross-field constraint: compare this field's value to another field's value
 export interface CrossFieldConstraint {
@@ -99,17 +106,6 @@ export interface SchemaField {
     // Cross-field constraint: compare this field to another field
     crossFieldConstraint?: CrossFieldConstraint;
 }
-
-// Operators for property conditions
-export type PropertyConditionOperator =
-    | "equals"
-    | "not_equals"
-    | "greater_than"
-    | "less_than"
-    | "greater_or_equal"
-    | "less_or_equal"
-    | "contains"
-    | "not_contains";
 
 // A single property condition
 export interface PropertyCondition {

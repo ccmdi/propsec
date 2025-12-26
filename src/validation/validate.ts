@@ -1,7 +1,13 @@
-import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType, DateConstraints, CrossFieldConstraint, CrossFieldOperator } from "../types";
+import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType, DateConstraints, CrossFieldConstraint } from "../types";
 import { validationContext } from "./context";
 import { buildLowerKeyMap, lookupKey, LowerKeyMap } from "../utils/object";
 import { EXCLUDE_FIELDS } from "../utils/constant";
+import {
+    ComparisonOperator,
+    getCrossFieldOperatorDisplay,
+    compareCrossFieldValues,
+    evaluatePropertyOperator,
+} from "../operators";
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -556,93 +562,6 @@ function checkCrossFieldConstraint(
     return violations;
 }
 
-function compareCrossFieldValues(
-    value: unknown,
-    otherValue: unknown,
-    operator: CrossFieldOperator
-): boolean | null {
-    // Try numeric comparison first
-    const numA = toNumber(value);
-    const numB = toNumber(otherValue);
-
-    if (numA !== null && numB !== null) {
-        switch (operator) {
-            case "equals": return numA === numB;
-            case "not_equals": return numA !== numB;
-            case "greater_than": return numA > numB;
-            case "less_than": return numA < numB;
-            case "greater_or_equal": return numA >= numB;
-            case "less_or_equal": return numA <= numB;
-        }
-    }
-
-    // Try date comparison
-    const dateA = toDate(value);
-    const dateB = toDate(otherValue);
-
-    if (dateA !== null && dateB !== null) {
-        const timeA = dateA.getTime();
-        const timeB = dateB.getTime();
-        switch (operator) {
-            case "equals": return timeA === timeB;
-            case "not_equals": return timeA !== timeB;
-            case "greater_than": return timeA > timeB;
-            case "less_than": return timeA < timeB;
-            case "greater_or_equal": return timeA >= timeB;
-            case "less_or_equal": return timeA <= timeB;
-        }
-    }
-
-    // Fall back to string comparison
-    const strA = String(value);
-    const strB = String(otherValue);
-
-    switch (operator) {
-        case "equals": return strA === strB;
-        case "not_equals": return strA !== strB;
-        case "greater_than": return strA > strB;
-        case "less_than": return strA < strB;
-        case "greater_or_equal": return strA >= strB;
-        case "less_or_equal": return strA <= strB;
-    }
-
-    return null;
-}
-
-function toNumber(value: unknown): number | null {
-    if (typeof value === "number") return value;
-    if (typeof value === "string") {
-        // Only treat as number if the entire string is a valid number
-        // This prevents date strings like "2024-12-31" from being parsed as 2024
-        const trimmed = value.trim();
-        if (trimmed === "" || !/^-?\d+(\.\d+)?$/.test(trimmed)) {
-            return null;
-        }
-        const num = parseFloat(trimmed);
-        return isNaN(num) ? null : num;
-    }
-    return null;
-}
-
-function toDate(value: unknown): Date | null {
-    if (value instanceof Date) return value;
-    if (typeof value === "string") {
-        const date = new Date(value);
-        return isNaN(date.getTime()) ? null : date;
-    }
-    return null;
-}
-
-function getCrossFieldOperatorDisplay(operator: CrossFieldOperator): string {
-    switch (operator) {
-        case "equals": return "equal to";
-        case "not_equals": return "not equal to";
-        case "greater_than": return "greater than";
-        case "less_than": return "less than";
-        case "greater_or_equal": return "greater than or equal to";
-        case "less_or_equal": return "less than or equal to";
-    }
-}
 
 function checkArrayConstraints(
     value: unknown[],
@@ -746,50 +665,23 @@ function evaluateFieldCondition(
     frontmatter: Record<string, unknown> | undefined,
     keyMap: LowerKeyMap
 ): boolean {
-    //TODO: evaluateCondition is similar
     if (!frontmatter) return false;
-    
+
     // O(1) case-insensitive lookup
     const actualKey = lookupKey(keyMap, condition.field);
     const fieldValue = actualKey ? frontmatter[actualKey] : undefined;
-    const conditionValue = condition.value;
 
-    // Convert values for comparison - handle objects specially
-    let fieldStr: string;
+    // Handle missing field - convert to empty string for comparison
+    // (different from matcher which returns true for not_equals/not_contains on missing)
     if (fieldValue === null || fieldValue === undefined) {
-        fieldStr = "";
-    } else if (typeof fieldValue === "object") {
-        fieldStr = JSON.stringify(fieldValue);
-    } else {
-        fieldStr = String(fieldValue as string | number | boolean);
+        // For missing fields, use empty string as the value
+        return evaluatePropertyOperator("", condition.operator, condition.value);
     }
-    const conditionNum = parseFloat(conditionValue);
-    const fieldNum = typeof fieldValue === "number" ? fieldValue : parseFloat(fieldStr);
 
-    switch (condition.operator) {
-        case "equals":
-            return fieldStr === conditionValue;
-        case "not_equals":
-            return fieldStr !== conditionValue;
-        case "contains":
-            if (Array.isArray(fieldValue)) {
-                return fieldValue.some(v => String(v) === conditionValue);
-            }
-            return fieldStr.includes(conditionValue);
-        case "not_contains":
-            if (Array.isArray(fieldValue)) {
-                return !fieldValue.some(v => String(v) === conditionValue);
-            }
-            return !fieldStr.includes(conditionValue);
-        case "greater_than":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum > conditionNum;
-        case "less_than":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum < conditionNum;
-        case "greater_or_equal":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum >= conditionNum;
-        case "less_or_equal":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum <= conditionNum;
-        default:
-            return false;
+    // Handle objects specially - stringify for comparison
+    if (typeof fieldValue === "object" && !Array.isArray(fieldValue)) {
+        return evaluatePropertyOperator(JSON.stringify(fieldValue), condition.operator, condition.value);
     }
+
+    return evaluatePropertyOperator(fieldValue, condition.operator, condition.value);
 }
