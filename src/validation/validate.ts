@@ -1,9 +1,28 @@
-import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, isPrimitiveType, DateConstraints, CrossFieldConstraint, CrossFieldOperator } from "../types";
+import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, ViolationType, isPrimitiveType, DateConstraints, CrossFieldConstraint } from "../types";
 import { validationContext } from "./context";
 import { buildLowerKeyMap, lookupKey, LowerKeyMap } from "../utils/object";
-import { EXCLUDE_FIELDS } from "../utils/constant";
+import { EXCLUDE_FIELDS, ISO_DATE_REGEX } from "../utils/constant";
+import { groupFieldsByName } from "../utils/schema";
+import {
+    getCrossFieldOperatorDisplay,
+    compareCrossFieldValues,
+    evaluatePropertyOperator,
+} from "../operators";
 
-const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Helper to create a violation object with consistent structure
+ */
+function createViolation(
+    filePath: string,
+    schema: SchemaMapping,
+    field: string,
+    type: ViolationType,
+    message: string,
+    expected?: string,
+    actual?: string
+): Violation {
+    return { filePath, schemaMapping: schema, field, type, message, expected, actual };
+}
 
 /**
  * Main entry point: validate frontmatter against a schema
@@ -38,13 +57,10 @@ export function validateFrontmatter(
             if (EXCLUDE_FIELDS.includes(key)) continue;
 
             if (!schemaFieldNamesLower.has(key.toLowerCase())) {
-                violations.push({
-                    filePath,
-                    schemaMapping: schema,
-                    field: key,
-                    type: "unknown_field",
-                    message: `Unknown field: ${key} (not defined in schema)`,
-                });
+                violations.push(createViolation(
+                    filePath, schema, key, "unknown_field",
+                    `Unknown field: ${key} (not defined in schema)`
+                ));
             }
         }
     }
@@ -86,21 +102,15 @@ function validateField(
     // Key is missing entirely - required fields must have the key present
     if (!hasField) {
         if (isRequired) {
-            violations.push({
-                filePath,
-                schemaMapping: schema,
-                field: path,
-                type: "missing_required",
-                message: `Missing required field: ${path}`,
-            });
+            violations.push(createViolation(
+                filePath, schema, path, "missing_required",
+                `Missing required field: ${path}`
+            ));
         } else if (isWarned) {
-            violations.push({
-                filePath,
-                schemaMapping: schema,
-                field: path,
-                type: "missing_warned",
-                message: `Missing recommended field: ${path}`,
-            });
+            violations.push(createViolation(
+                filePath, schema, path, "missing_warned",
+                `Missing recommended field: ${path}`
+            ));
         }
         return violations;
     }
@@ -124,15 +134,11 @@ function validateField(
             }
         }
 
-        violations.push({
-            filePath,
-            schemaMapping: schema,
-            field: path,
-            type: isWarned ? "type_mismatch_warned" : "type_mismatch",
-            message,
-            expected: expectedTypes,
-            actual: getActualType(value),
-        });
+        violations.push(createViolation(
+            filePath, schema, path,
+            isWarned ? "type_mismatch_warned" : "type_mismatch",
+            message, expectedTypes, getActualType(value)
+        ));
         return violations;
     }
 
@@ -222,15 +228,10 @@ function validateArrayElements(
                 }
             }
 
-            violations.push({
-                filePath,
-                schemaMapping: schema,
-                field: elementPath,
-                type: "type_mismatch",
-                message,
-                expected: elementType,
-                actual: getActualType(element),
-            });
+            violations.push(createViolation(
+                filePath, schema, elementPath, "type_mismatch",
+                message, elementType, getActualType(element)
+            ));
         } else if (customType && typeof element === "object" && element !== null && !Array.isArray(element)) {
             // Valid custom type - recurse to check nested fields and unknown fields
             violations.push(...validateCustomTypeObject(element as Record<string, unknown>, customType, elementPath, filePath, schema));
@@ -258,13 +259,10 @@ function validateCustomTypeObject(
     // Check unknown fields in this object
     for (const key of Object.keys(obj)) {
         if (!typeFieldNames.has(key)) {
-            violations.push({
-                filePath,
-                schemaMapping: schema,
-                field: `${path}.${key}`,
-                type: "unknown_field",
-                message: `Unknown field: ${path}.${key} (not defined in type "${customType.name}")`,
-            });
+            violations.push(createViolation(
+                filePath, schema, `${path}.${key}`, "unknown_field",
+                `Unknown field: ${path}.${key} (not defined in type "${customType.name}")`
+            ));
         }
     }
 
@@ -280,21 +278,15 @@ function validateCustomTypeObject(
         // Check required
         if (!hasField) {
             if (isRequired) {
-                violations.push({
-                    filePath,
-                    schemaMapping: schema,
-                    field: fieldPath,
-                    type: "missing_required",
-                    message: `Missing required field: ${fieldPath}`,
-                });
+                violations.push(createViolation(
+                    filePath, schema, fieldPath, "missing_required",
+                    `Missing required field: ${fieldPath}`
+                ));
             } else if (isWarned) {
-                violations.push({
-                    filePath,
-                    schemaMapping: schema,
-                    field: fieldPath,
-                    type: "missing_warned",
-                    message: `Missing recommended field: ${fieldPath}`,
-                });
+                violations.push(createViolation(
+                    filePath, schema, fieldPath, "missing_warned",
+                    `Missing recommended field: ${fieldPath}`
+                ));
             }
             continue;
         }
@@ -304,15 +296,12 @@ function validateCustomTypeObject(
         
         if (!matchingVariant) {
             const expectedTypes = variants.map(v => v.type).join(" | ");
-            violations.push({
-                filePath,
-                schemaMapping: schema,
-                field: fieldPath,
-                type: isWarned ? "type_mismatch_warned" : "type_mismatch",
-                message: `Type mismatch: ${fieldPath} (expected ${expectedTypes}, got ${getActualType(value)})`,
-                expected: expectedTypes,
-                actual: getActualType(value),
-            });
+            violations.push(createViolation(
+                filePath, schema, fieldPath,
+                isWarned ? "type_mismatch_warned" : "type_mismatch",
+                `Type mismatch: ${fieldPath} (expected ${expectedTypes}, got ${getActualType(value)})`,
+                expectedTypes, getActualType(value)
+            ));
             continue;
         }
 
@@ -401,32 +390,29 @@ function checkStringConstraints(
     if (constraints.pattern) {
         try {
             if (!new RegExp(constraints.pattern).test(value)) {
-                violations.push({
-                    filePath, schemaMapping: schema, field: path,
-                    type: "pattern_mismatch",
-                    message: `Pattern mismatch: ${path} does not match /${constraints.pattern}/`,
-                    expected: constraints.pattern, actual: value,
-                });
+                violations.push(createViolation(
+                    filePath, schema, path, "pattern_mismatch",
+                    `Pattern mismatch: ${path} does not match /${constraints.pattern}/`,
+                    constraints.pattern, value
+                ));
             }
         } catch { /* invalid regex */ }
     }
 
     if (constraints.minLength !== undefined && value.length < constraints.minLength) {
-        violations.push({
-            filePath, schemaMapping: schema, field: path,
-            type: "string_too_short",
-            message: `String too short: ${path} has ${value.length} chars (min: ${constraints.minLength})`,
-            expected: `>= ${constraints.minLength}`, actual: String(value.length),
-        });
+        violations.push(createViolation(
+            filePath, schema, path, "string_too_short",
+            `String too short: ${path} has ${value.length} chars (min: ${constraints.minLength})`,
+            `>= ${constraints.minLength}`, String(value.length)
+        ));
     }
 
     if (constraints.maxLength !== undefined && value.length > constraints.maxLength) {
-        violations.push({
-            filePath, schemaMapping: schema, field: path,
-            type: "string_too_long",
-            message: `String too long: ${path} has ${value.length} chars (max: ${constraints.maxLength})`,
-            expected: `<= ${constraints.maxLength}`, actual: String(value.length),
-        });
+        violations.push(createViolation(
+            filePath, schema, path, "string_too_long",
+            `String too long: ${path} has ${value.length} chars (max: ${constraints.maxLength})`,
+            `<= ${constraints.maxLength}`, String(value.length)
+        ));
     }
 
     return violations;
@@ -442,21 +428,19 @@ function checkNumberConstraints(
     const violations: Violation[] = [];
 
     if (constraints.min !== undefined && value < constraints.min) {
-        violations.push({
-            filePath, schemaMapping: schema, field: path,
-            type: "number_too_small",
-            message: `Number too small: ${path} is ${value} (min: ${constraints.min})`,
-            expected: `>= ${constraints.min}`, actual: String(value),
-        });
+        violations.push(createViolation(
+            filePath, schema, path, "number_too_small",
+            `Number too small: ${path} is ${value} (min: ${constraints.min})`,
+            `>= ${constraints.min}`, String(value)
+        ));
     }
 
     if (constraints.max !== undefined && value > constraints.max) {
-        violations.push({
-            filePath, schemaMapping: schema, field: path,
-            type: "number_too_large",
-            message: `Number too large: ${path} is ${value} (max: ${constraints.max})`,
-            expected: `<= ${constraints.max}`, actual: String(value),
-        });
+        violations.push(createViolation(
+            filePath, schema, path, "number_too_large",
+            `Number too large: ${path} is ${value} (max: ${constraints.max})`,
+            `<= ${constraints.max}`, String(value)
+        ));
     }
 
     return violations;
@@ -492,24 +476,22 @@ function checkDateConstraints(
     if (constraints.min) {
         const minDate = new Date(constraints.min);
         if (!isNaN(minDate.getTime()) && dateValue < minDate) {
-            violations.push({
-                filePath, schemaMapping: schema, field: path,
-                type: "date_too_early",
-                message: `Date too early: ${path} is ${actualDateStr} (min: ${constraints.min})`,
-                expected: `>= ${constraints.min}`, actual: actualDateStr,
-            });
+            violations.push(createViolation(
+                filePath, schema, path, "date_too_early",
+                `Date too early: ${path} is ${actualDateStr} (min: ${constraints.min})`,
+                `>= ${constraints.min}`, actualDateStr
+            ));
         }
     }
 
     if (constraints.max) {
         const maxDate = new Date(constraints.max);
         if (!isNaN(maxDate.getTime()) && dateValue > maxDate) {
-            violations.push({
-                filePath, schemaMapping: schema, field: path,
-                type: "date_too_late",
-                message: `Date too late: ${path} is ${actualDateStr} (max: ${constraints.max})`,
-                expected: `<= ${constraints.max}`, actual: actualDateStr,
-            });
+            violations.push(createViolation(
+                filePath, schema, path, "date_too_late",
+                `Date too late: ${path} is ${actualDateStr} (max: ${constraints.max})`,
+                `<= ${constraints.max}`, actualDateStr
+            ));
         }
     }
 
@@ -544,105 +526,16 @@ function checkCrossFieldConstraint(
 
     if (result === false) {
         const operatorDisplay = getCrossFieldOperatorDisplay(constraint.operator);
-        violations.push({
-            filePath, schemaMapping: schema, field: path,
-            type: "cross_field_violation",
-            message: `Cross-field constraint failed: ${path} must be ${operatorDisplay} ${constraint.field}`,
-            expected: `${operatorDisplay} ${constraint.field}`,
-            actual: String(value),
-        });
+        violations.push(createViolation(
+            filePath, schema, path, "cross_field_violation",
+            `Cross-field constraint failed: ${path} must be ${operatorDisplay} ${constraint.field}`,
+            `${operatorDisplay} ${constraint.field}`, String(value)
+        ));
     }
 
     return violations;
 }
 
-function compareCrossFieldValues(
-    value: unknown,
-    otherValue: unknown,
-    operator: CrossFieldOperator
-): boolean | null {
-    // Try numeric comparison first
-    const numA = toNumber(value);
-    const numB = toNumber(otherValue);
-
-    if (numA !== null && numB !== null) {
-        switch (operator) {
-            case "equals": return numA === numB;
-            case "not_equals": return numA !== numB;
-            case "greater_than": return numA > numB;
-            case "less_than": return numA < numB;
-            case "greater_or_equal": return numA >= numB;
-            case "less_or_equal": return numA <= numB;
-        }
-    }
-
-    // Try date comparison
-    const dateA = toDate(value);
-    const dateB = toDate(otherValue);
-
-    if (dateA !== null && dateB !== null) {
-        const timeA = dateA.getTime();
-        const timeB = dateB.getTime();
-        switch (operator) {
-            case "equals": return timeA === timeB;
-            case "not_equals": return timeA !== timeB;
-            case "greater_than": return timeA > timeB;
-            case "less_than": return timeA < timeB;
-            case "greater_or_equal": return timeA >= timeB;
-            case "less_or_equal": return timeA <= timeB;
-        }
-    }
-
-    // Fall back to string comparison
-    const strA = String(value);
-    const strB = String(otherValue);
-
-    switch (operator) {
-        case "equals": return strA === strB;
-        case "not_equals": return strA !== strB;
-        case "greater_than": return strA > strB;
-        case "less_than": return strA < strB;
-        case "greater_or_equal": return strA >= strB;
-        case "less_or_equal": return strA <= strB;
-    }
-
-    return null;
-}
-
-function toNumber(value: unknown): number | null {
-    if (typeof value === "number") return value;
-    if (typeof value === "string") {
-        // Only treat as number if the entire string is a valid number
-        // This prevents date strings like "2024-12-31" from being parsed as 2024
-        const trimmed = value.trim();
-        if (trimmed === "" || !/^-?\d+(\.\d+)?$/.test(trimmed)) {
-            return null;
-        }
-        const num = parseFloat(trimmed);
-        return isNaN(num) ? null : num;
-    }
-    return null;
-}
-
-function toDate(value: unknown): Date | null {
-    if (value instanceof Date) return value;
-    if (typeof value === "string") {
-        const date = new Date(value);
-        return isNaN(date.getTime()) ? null : date;
-    }
-    return null;
-}
-
-function getCrossFieldOperatorDisplay(operator: CrossFieldOperator): string {
-    switch (operator) {
-        case "equals": return "equal to";
-        case "not_equals": return "not equal to";
-        case "greater_than": return "greater than";
-        case "less_than": return "less than";
-        case "greater_or_equal": return "greater than or equal to";
-        case "less_or_equal": return "less than or equal to";
-    }
-}
 
 function checkArrayConstraints(
     value: unknown[],
@@ -656,33 +549,30 @@ function checkArrayConstraints(
     if (!constraints) return violations;
 
     if (constraints.minItems !== undefined && value.length < constraints.minItems) {
-        violations.push({
-            filePath, schemaMapping: schema, field: path,
-            type: "array_too_few",
-            message: `Array too small: ${path} has ${value.length} items (min: ${constraints.minItems})`,
-            expected: `>= ${constraints.minItems}`, actual: String(value.length),
-        });
+        violations.push(createViolation(
+            filePath, schema, path, "array_too_few",
+            `Array too small: ${path} has ${value.length} items (min: ${constraints.minItems})`,
+            `>= ${constraints.minItems}`, String(value.length)
+        ));
     }
 
     if (constraints.maxItems !== undefined && value.length > constraints.maxItems) {
-        violations.push({
-            filePath, schemaMapping: schema, field: path,
-            type: "array_too_many",
-            message: `Array too large: ${path} has ${value.length} items (max: ${constraints.maxItems})`,
-            expected: `<= ${constraints.maxItems}`, actual: String(value.length),
-        });
+        violations.push(createViolation(
+            filePath, schema, path, "array_too_many",
+            `Array too large: ${path} has ${value.length} items (max: ${constraints.maxItems})`,
+            `<= ${constraints.maxItems}`, String(value.length)
+        ));
     }
 
     if (constraints.contains && constraints.contains.length > 0) {
         const stringValues = value.map(v => String(v));
         for (const required of constraints.contains) {
             if (!stringValues.includes(required)) {
-                violations.push({
-                    filePath, schemaMapping: schema, field: path,
-                    type: "array_missing_value",
-                    message: `Array missing value: ${path} must contain "${required}"`,
-                    expected: required,
-                });
+                violations.push(createViolation(
+                    filePath, schema, path, "array_missing_value",
+                    `Array missing value: ${path} must contain "${required}"`,
+                    required
+                ));
             }
         }
     }
@@ -691,16 +581,6 @@ function checkArrayConstraints(
 }
 
 // ============ Helpers ============
-
-function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
-    const groups = new Map<string, SchemaField[]>();
-    for (const field of fields) {
-        const existing = groups.get(field.name) || [];
-        existing.push(field);
-        groups.set(field.name, existing);
-    }
-    return groups;
-}
 
 function getActualType(value: unknown): string {
     if (value === null) return "null";
@@ -746,50 +626,23 @@ function evaluateFieldCondition(
     frontmatter: Record<string, unknown> | undefined,
     keyMap: LowerKeyMap
 ): boolean {
-    //TODO: evaluateCondition is similar
     if (!frontmatter) return false;
-    
+
     // O(1) case-insensitive lookup
     const actualKey = lookupKey(keyMap, condition.field);
     const fieldValue = actualKey ? frontmatter[actualKey] : undefined;
-    const conditionValue = condition.value;
 
-    // Convert values for comparison - handle objects specially
-    let fieldStr: string;
+    // Handle missing field - convert to empty string for comparison
+    // (different from matcher which returns true for not_equals/not_contains on missing)
     if (fieldValue === null || fieldValue === undefined) {
-        fieldStr = "";
-    } else if (typeof fieldValue === "object") {
-        fieldStr = JSON.stringify(fieldValue);
-    } else {
-        fieldStr = String(fieldValue as string | number | boolean);
+        // For missing fields, use empty string as the value
+        return evaluatePropertyOperator("", condition.operator, condition.value);
     }
-    const conditionNum = parseFloat(conditionValue);
-    const fieldNum = typeof fieldValue === "number" ? fieldValue : parseFloat(fieldStr);
 
-    switch (condition.operator) {
-        case "equals":
-            return fieldStr === conditionValue;
-        case "not_equals":
-            return fieldStr !== conditionValue;
-        case "contains":
-            if (Array.isArray(fieldValue)) {
-                return fieldValue.some(v => String(v) === conditionValue);
-            }
-            return fieldStr.includes(conditionValue);
-        case "not_contains":
-            if (Array.isArray(fieldValue)) {
-                return !fieldValue.some(v => String(v) === conditionValue);
-            }
-            return !fieldStr.includes(conditionValue);
-        case "greater_than":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum > conditionNum;
-        case "less_than":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum < conditionNum;
-        case "greater_or_equal":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum >= conditionNum;
-        case "less_or_equal":
-            return !isNaN(fieldNum) && !isNaN(conditionNum) && fieldNum <= conditionNum;
-        default:
-            return false;
+    // Handle objects specially - stringify for comparison
+    if (typeof fieldValue === "object" && !Array.isArray(fieldValue)) {
+        return evaluatePropertyOperator(JSON.stringify(fieldValue), condition.operator, condition.value);
     }
+
+    return evaluatePropertyOperator(fieldValue, condition.operator, condition.value);
 }

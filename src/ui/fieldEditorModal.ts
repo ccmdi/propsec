@@ -2,15 +2,7 @@ import { App, Modal, setIcon } from "obsidian";
 import { FieldType, SchemaField, isPrimitiveType, CrossFieldOperator } from "../types";
 import { getTypeDisplayName } from "../schema/extractor";
 import { clearFieldConstraints } from "../utils/schema";
-
-const CROSS_FIELD_OPERATORS: { value: CrossFieldOperator; label: string }[] = [
-    { value: "equals", label: "equals" },
-    { value: "not_equals", label: "not equals" },
-    { value: "greater_than", label: "greater than" },
-    { value: "less_than", label: "less than" },
-    { value: "greater_or_equal", label: ">=" },
-    { value: "less_or_equal", label: "<=" },
-];
+import { getComparisonOperatorOptions } from "../operators";
 
 /**
  * Base class for modals that edit a list of schema fields with expandable constraint overlays.
@@ -503,7 +495,7 @@ export abstract class FieldEditorModal extends Modal {
             emptyOption.selected = true;
         }
 
-        for (const op of CROSS_FIELD_OPERATORS) {
+        for (const op of getComparisonOperatorOptions()) {
             const option = operatorSelect.createEl("option", {
                 value: op.value,
                 text: op.label,

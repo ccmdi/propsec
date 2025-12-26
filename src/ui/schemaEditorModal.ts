@@ -7,7 +7,8 @@ import {
     PropertyConditionOperator,
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes } from "../schema/extractor";
-import { getOperatorDisplayName } from "../query/matcher";
+import { getOperatorDisplayName, getOperatorsForPropertyType, PROPERTY_OPERATORS } from "../operators";
+import { validateQuery } from "../query/matcher";
 import { FieldEditorModal } from "./fieldEditorModal";
 
 export interface SchemaEditorResult {
@@ -141,18 +142,36 @@ export class SchemaEditorModal extends FieldEditorModal {
                     })
             );
 
-        // Query field
-        new Setting(contentEl)
+        // Query field with validation
+        const querySetting = new Setting(contentEl)
             .setName("Query")
-            .setDesc("Match files by folder or tag. Examples: folder, folder/*, #tag, folder/* or #tag")
-            .addText((text) =>
-                text
-                    .setPlaceholder("e.g., Folder/* or #tag")
-                    .setValue(this.mapping.query || "")
-                    .onChange((value) => {
-                        this.mapping.query = value;
-                    })
-            );
+            .setDesc("Match files by folder or tag. Examples: folder, folder/*, #tag, folder/* or #tag");
+
+        const queryErrorEl = contentEl.createDiv({ cls: "frontmatter-linter-query-error" });
+
+        querySetting.addText((text) =>
+            text
+                .setPlaceholder("e.g., Folder/* or #tag")
+                .setValue(this.mapping.query || "")
+                .onChange((value) => {
+                    this.mapping.query = value;
+                    // Validate and show/hide error
+                    if (value.trim()) {
+                        const result = validateQuery(value);
+                        if (!result.valid) {
+                            queryErrorEl.setText(result.error || "Invalid query");
+                            queryErrorEl.removeClass("frontmatter-linter-hidden");
+                            text.inputEl.addClass("frontmatter-linter-input-error");
+                        } else {
+                            queryErrorEl.addClass("frontmatter-linter-hidden");
+                            text.inputEl.removeClass("frontmatter-linter-input-error");
+                        }
+                    } else {
+                        queryErrorEl.addClass("frontmatter-linter-hidden");
+                        text.inputEl.removeClass("frontmatter-linter-input-error");
+                    }
+                })
+        );
 
         // Property Filter section
         this.renderPropertyFilterSection(contentEl);
@@ -278,11 +297,7 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         // Operator select
         const operatorSelect = row.createEl("select", { cls: "frontmatter-linter-condition-operator" });
-        const operators: PropertyConditionOperator[] = [
-            "equals", "not_equals", "contains", "not_contains",
-            "greater_than", "less_than", "greater_or_equal", "less_or_equal"
-        ];
-        for (const op of operators) {
+        for (const op of PROPERTY_OPERATORS) {
             const option = operatorSelect.createEl("option", { value: op, text: getOperatorDisplayName(op) });
             if (op === condition.operator) option.selected = true;
         }
@@ -494,7 +509,7 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         const updateOperators = () => {
             const propertyType = this.getPropertyType(condition.property);
-            const operators = this.getOperatorsForType(propertyType);
+            const operators = getOperatorsForPropertyType(propertyType);
 
             operatorSelect.empty();
             for (const op of operators) {
@@ -565,24 +580,6 @@ export class SchemaEditorModal extends FieldEditorModal {
         return propInfo?.name ?? propertyKey;
     }
 
-    private getOperatorsForType(propertyType: string): PropertyConditionOperator[] {
-        switch (propertyType) {
-            case "number":
-                return ["equals", "not_equals", "greater_than", "less_than", "greater_or_equal", "less_or_equal"];
-            case "checkbox":
-                return ["equals", "not_equals"];
-            case "date":
-            case "datetime":
-                return ["equals", "not_equals", "greater_than", "less_than", "greater_or_equal", "less_or_equal"];
-            case "tags":
-            case "aliases":
-            case "multitext":
-                return ["contains", "not_contains", "equals", "not_equals"];
-            case "text":
-            default:
-                return ["equals", "not_equals", "contains", "not_contains"];
-        }
-    }
 }
 
 /**
