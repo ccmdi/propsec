@@ -376,6 +376,10 @@ export class ViolationsView extends ItemView {
             }
         };
 
+        // Prevent middle-click auto-scroll
+        fileLink.addEventListener("mousedown", (e) => {
+            if (e.button === 1) e.preventDefault();
+        });
         //eslint-disable-next-line @typescript-eslint/no-misused-promises
         fileLink.addEventListener("click", async (e) => await openFile(e, false));
         //eslint-disable-next-line @typescript-eslint/no-misused-promises
