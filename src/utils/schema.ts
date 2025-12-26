@@ -9,7 +9,6 @@ export function clearFieldConstraints(field: SchemaField): void {
     delete field.numberConstraints;
     delete field.dateConstraints;
     delete field.arrayConstraints;
-    delete field.objectConstraints;
     delete field.arrayElementType;
     delete field.objectKeyType;
     delete field.objectValueType;

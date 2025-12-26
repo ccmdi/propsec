@@ -8,6 +8,7 @@ import {
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes } from "../schema/extractor";
 import { getOperatorDisplayName, getOperatorsForPropertyType, PROPERTY_OPERATORS } from "../operators";
+import { validateQuery } from "../query/matcher";
 import { FieldEditorModal } from "./fieldEditorModal";
 
 export interface SchemaEditorResult {
@@ -141,18 +142,36 @@ export class SchemaEditorModal extends FieldEditorModal {
                     })
             );
 
-        // Query field
-        new Setting(contentEl)
+        // Query field with validation
+        const querySetting = new Setting(contentEl)
             .setName("Query")
-            .setDesc("Match files by folder or tag. Examples: folder, folder/*, #tag, folder/* or #tag")
-            .addText((text) =>
-                text
-                    .setPlaceholder("e.g., Folder/* or #tag")
-                    .setValue(this.mapping.query || "")
-                    .onChange((value) => {
-                        this.mapping.query = value;
-                    })
-            );
+            .setDesc("Match files by folder or tag. Examples: folder, folder/*, #tag, folder/* or #tag");
+
+        const queryErrorEl = contentEl.createDiv({ cls: "frontmatter-linter-query-error" });
+
+        querySetting.addText((text) =>
+            text
+                .setPlaceholder("e.g., Folder/* or #tag")
+                .setValue(this.mapping.query || "")
+                .onChange((value) => {
+                    this.mapping.query = value;
+                    // Validate and show/hide error
+                    if (value.trim()) {
+                        const result = validateQuery(value);
+                        if (!result.valid) {
+                            queryErrorEl.setText(result.error || "Invalid query");
+                            queryErrorEl.removeClass("frontmatter-linter-hidden");
+                            text.inputEl.addClass("frontmatter-linter-input-error");
+                        } else {
+                            queryErrorEl.addClass("frontmatter-linter-hidden");
+                            text.inputEl.removeClass("frontmatter-linter-input-error");
+                        }
+                    } else {
+                        queryErrorEl.addClass("frontmatter-linter-hidden");
+                        text.inputEl.removeClass("frontmatter-linter-input-error");
+                    }
+                })
+        );
 
         // Property Filter section
         this.renderPropertyFilterSection(contentEl);

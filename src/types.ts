@@ -71,11 +71,6 @@ export interface ArrayConstraints {
     contains?: string[];  // Array must contain all these values
 }
 
-export interface ObjectConstraints {
-    // Top-level only: require specific keys to exist
-    requiredKeys?: string[];
-}
-
 export interface SchemaField {
     name: string;
     type: FieldType;
@@ -101,7 +96,6 @@ export interface SchemaField {
     numberConstraints?: NumberConstraints;
     dateConstraints?: DateConstraints;
     arrayConstraints?: ArrayConstraints;
-    objectConstraints?: ObjectConstraints;
 
     // Cross-field constraint: compare this field to another field
     crossFieldConstraint?: CrossFieldConstraint;

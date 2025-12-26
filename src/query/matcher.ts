@@ -122,6 +122,34 @@ export function parseQuerySegments(query: string): QuerySegment[] {
 }
 
 /**
+ * Validate a query string and return any errors
+ */
+export function validateQuery(query: string): { valid: boolean; error?: string } {
+    const trimmed = query.trim();
+
+    // Empty query is invalid
+    if (!trimmed) {
+        return { valid: false, error: "Query cannot be empty" };
+    }
+
+    // Parse and check for valid segments
+    const segments = parseQuerySegments(trimmed);
+
+    if (segments.length === 0) {
+        return { valid: false, error: "Query must contain at least one valid condition (folder, folder/*, #tag, or *)" };
+    }
+
+    // Check each segment has valid conditions
+    for (const segment of segments) {
+        if (segment.andConditions.length === 0) {
+            return { valid: false, error: "Each OR branch must have at least one positive condition" };
+        }
+    }
+
+    return { valid: true };
+}
+
+/**
  * Check if a file matches a query
  * Supports AND, OR, and NOT operators
  */
