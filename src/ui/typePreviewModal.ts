@@ -1,6 +1,6 @@
 import { App, Modal } from "obsidian";
 import { SchemaField, CustomType } from "../types";
-import { formatTypeDisplay } from "../utils/schema";
+import { formatTypeDisplay, groupFieldsByName } from "../utils/schema";
 
 interface ResolvedField {
     name: string;
@@ -89,16 +89,8 @@ export class TypePreviewModal extends Modal {
      * Group fields by name and compute the resolved union type
      */
     private resolveFields(fields: SchemaField[]): ResolvedField[] {
-        const groups = new Map<string, SchemaField[]>();
+        const groups = groupFieldsByName(fields);
 
-        // Group by name
-        for (const field of fields) {
-            const existing = groups.get(field.name) || [];
-            existing.push(field);
-            groups.set(field.name, existing);
-        }
-
-        // Convert to resolved fields
         const resolved: ResolvedField[] = [];
         for (const [name, variants] of groups) {
             const typeDisplays = variants.map(v => formatTypeDisplay(v));

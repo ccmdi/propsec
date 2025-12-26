@@ -2,6 +2,7 @@ import { FieldType, FieldCondition, SchemaField, SchemaMapping, Violation, Viola
 import { validationContext } from "./context";
 import { buildLowerKeyMap, lookupKey, LowerKeyMap } from "../utils/object";
 import { EXCLUDE_FIELDS, ISO_DATE_REGEX } from "../utils/constant";
+import { groupFieldsByName } from "../utils/schema";
 import {
     getCrossFieldOperatorDisplay,
     compareCrossFieldValues,
@@ -580,16 +581,6 @@ function checkArrayConstraints(
 }
 
 // ============ Helpers ============
-
-function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
-    const groups = new Map<string, SchemaField[]>();
-    for (const field of fields) {
-        const existing = groups.get(field.name) || [];
-        existing.push(field);
-        groups.set(field.name, existing);
-    }
-    return groups;
-}
 
 function getActualType(value: unknown): string {
     if (value === null) return "null";

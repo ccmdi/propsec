@@ -1,6 +1,20 @@
 import { SchemaField } from "../types";
 
 /**
+ * Group schema fields by name, supporting union types.
+ * Fields with the same name become variants of a union type.
+ */
+export function groupFieldsByName(fields: SchemaField[]): Map<string, SchemaField[]> {
+    const groups = new Map<string, SchemaField[]>();
+    for (const field of fields) {
+        const existing = groups.get(field.name) || [];
+        existing.push(field);
+        groups.set(field.name, existing);
+    }
+    return groups;
+}
+
+/**
  * Clear all constraint-related properties from a field.
  * Used when field type changes.
  */
