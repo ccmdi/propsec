@@ -316,8 +316,10 @@ export function fileMatchesPropertyFilter(app: App, file: TFile, filter: Propert
 
     // Check property conditions (AND logic - all must match)
     if (filter.conditions && filter.conditions.length > 0) {
+        // Get filename without extension for $filename pseudo-property
+        const filename = file.basename;
         for (const condition of filter.conditions) {
-            if (!evaluateCondition(frontmatter, condition, keyMap)) {
+            if (!evaluateCondition(frontmatter, condition, keyMap, filename)) {
                 return false;
             }
         }
@@ -327,10 +329,61 @@ export function fileMatchesPropertyFilter(app: App, file: TFile, filter: Propert
 }
 
 /**
- * Evaluate a single property condition against frontmatter
+ * Evaluate a property value against an operator and compare value
+ * Exported for testing
  */
-function evaluateCondition(frontmatter: Record<string, unknown> | undefined, condition: PropertyCondition, keyMap: LowerKeyMap): boolean {
+export function evaluatePropertyValue(
+    propValue: unknown,
+    operator: PropertyConditionOperator,
+    compareValue: string
+): boolean {
+    switch (operator) {
+        case "equals":
+            return String(propValue) === compareValue;
+
+        case "not_equals":
+            return String(propValue) !== compareValue;
+
+        case "contains":
+            if (Array.isArray(propValue)) {
+                return propValue.some(v => String(v) === compareValue);
+            }
+            return String(propValue).includes(compareValue);
+
+        case "not_contains":
+            if (Array.isArray(propValue)) {
+                return !propValue.some(v => String(v) === compareValue);
+            }
+            return !String(propValue).includes(compareValue);
+
+        case "greater_than":
+        case "less_than":
+        case "greater_or_equal":
+        case "less_or_equal":
+            return evaluateNumericCondition(propValue, operator, compareValue);
+
+        default:
+            return false;
+    }
+}
+
+/**
+ * Evaluate a single property condition against frontmatter
+ * Supports $filename pseudo-property for filename-based filtering
+ */
+function evaluateCondition(
+    frontmatter: Record<string, unknown> | undefined,
+    condition: PropertyCondition,
+    keyMap: LowerKeyMap,
+    filename?: string
+): boolean {
     const { property, operator, value } = condition;
+
+    // Handle $filename pseudo-property
+    if (property === "$filename") {
+        if (!filename) return false;
+        return evaluatePropertyValue(filename, operator, value);
+    }
 
     // O(1) case-insensitive property lookup
     const actualKey = lookupKey(keyMap, property);
@@ -342,36 +395,7 @@ function evaluateCondition(frontmatter: Record<string, unknown> | undefined, con
     }
 
     const propValue = frontmatter[actualKey];
-
-    // Handle different operators
-    switch (operator) {
-        case "equals":
-            return String(propValue) === value;
-
-        case "not_equals":
-            return String(propValue) !== value;
-
-        case "contains":
-            if (Array.isArray(propValue)) {
-                return propValue.some(v => String(v) === value);
-            }
-            return String(propValue).includes(value);
-
-        case "not_contains":
-            if (Array.isArray(propValue)) {
-                return !propValue.some(v => String(v) === value);
-            }
-            return !String(propValue).includes(value);
-
-        case "greater_than":
-        case "less_than":
-        case "greater_or_equal":
-        case "less_or_equal":
-            return evaluateNumericCondition(propValue, operator, value);
-
-        default:
-            return false;
-    }
+    return evaluatePropertyValue(propValue, operator, value);
 }
 
 /**
@@ -382,9 +406,9 @@ function evaluateNumericCondition(
     operator: PropertyConditionOperator,
     compareValue: string
 ): boolean {
-    // Try to parse both as numbers
-    const numProp = typeof propValue === "number" ? propValue : parseFloat(String(propValue));
-    const numCompare = parseFloat(compareValue);
+    // Try to parse both as numbers (use Number() not parseFloat() to avoid partial parsing)
+    const numProp = typeof propValue === "number" ? propValue : Number(String(propValue));
+    const numCompare = Number(compareValue);
 
     // If either isn't a valid number, try date comparison
     if (isNaN(numProp) || isNaN(numCompare)) {

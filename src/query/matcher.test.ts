@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseQuerySegments, describeQuery } from "./matcher";
+import { parseQuerySegments, describeQuery, evaluatePropertyValue } from "./matcher";
 
 describe("parseQuerySegments", () => {
     describe("basic queries", () => {
@@ -194,5 +194,77 @@ describe("describeQuery", () => {
         expect(desc).toContain("tagged #draft");
         expect(desc).toContain("or");
         expect(desc).toContain("tagged #article");
+    });
+});
+
+describe("evaluatePropertyValue", () => {
+    describe("string operators", () => {
+        it("equals matches exact string", () => {
+            expect(evaluatePropertyValue("2024-09-20", "equals", "2024-09-20")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "equals", "2024-09-21")).toBe(false);
+        });
+
+        it("not_equals matches non-matching string", () => {
+            expect(evaluatePropertyValue("2024-09-20", "not_equals", "2024-09-21")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "not_equals", "2024-09-20")).toBe(false);
+        });
+
+        it("contains matches substring", () => {
+            expect(evaluatePropertyValue("2024-09-20", "contains", "09")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "contains", "10")).toBe(false);
+            expect(evaluatePropertyValue("meeting-notes", "contains", "meeting")).toBe(true);
+        });
+
+        it("not_contains matches when substring absent", () => {
+            expect(evaluatePropertyValue("2024-09-20", "not_contains", "10")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "not_contains", "09")).toBe(false);
+        });
+    });
+
+    describe("date comparison for $filename use case", () => {
+        it("greater_than compares dates lexicographically (ISO format)", () => {
+            // ISO date format (YYYY-MM-DD) sorts correctly as strings
+            expect(evaluatePropertyValue("2024-09-21", "greater_than", "2024-09-20")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "greater_than", "2024-09-20")).toBe(false);
+            expect(evaluatePropertyValue("2024-09-19", "greater_than", "2024-09-20")).toBe(false);
+        });
+
+        it("less_than compares dates", () => {
+            expect(evaluatePropertyValue("2024-09-19", "less_than", "2024-09-20")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "less_than", "2024-09-20")).toBe(false);
+            expect(evaluatePropertyValue("2024-09-21", "less_than", "2024-09-20")).toBe(false);
+        });
+
+        it("greater_or_equal compares dates", () => {
+            expect(evaluatePropertyValue("2024-09-21", "greater_or_equal", "2024-09-20")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "greater_or_equal", "2024-09-20")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-19", "greater_or_equal", "2024-09-20")).toBe(false);
+        });
+
+        it("less_or_equal compares dates", () => {
+            expect(evaluatePropertyValue("2024-09-19", "less_or_equal", "2024-09-20")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-20", "less_or_equal", "2024-09-20")).toBe(true);
+            expect(evaluatePropertyValue("2024-09-21", "less_or_equal", "2024-09-20")).toBe(false);
+        });
+    });
+
+    describe("numeric comparison", () => {
+        it("compares numbers correctly", () => {
+            expect(evaluatePropertyValue(10, "greater_than", "5")).toBe(true);
+            expect(evaluatePropertyValue(5, "greater_than", "10")).toBe(false);
+            expect(evaluatePropertyValue(10, "less_than", "20")).toBe(true);
+        });
+    });
+
+    describe("array handling", () => {
+        it("contains checks array membership", () => {
+            expect(evaluatePropertyValue(["a", "b", "c"], "contains", "b")).toBe(true);
+            expect(evaluatePropertyValue(["a", "b", "c"], "contains", "d")).toBe(false);
+        });
+
+        it("not_contains checks array non-membership", () => {
+            expect(evaluatePropertyValue(["a", "b", "c"], "not_contains", "d")).toBe(true);
+            expect(evaluatePropertyValue(["a", "b", "c"], "not_contains", "b")).toBe(false);
+        });
     });
 });
