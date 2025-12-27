@@ -129,7 +129,7 @@ export class Validator {
      * Re-validate unique constraints for a schema
      * Clears existing duplicate_value violations and re-checks
      */
-    private revalidateSchemaUniqueConstraints(mapping: SchemaMapping): void {
+    revalidateSchemaUniqueConstraints(mapping: SchemaMapping): void {
         if (!mapping.enabled || !mapping.query) return;
 
         // Get all files matching this schema
