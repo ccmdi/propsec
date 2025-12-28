@@ -19,10 +19,18 @@ declare module "obsidian" {
         };
     }
 
-    // Obsidian's metadata type system
-    // Widget types: "text", "number", "checkbox", "date", "datetime", "tags", "aliases", "multitext"
+    type PropertyWidgetType =
+        | 'aliases'
+        | 'checkbox'
+        | 'date'
+        | 'datetime'
+        | 'multitext'
+        | 'number'
+        | 'tags'
+        | 'text'
+        | string;
     interface MetadataTypeManager {
-        properties: Record<string, { widget: string, name: string } | undefined>;
+        properties: Record<string, { widget: PropertyWidgetType, name: string } | undefined>;
     }
 
     interface App {
