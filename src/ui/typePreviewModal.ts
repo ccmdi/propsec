@@ -1,5 +1,6 @@
 import { App, Modal } from "obsidian";
 import { SchemaField, CustomType } from "../types";
+import { formatTypeDisplay, groupFieldsByName } from "../utils/schema";
 
 interface ResolvedField {
     name: string;
@@ -88,19 +89,11 @@ export class TypePreviewModal extends Modal {
      * Group fields by name and compute the resolved union type
      */
     private resolveFields(fields: SchemaField[]): ResolvedField[] {
-        const groups = new Map<string, SchemaField[]>();
+        const groups = groupFieldsByName(fields);
 
-        // Group by name
-        for (const field of fields) {
-            const existing = groups.get(field.name) || [];
-            existing.push(field);
-            groups.set(field.name, existing);
-        }
-
-        // Convert to resolved fields
         const resolved: ResolvedField[] = [];
         for (const [name, variants] of groups) {
-            const typeDisplays = variants.map(v => this.formatTypeDisplay(v));
+            const typeDisplays = variants.map(v => formatTypeDisplay(v));
             const required = variants.some(v => v.required);
             const warn = !required && variants.some(v => v.warn);
 
@@ -108,21 +101,6 @@ export class TypePreviewModal extends Modal {
         }
 
         return resolved;
-    }
-
-    /**
-     * Format a field's type for display
-     * e.g., array with elementType "person" becomes "person[]"
-     */
-    private formatTypeDisplay(field: SchemaField): string {
-        if (field.type === "array" && field.arrayElementType) {
-            return `${field.arrayElementType}[]`;
-        }
-        if (field.type === "object" && field.objectValueType) {
-            const keyType = field.objectKeyType || "string";
-            return `{ ${keyType}: ${field.objectValueType} }`;
-        }
-        return field.type;
     }
 }
 

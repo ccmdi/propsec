@@ -1,10 +1,7 @@
 import { App, TFile } from "obsidian";
 import { FieldType, SchemaField } from "../types";
 import "../obsidian-ex.d.ts";
-import { EXCLUDE_FIELDS } from "../utils/constant";
-
-// Date regex for ISO format YYYY-MM-DD
-const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+import { EXCLUDE_FIELDS, ISO_DATE_REGEX } from "../utils/constant";
 
 /**
  * Map Obsidian's metadata type names to our FieldType

@@ -1,5 +1,11 @@
 // Core type definitions for Frontmatter Linter
 
+// Import operator types from centralized module
+import type {
+    ComparisonOperator,
+    PropertyOperator,
+} from "./operators";
+
 // Built-in primitive types
 export type PrimitiveFieldType =
     | "string"
@@ -43,18 +49,9 @@ export interface DateConstraints {
     max?: string;  // ISO date string YYYY-MM-DD
 }
 
-// Operators for cross-field comparison
-export type CrossFieldOperator =
-    | "equals"
-    | "not_equals"
-    | "greater_than"
-    | "less_than"
-    | "greater_or_equal"
-    | "less_or_equal";
-
 // Cross-field constraint: compare this field's value to another field's value
 export interface CrossFieldConstraint {
-    operator: CrossFieldOperator;
+    operator: ComparisonOperator;
     field: string;  // The other field to compare against
 }
 
@@ -62,11 +59,6 @@ export interface ArrayConstraints {
     minItems?: number;
     maxItems?: number;
     contains?: string[];  // Array must contain all these values
-}
-
-export interface ObjectConstraints {
-    // Top-level only: require specific keys to exist
-    requiredKeys?: string[];
 }
 
 export interface SchemaField {
@@ -94,34 +86,22 @@ export interface SchemaField {
     numberConstraints?: NumberConstraints;
     dateConstraints?: DateConstraints;
     arrayConstraints?: ArrayConstraints;
-    objectConstraints?: ObjectConstraints;
 
     // Cross-field constraint: compare this field to another field
     crossFieldConstraint?: CrossFieldConstraint;
 }
 
-// Operators for property conditions
-export type PropertyConditionOperator =
-    | "equals"
-    | "not_equals"
-    | "greater_than"
-    | "less_than"
-    | "greater_or_equal"
-    | "less_or_equal"
-    | "contains"
-    | "not_contains";
-
 // A single property condition
 export interface PropertyCondition {
     property: string;
-    operator: PropertyConditionOperator;
+    operator: PropertyOperator;
     value: string;
 }
 
 // Condition for when a field should be validated (e.g., "if type=book then isbn is required")
 export interface FieldCondition {
     field: string;  // The field to check (e.g., "type")
-    operator: PropertyConditionOperator;
+    operator: PropertyOperator;
     value: string;  // The value to compare (e.g., "book")
 }
 

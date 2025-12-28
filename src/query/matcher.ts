@@ -1,6 +1,12 @@
 import { App, TFile } from "obsidian";
-import { PropertyFilter, PropertyCondition, PropertyConditionOperator } from "../types";
+import { PropertyFilter, PropertyCondition } from "../types";
 import { buildLowerKeyMap, lookupKey, hasKey, LowerKeyMap } from "../utils/object";
+import {
+    PropertyOperator,
+    getOperatorSymbol,
+    getOperatorDisplayName,
+    evaluatePropertyOperator,
+} from "../operators";
 
 /**
  * Query syntax:
@@ -110,6 +116,34 @@ export function parseQuerySegments(query: string): QuerySegment[] {
     }
 
     return segments;
+}
+
+/**
+ * Validate a query string and return any errors
+ */
+export function validateQuery(query: string): { valid: boolean; error?: string } {
+    const trimmed = query.trim();
+
+    // Empty query is invalid
+    if (!trimmed) {
+        return { valid: false, error: "Query cannot be empty" };
+    }
+
+    // Parse and check for valid segments
+    const segments = parseQuerySegments(trimmed);
+
+    if (segments.length === 0) {
+        return { valid: false, error: "Query must contain at least one valid condition (folder, folder/*, #tag, or *)" };
+    }
+
+    // Check each segment has valid conditions
+    for (const segment of segments) {
+        if (segment.andConditions.length === 0) {
+            return { valid: false, error: "Each OR branch must have at least one positive condition" };
+        }
+    }
+
+    return { valid: true };
 }
 
 /**
@@ -343,72 +377,8 @@ function evaluateCondition(frontmatter: Record<string, unknown> | undefined, con
 
     const propValue = frontmatter[actualKey];
 
-    // Handle different operators
-    switch (operator) {
-        case "equals":
-            return String(propValue) === value;
-
-        case "not_equals":
-            return String(propValue) !== value;
-
-        case "contains":
-            if (Array.isArray(propValue)) {
-                return propValue.some(v => String(v) === value);
-            }
-            return String(propValue).includes(value);
-
-        case "not_contains":
-            if (Array.isArray(propValue)) {
-                return !propValue.some(v => String(v) === value);
-            }
-            return !String(propValue).includes(value);
-
-        case "greater_than":
-        case "less_than":
-        case "greater_or_equal":
-        case "less_or_equal":
-            return evaluateNumericCondition(propValue, operator, value);
-
-        default:
-            return false;
-    }
-}
-
-/**
- * Evaluate numeric comparison operators
- */
-function evaluateNumericCondition(
-    propValue: unknown,
-    operator: PropertyConditionOperator,
-    compareValue: string
-): boolean {
-    // Try to parse both as numbers
-    const numProp = typeof propValue === "number" ? propValue : parseFloat(String(propValue));
-    const numCompare = parseFloat(compareValue);
-
-    // If either isn't a valid number, try date comparison
-    if (isNaN(numProp) || isNaN(numCompare)) {
-        const dateProp = new Date(String(propValue)).getTime();
-        const dateCompare = new Date(compareValue).getTime();
-
-        if (!isNaN(dateProp) && !isNaN(dateCompare)) {
-            switch (operator) {
-                case "greater_than": return dateProp > dateCompare;
-                case "less_than": return dateProp < dateCompare;
-                case "greater_or_equal": return dateProp >= dateCompare;
-                case "less_or_equal": return dateProp <= dateCompare;
-            }
-        }
-        return false;
-    }
-
-    switch (operator) {
-        case "greater_than": return numProp > numCompare;
-        case "less_than": return numProp < numCompare;
-        case "greater_or_equal": return numProp >= numCompare;
-        case "less_or_equal": return numProp <= numCompare;
-        default: return false;
-    }
+    // Use centralized operator evaluation
+    return evaluatePropertyOperator(propValue, operator, value);
 }
 
 /**
@@ -433,36 +403,3 @@ export function describePropertyFilter(filter: PropertyFilter): string {
     return parts.length > 0 ? parts.join(", ") : "";
 }
 
-/**
- * Get a human-readable symbol for an operator
- */
-export function getOperatorSymbol(operator: PropertyConditionOperator): string {
-    switch (operator) {
-        case "equals": return "=";
-        case "not_equals": return "!=";
-        case "greater_than": return ">";
-        case "less_than": return "<";
-        case "greater_or_equal": return ">=";
-        case "less_or_equal": return "<=";
-        case "contains": return "contains";
-        case "not_contains": return "!contains";
-        default: return "?";
-    }
-}
-
-/**
- * Get display name for an operator
- */
-export function getOperatorDisplayName(operator: PropertyConditionOperator): string {
-    switch (operator) {
-        case "equals": return "equals";
-        case "not_equals": return "not equals";
-        case "greater_than": return "greater than";
-        case "less_than": return "less than";
-        case "greater_or_equal": return ">=";
-        case "less_or_equal": return "<=";
-        case "contains": return "contains";
-        case "not_contains": return "not contains";
-        default: return operator;
-    }
-}
