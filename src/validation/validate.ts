@@ -577,6 +577,22 @@ function checkArrayConstraints(
         }
     }
 
+    if (constraints.uniqueItems) {
+        const seen = new Set<string>();
+        for (const item of value) {
+            const key = JSON.stringify(item);
+            if (seen.has(key)) {
+                violations.push(createViolation(
+                    filePath, schema, path, "array_duplicate_item",
+                    `Duplicate array item: ${path} contains duplicate value "${item}"`,
+                    "unique items", String(item)
+                ));
+                break;  // One violation per array is enough
+            }
+            seen.add(key);
+        }
+    }
+
     return violations;
 }
 
