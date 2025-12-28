@@ -231,7 +231,7 @@ export class Validator {
             const actualKey = lookupKey(keyMap, field.name);
             if (!actualKey) continue;
 
-            const value = frontmatter[actualKey];
+            const value: unknown = frontmatter[actualKey];
             if (value === null || value === undefined) continue;
 
             const valueStr = this.normalizeValueForUnique(value);

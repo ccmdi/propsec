@@ -61,8 +61,8 @@ export class StatusBarItem {
         this.statusBarEl.removeClass("frontmatter-linter-error");
         this.statusBarEl.addClass("frontmatter-linter-loading");
 
-        // Set fixed width to prevent layout shift
-        this.statusBarEl.style.width = `${this.lastWidth}px`;
+        // Set fixed width via CSS custom property to prevent layout shift
+        this.statusBarEl.style.setProperty("--loading-width", `${this.lastWidth}px`);
 
         const spinnerEl = this.statusBarEl.createSpan({ cls: "frontmatter-linter-spinner" });
         setIcon(spinnerEl, "loader-2");
@@ -74,7 +74,7 @@ export class StatusBarItem {
     private hideLoading(): void {
         this.isLoading = false;
         this.statusBarEl.removeClass("frontmatter-linter-loading");
-        this.statusBarEl.style.width = "";
+        this.statusBarEl.style.removeProperty("--loading-width");
         this.update();
     }
 

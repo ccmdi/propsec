@@ -2,9 +2,7 @@ import { App, TFile } from "obsidian";
 import { PropertyFilter, PropertyCondition } from "../types";
 import { buildLowerKeyMap, lookupKey, hasKey, LowerKeyMap } from "../utils/object";
 import {
-    PropertyOperator,
     getOperatorSymbol,
-    getOperatorDisplayName,
     evaluatePropertyOperator,
 } from "../operators";
 

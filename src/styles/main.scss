@@ -102,6 +102,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    width: var(--loading-width, auto);
 }
 
 .frontmatter-linter-spinner {
@@ -377,6 +378,7 @@
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    margin-top: 12px;
 }
 
 .frontmatter-linter-constraints-grid {

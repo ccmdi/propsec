@@ -1,14 +1,18 @@
 /**
  * Benchmark script for propsec-sql validation/query layer
  * Run with: npx tsx src/benchmark.ts
+ *
+ * This is a standalone Node.js script, not bundled with the plugin.
  */
+
+/* eslint-disable import/no-nodejs-modules, no-console, obsidianmd/no-tfile-tfolder-cast, obsidianmd/hardcoded-config-path */
 
 import { validateFrontmatter } from "./validation/validate";
 import { validationContext } from "./validation/context";
 import { ViolationStore } from "./validation/store";
 import { parseQuerySegments, fileMatchesQuery, fileMatchesPropertyFilter } from "./query/matcher";
 import { SchemaMapping, SchemaField, CustomType, Violation } from "./types";
-import { App, TFile, Vault, MetadataCache } from "obsidian";
+import { App, TFile, Vault } from "obsidian";
 import { execSync } from "child_process";
 import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";

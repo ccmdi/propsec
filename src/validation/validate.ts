@@ -268,8 +268,8 @@ function validateCustomTypeObject(
 
     // Validate each field group (supporting union types)
     for (const [fieldName, variants] of fieldGroups) {
-        const hasField = Object.prototype.hasOwnProperty.call(obj, fieldName);
-        const value = hasField ? obj[fieldName] : undefined;
+        const hasField = fieldName in obj;
+        const value: unknown = hasField ? obj[fieldName] : undefined;
         const fieldPath = `${path}.${fieldName}`;
         
         const isRequired = variants.some(v => v.required);
@@ -351,9 +351,9 @@ function checkTypeMatch(value: unknown, expectedType: FieldType): boolean {
 
 function validateCustomTypeMatch(obj: Record<string, unknown>, customType: { fields: SchemaField[] }): boolean {
     const fieldGroups = groupFieldsByName(customType.fields);
-    
+
     for (const [fieldName, variants] of fieldGroups) {
-        const hasField = Object.prototype.hasOwnProperty.call(obj, fieldName);
+        const hasField = fieldName in obj;
         const isRequired = variants.some(v => v.required);
 
         // Required fields must have the key present
@@ -361,7 +361,7 @@ function validateCustomTypeMatch(obj: Record<string, unknown>, customType: { fie
 
         // If field exists, check if value matches any variant type (union support)
         if (hasField) {
-            const value = obj[fieldName];
+            const value: unknown = obj[fieldName];
             const matchesAny = variants.some(v => checkTypeMatch(value, v.type));
             if (!matchesAny) return false;
         }
@@ -595,8 +595,8 @@ function getCustomTypeFieldErrors(obj: Record<string, unknown>, customType: { na
     const fieldGroups = groupFieldsByName(customType.fields);
 
     for (const [fieldName, variants] of fieldGroups) {
-        const hasField = Object.prototype.hasOwnProperty.call(obj, fieldName);
-        const value = hasField ? obj[fieldName] : undefined;
+        const hasField = fieldName in obj;
+        const value: unknown = hasField ? obj[fieldName] : undefined;
         const isRequired = variants.some(v => v.required);
 
         // Required fields must have the key present

@@ -1,8 +1,8 @@
 import { App, Modal, setIcon } from "obsidian";
-import { FieldType, SchemaField, isPrimitiveType, CrossFieldOperator } from "../types";
+import { FieldType, SchemaField, isPrimitiveType } from "../types";
 import { getTypeDisplayName } from "../schema/extractor";
 import { clearFieldConstraints } from "../utils/schema";
-import { getComparisonOperatorOptions } from "../operators";
+import { ComparisonOperator, getComparisonOperatorOptions } from "../operators";
 
 /**
  * Base class for modals that edit a list of schema fields with expandable constraint overlays.
@@ -471,11 +471,10 @@ export abstract class FieldEditorModal extends Modal {
     }
 
     protected renderCrossFieldConstraint(container: HTMLElement, field: SchemaField): void {
-        const title = container.createEl("div", {
+        container.createEl("div", {
             text: "Compare to another field",
             cls: "frontmatter-linter-constraints-title",
         });
-        title.style.marginTop = "12px";
 
         const grid = container.createDiv({
             cls: "frontmatter-linter-constraints-grid",
@@ -516,12 +515,12 @@ export abstract class FieldEditorModal extends Modal {
 
         // Update handlers
         const updateConstraint = () => {
-            const operator = operatorSelect.value as CrossFieldOperator | "";
+            const operator = operatorSelect.value as ComparisonOperator | "";
             const fieldName = fieldInput.value.trim();
 
             if (operator && fieldName) {
                 field.crossFieldConstraint = {
-                    operator: operator as CrossFieldOperator,
+                    operator: operator,
                     field: fieldName,
                 };
             } else {
