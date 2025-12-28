@@ -59,6 +59,7 @@ export interface ArrayConstraints {
     minItems?: number;
     maxItems?: number;
     contains?: string[];  // Array must contain all these values
+    uniqueItems?: boolean;  // Array items must be unique
 }
 
 export interface SchemaField {
@@ -182,7 +183,8 @@ export type ViolationType =
     | "array_missing_value"
     | "object_missing_key"
     | "duplicate_value"
-    | "cross_field_violation";
+    | "cross_field_violation"
+    | "array_duplicate_item";
 
 export interface Violation {
     filePath: string;
