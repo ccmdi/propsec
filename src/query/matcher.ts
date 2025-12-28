@@ -8,9 +8,6 @@ import {
     evaluatePropertyOperator,
 } from "../operators";
 
-// Re-export for backwards compatibility
-export { getOperatorSymbol, getOperatorDisplayName };
-
 /**
  * Query syntax:
  * - "*" - all files (wildcard)

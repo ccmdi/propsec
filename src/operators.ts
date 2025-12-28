@@ -22,10 +22,6 @@ export type ComparisonOperator =
  */
 export type PropertyOperator = ComparisonOperator | "contains" | "not_contains";
 
-// Legacy type aliases for backwards compatibility
-export type CrossFieldOperator = ComparisonOperator;
-export type PropertyConditionOperator = PropertyOperator;
-
 // ============ Operator Lists ============
 
 /**

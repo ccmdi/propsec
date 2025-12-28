@@ -4,17 +4,7 @@
 import type {
     ComparisonOperator,
     PropertyOperator,
-    CrossFieldOperator,
-    PropertyConditionOperator,
 } from "./operators";
-
-// Re-export for backwards compatibility
-export type {
-    ComparisonOperator,
-    PropertyOperator,
-    CrossFieldOperator,
-    PropertyConditionOperator,
-};
 
 // Built-in primitive types
 export type PrimitiveFieldType =
@@ -61,7 +51,7 @@ export interface DateConstraints {
 
 // Cross-field constraint: compare this field's value to another field's value
 export interface CrossFieldConstraint {
-    operator: CrossFieldOperator;
+    operator: ComparisonOperator;
     field: string;  // The other field to compare against
 }
 
@@ -104,14 +94,14 @@ export interface SchemaField {
 // A single property condition
 export interface PropertyCondition {
     property: string;
-    operator: PropertyConditionOperator;
+    operator: PropertyOperator;
     value: string;
 }
 
 // Condition for when a field should be validated (e.g., "if type=book then isbn is required")
 export interface FieldCondition {
     field: string;  // The field to check (e.g., "type")
-    operator: PropertyConditionOperator;
+    operator: PropertyOperator;
     value: string;  // The value to compare (e.g., "book")
 }
 
