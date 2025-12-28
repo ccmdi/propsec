@@ -32,14 +32,14 @@ export class AddSchemaModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
 
-        contentEl.addClass("frontmatter-linter-add-schema-modal");
+        contentEl.addClass("propsec-add-schema-modal");
 
         contentEl.createEl("h2", { text: "Add schema" });
         contentEl.createEl("p", { text: "How do you want to create this schema?" });
 
         // Option 1: Start from template
         const templateOption = contentEl.createDiv({
-            cls: "frontmatter-linter-option frontmatter-linter-option-selected",
+            cls: "propsec-option propsec-option-selected",
         });
 
         const templateRadio = templateOption.createEl("input", {
@@ -54,15 +54,15 @@ export class AddSchemaModal extends Modal {
         templateLabel.createEl("br");
         templateLabel.createEl("span", {
             text: "Import fields from an existing template file",
-            cls: "frontmatter-linter-option-desc",
+            cls: "propsec-option-desc",
         });
 
         // Template selector
         const templateSelector = templateOption.createDiv({
-            cls: "frontmatter-linter-template-selector",
+            cls: "propsec-template-selector",
         });
         const templateSelect = templateSelector.createEl("select", {
-            cls: "frontmatter-linter-template-select",
+            cls: "propsec-template-select",
         });
 
         // Default option
@@ -94,7 +94,7 @@ export class AddSchemaModal extends Modal {
 
         // Option 2: Start from scratch
         const scratchOption = contentEl.createDiv({
-            cls: "frontmatter-linter-option",
+            cls: "propsec-option",
         });
 
         const scratchRadio = scratchOption.createEl("input", {
@@ -109,31 +109,31 @@ export class AddSchemaModal extends Modal {
         scratchLabel.createEl("br");
         scratchLabel.createEl("span", {
             text: "Create an empty schema and add fields manually",
-            cls: "frontmatter-linter-option-desc",
+            cls: "propsec-option-desc",
         });
 
         // Radio change handlers
         templateRadio.addEventListener("change", () => {
             if (templateRadio.checked) {
                 this.mode = "template";
-                templateOption.addClass("frontmatter-linter-option-selected");
-                scratchOption.removeClass("frontmatter-linter-option-selected");
-                templateSelector.removeClass("frontmatter-linter-hidden");
+                templateOption.addClass("propsec-option-selected");
+                scratchOption.removeClass("propsec-option-selected");
+                templateSelector.removeClass("propsec-hidden");
             }
         });
 
         scratchRadio.addEventListener("change", () => {
             if (scratchRadio.checked) {
                 this.mode = "scratch";
-                scratchOption.addClass("frontmatter-linter-option-selected");
-                templateOption.removeClass("frontmatter-linter-option-selected");
-                templateSelector.addClass("frontmatter-linter-hidden");
+                scratchOption.addClass("propsec-option-selected");
+                templateOption.removeClass("propsec-option-selected");
+                templateSelector.addClass("propsec-hidden");
             }
         });
 
         // Footer buttons
         const footer = contentEl.createDiv({
-            cls: "frontmatter-linter-footer-buttons",
+            cls: "propsec-footer-buttons",
         });
 
         const cancelBtn = footer.createEl("button", { text: "Cancel" });

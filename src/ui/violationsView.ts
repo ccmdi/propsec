@@ -4,7 +4,7 @@ import { ViolationStore } from "../validation/store";
 import { debug } from "../debug";
 import { getViolationIcon } from "../utils/violation";
 
-export const VIOLATIONS_VIEW_TYPE = "frontmatter-linter-violations";
+export const VIOLATIONS_VIEW_TYPE = "propsec-violations";
 
 // Incremental loading settings
 const INITIAL_RENDER_COUNT = 20; // Files to render initially
@@ -85,7 +85,7 @@ export class ViolationsView extends ItemView {
     private render(): void {
         const container = this.containerEl.children[1] as HTMLElement;
         container.empty();
-        container.addClass("frontmatter-linter-violations-view");
+        container.addClass("propsec-violations-view");
 
         // Nav header with filter buttons and search (sibling to view-content, not inside)
         let navHeader = this.containerEl.querySelector(".nav-header") as HTMLElement;
@@ -115,12 +115,12 @@ export class ViolationsView extends ItemView {
 
         // Summary
         this.summaryEl = container.createDiv({
-            cls: "frontmatter-linter-view-summary",
+            cls: "propsec-view-summary",
         });
 
         // Violations list container
         this.listContainer = container.createDiv({
-            cls: "frontmatter-linter-view-list",
+            cls: "propsec-view-list",
         });
 
         // Set up intersection observer for infinite scroll
@@ -198,7 +198,7 @@ export class ViolationsView extends ItemView {
             this.summaryEl.empty();
             
             const emptyState = this.listContainer.createDiv({
-                cls: "frontmatter-linter-view-empty",
+                cls: "propsec-view-empty",
             });
             const emptyTitle = this.filter === "all"
                 ? "No violations"
@@ -214,16 +214,16 @@ export class ViolationsView extends ItemView {
             if (!this.searchQuery) {
                 emptyState.createEl("div", {
                     text: emptyTitle,
-                    cls: "frontmatter-linter-view-empty-title",
+                    cls: "propsec-view-empty-title",
                 });
                 emptyState.createEl("div", {
                     text: emptyDesc,
-                    cls: "frontmatter-linter-view-empty-desc",
+                    cls: "propsec-view-empty-desc",
                 });
             } else {
                 emptyState.createEl("p", {
                     text: "No violations match your search.",
-                    cls: "frontmatter-linter-view-no-results",
+                    cls: "propsec-view-no-results",
                 });
             }
             return;
@@ -275,7 +275,7 @@ export class ViolationsView extends ItemView {
         // Add sentinel for loading more if there are more items
         if (this.renderedCount < this.allFileEntries.length) {
             this.loadMoreSentinel = this.listContainer.createDiv({
-                cls: "frontmatter-linter-load-sentinel",
+                cls: "propsec-load-sentinel",
             });
             if (this.intersectionObserver) {
                 this.intersectionObserver.observe(this.loadMoreSentinel);
@@ -295,7 +295,7 @@ export class ViolationsView extends ItemView {
      */
     private renderFileSection(container: HTMLElement, filePath: string, violations: Violation[]): void {
         const section = container.createDiv({
-            cls: "frontmatter-linter-view-file",
+            cls: "propsec-view-file",
         });
 
         // Render file header (just the file name, no schema badge)
@@ -316,16 +316,16 @@ export class ViolationsView extends ItemView {
             const schemaName = schemaViolations[0].schemaMapping.name;
             
             const schemaGroup = section.createDiv({
-                cls: "frontmatter-linter-view-schema-group",
+                cls: "propsec-view-schema-group",
             });
             
             schemaGroup.createEl("span", {
                 text: schemaName,
-                cls: "frontmatter-linter-view-schema",
+                cls: "propsec-view-schema",
             });
             
             const violationsList = schemaGroup.createDiv({
-                cls: "frontmatter-linter-view-violations",
+                cls: "propsec-view-violations",
             });
 
             for (const violation of schemaViolations) {
@@ -353,11 +353,11 @@ export class ViolationsView extends ItemView {
      */
     private renderFileHeader(container: HTMLElement, filePath: string): void {
         const header = container.createDiv({
-            cls: "frontmatter-linter-view-file-header",
+            cls: "propsec-view-file-header",
         });
 
         const fileLink = header.createEl("a", {
-            cls: "frontmatter-linter-view-file-link",
+            cls: "propsec-view-file-link",
         });
 
         // Show just the filename, with full path on hover
@@ -396,18 +396,18 @@ export class ViolationsView extends ItemView {
     private renderViolationItem(container: HTMLElement, violation: Violation): void {
         const isWarning = isWarningViolation(violation);
         const item = container.createDiv({
-            cls: `frontmatter-linter-view-item frontmatter-linter-view-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
+            cls: `propsec-view-item propsec-view-${violation.type} ${isWarning ? "propsec-warning" : "propsec-error-item"}`,
         });
 
         const icon = getViolationIcon(violation.type);
         item.createEl("span", {
             text: icon,
-            cls: "frontmatter-linter-view-icon",
+            cls: "propsec-view-icon",
         });
 
         item.createEl("span", {
             text: violation.message,
-            cls: "frontmatter-linter-view-message",
+            cls: "propsec-view-message",
         });
     }
 }

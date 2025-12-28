@@ -18,13 +18,13 @@ export class ConfirmModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.addClass("frontmatter-linter-confirm-modal");
+        contentEl.addClass("propsec-confirm-modal");
 
         contentEl.createEl("h3", { text: this.title });
         contentEl.createEl("p", { text: this.message });
 
         const buttonRow = contentEl.createDiv({
-            cls: "frontmatter-linter-confirm-buttons",
+            cls: "propsec-confirm-buttons",
         });
 
         const cancelBtn = buttonRow.createEl("button", { text: "Cancel" });

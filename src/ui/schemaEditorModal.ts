@@ -83,7 +83,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         if (fields.length === 0) {
             this.fieldsContainer.createEl("p", {
                 text: "No fields defined. Add fields or import from a template.",
-                cls: "frontmatter-linter-no-fields",
+                cls: "propsec-no-fields",
             });
             return;
         }
@@ -124,7 +124,7 @@ export class SchemaEditorModal extends FieldEditorModal {
     onOpen(): void {
         const { contentEl } = this;
 
-        contentEl.addClass("frontmatter-linter-schema-editor");
+        contentEl.addClass("propsec-schema-editor");
 
         // Header
         contentEl.createEl("h2", { text: `Edit Schema: ${this.mapping.name}` });
@@ -146,7 +146,7 @@ export class SchemaEditorModal extends FieldEditorModal {
             .setName("Query")
             .setDesc("Match files by folder or tag. Examples: folder, folder/*, #tag, folder/* or #tag");
 
-        const queryErrorEl = contentEl.createDiv({ cls: "frontmatter-linter-query-error" });
+        const queryErrorEl = contentEl.createDiv({ cls: "propsec-query-error" });
 
         querySetting.addText((text) =>
             text
@@ -159,15 +159,15 @@ export class SchemaEditorModal extends FieldEditorModal {
                         const result = validateQuery(value);
                         if (!result.valid) {
                             queryErrorEl.setText(result.error || "Invalid query");
-                            queryErrorEl.removeClass("frontmatter-linter-hidden");
-                            text.inputEl.addClass("frontmatter-linter-input-error");
+                            queryErrorEl.removeClass("propsec-hidden");
+                            text.inputEl.addClass("propsec-input-error");
                         } else {
-                            queryErrorEl.addClass("frontmatter-linter-hidden");
-                            text.inputEl.removeClass("frontmatter-linter-input-error");
+                            queryErrorEl.addClass("propsec-hidden");
+                            text.inputEl.removeClass("propsec-input-error");
                         }
                     } else {
-                        queryErrorEl.addClass("frontmatter-linter-hidden");
-                        text.inputEl.removeClass("frontmatter-linter-input-error");
+                        queryErrorEl.addClass("propsec-hidden");
+                        text.inputEl.removeClass("propsec-input-error");
                     }
                 })
         );
@@ -180,13 +180,13 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         // Fields section header
         const fieldsHeader = contentEl.createDiv({
-            cls: "frontmatter-linter-fields-header",
+            cls: "propsec-fields-header",
         });
         fieldsHeader.createEl("h3", { text: "Fields" });
 
         // Fields container
         this.fieldsContainer = contentEl.createDiv({
-            cls: "frontmatter-linter-fields-container",
+            cls: "propsec-fields-container",
         });
 
         this.setupScrollHandler();
@@ -194,7 +194,7 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         // Add field button and import button
         const buttonsRow = contentEl.createDiv({
-            cls: "frontmatter-linter-buttons-row",
+            cls: "propsec-buttons-row",
         });
 
         //eslint-disable-next-line obsidianmd/ui/sentence-case
@@ -212,7 +212,7 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         // Save/Cancel buttons
         const footerButtons = contentEl.createDiv({
-            cls: "frontmatter-linter-footer-buttons",
+            cls: "propsec-footer-buttons",
         });
 
         const cancelBtn = footerButtons.createEl("button", { text: "Cancel" });
@@ -240,18 +240,18 @@ export class SchemaEditorModal extends FieldEditorModal {
     // ========== Field Conditions (Schema-specific) ==========
 
     private renderConditionSection(container: HTMLElement, field: SchemaField): void {
-        const section = container.createDiv({ cls: "frontmatter-linter-condition-section" });
+        const section = container.createDiv({ cls: "propsec-condition-section" });
         this.renderConditionSectionContent(section, field);
     }
 
     private renderConditionSectionContent(section: HTMLElement, field: SchemaField): void {
         section.empty();
 
-        const header = section.createDiv({ cls: "frontmatter-linter-condition-header" });
-        header.createEl("span", { text: "Conditions", cls: "frontmatter-linter-constraints-title" });
+        const header = section.createDiv({ cls: "propsec-condition-header" });
+        header.createEl("span", { text: "Conditions", cls: "propsec-constraints-title" });
 
         const addBtn = header.createEl("button", {
-            cls: "frontmatter-linter-add-condition-btn",
+            cls: "propsec-add-condition-btn",
             attr: { title: "Add condition" }
         });
         setIcon(addBtn, "plus");
@@ -264,10 +264,10 @@ export class SchemaEditorModal extends FieldEditorModal {
         if (field.conditions && field.conditions.length > 0) {
             section.createEl("div", {
                 text: "Only validate when all conditions match:",
-                cls: "frontmatter-linter-condition-desc"
+                cls: "propsec-condition-desc"
             });
 
-            const list = section.createDiv({ cls: "frontmatter-linter-conditions-list" });
+            const list = section.createDiv({ cls: "propsec-conditions-list" });
             for (let i = 0; i < field.conditions.length; i++) {
                 this.renderFieldConditionRow(list, field, i, section);
             }
@@ -276,13 +276,13 @@ export class SchemaEditorModal extends FieldEditorModal {
 
     private renderFieldConditionRow(container: HTMLElement, field: SchemaField, index: number, section: HTMLElement): void {
         const condition = field.conditions![index];
-        const row = container.createDiv({ cls: "frontmatter-linter-field-condition-row" });
+        const row = container.createDiv({ cls: "propsec-field-condition-row" });
 
         // Field input
         const fieldInput = row.createEl("input", {
             type: "text",
             placeholder: "field",
-            cls: "frontmatter-linter-condition-field",
+            cls: "propsec-condition-field",
         });
         fieldInput.value = condition.field;
 
@@ -295,7 +295,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         });
 
         // Operator select
-        const operatorSelect = row.createEl("select", { cls: "frontmatter-linter-condition-operator" });
+        const operatorSelect = row.createEl("select", { cls: "propsec-condition-operator" });
         for (const op of PROPERTY_OPERATORS) {
             const option = operatorSelect.createEl("option", { value: op, text: getOperatorDisplayName(op) });
             if (op === condition.operator) option.selected = true;
@@ -308,7 +308,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         const valueInput = row.createEl("input", {
             type: "text",
             placeholder: "value",
-            cls: "frontmatter-linter-condition-value",
+            cls: "propsec-condition-value",
         });
         valueInput.value = condition.value;
         valueInput.addEventListener("input", (e) => {
@@ -317,7 +317,7 @@ export class SchemaEditorModal extends FieldEditorModal {
 
         // Delete button
         const deleteBtn = row.createEl("button", {
-            cls: "frontmatter-linter-condition-delete",
+            cls: "propsec-condition-delete",
             attr: { title: "Remove condition" }
         });
         setIcon(deleteBtn, "x");
@@ -385,18 +385,18 @@ export class SchemaEditorModal extends FieldEditorModal {
         const filter = this.mapping.propertyFilter;
 
         const section = container.createDiv({
-            cls: "frontmatter-linter-filter-section",
+            cls: "propsec-filter-section",
         });
 
         const header = section.createDiv({
-            cls: "frontmatter-linter-filter-header",
+            cls: "propsec-filter-header",
         });
         header.createEl("span", { text: "Filter (optional)" });
-        const toggleIcon = header.createEl("span", { cls: "frontmatter-linter-filter-toggle" });
+        const toggleIcon = header.createEl("span", { cls: "propsec-filter-toggle" });
         setIcon(toggleIcon, "chevron-right");
 
         const content = section.createDiv({
-            cls: "frontmatter-linter-filter-content frontmatter-linter-hidden",
+            cls: "propsec-filter-content propsec-hidden",
         });
 
         const hasFilters = filter.fileNamePattern ||
@@ -406,20 +406,20 @@ export class SchemaEditorModal extends FieldEditorModal {
             (filter.conditions && filter.conditions.length > 0);
 
         if (hasFilters) {
-            content.removeClass("frontmatter-linter-hidden");
+            content.removeClass("propsec-hidden");
             setIcon(toggleIcon, "chevron-down");
         }
 
         header.addEventListener("click", () => {
-            const isHidden = content.hasClass("frontmatter-linter-hidden");
-            content.toggleClass("frontmatter-linter-hidden", !isHidden);
+            const isHidden = content.hasClass("propsec-hidden");
+            content.toggleClass("propsec-hidden", !isHidden);
             setIcon(toggleIcon, isHidden ? "chevron-down" : "chevron-right");
         });
 
-        const grid = content.createDiv({ cls: "frontmatter-linter-filter-grid" });
+        const grid = content.createDiv({ cls: "propsec-filter-grid" });
 
         // File name pattern (regex)
-        const fileNameRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        const fileNameRow = grid.createDiv({ cls: "propsec-filter-row" });
         fileNameRow.createEl("label", { text: "File name matches:" });
         const fileNameInput = fileNameRow.createEl("input", { type: "text", placeholder: "e.g., ^Project-.+" });
         fileNameInput.value = filter.fileNamePattern || "";
@@ -434,7 +434,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         this.createDateFilterRow(grid, "Created before:", filter.createdBefore, (v) => filter.createdBefore = v);
 
         // Has property
-        const hasPropRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        const hasPropRow = grid.createDiv({ cls: "propsec-filter-row" });
         hasPropRow.createEl("label", { text: "Has property:" });
         const hasPropInput = hasPropRow.createEl("input", { type: "text", placeholder: "e.g., status" });
         hasPropInput.value = filter.hasProperty || "";
@@ -444,7 +444,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         this.attachPropertySuggest(hasPropInput);
 
         // Missing property
-        const notHasPropRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        const notHasPropRow = grid.createDiv({ cls: "propsec-filter-row" });
         notHasPropRow.createEl("label", { text: "Missing property:" });
         const notHasPropInput = notHasPropRow.createEl("input", { type: "text", placeholder: "e.g., draft" });
         notHasPropInput.value = filter.notHasProperty || "";
@@ -454,13 +454,13 @@ export class SchemaEditorModal extends FieldEditorModal {
         this.attachPropertySuggest(notHasPropInput);
 
         // Property conditions
-        const conditionsSection = content.createDiv({ cls: "frontmatter-linter-conditions-section" });
-        const conditionsHeader = conditionsSection.createDiv({ cls: "frontmatter-linter-conditions-header" });
+        const conditionsSection = content.createDiv({ cls: "propsec-conditions-section" });
+        const conditionsHeader = conditionsSection.createDiv({ cls: "propsec-conditions-header" });
         conditionsHeader.createEl("span", { text: "Property conditions" });
-        const addConditionBtn = conditionsHeader.createEl("button", { cls: "frontmatter-linter-add-condition-btn" });
+        const addConditionBtn = conditionsHeader.createEl("button", { cls: "propsec-add-condition-btn" });
         setIcon(addConditionBtn, "plus");
 
-        const conditionsList = conditionsSection.createDiv({ cls: "frontmatter-linter-conditions-list" });
+        const conditionsList = conditionsSection.createDiv({ cls: "propsec-conditions-list" });
 
         if (!filter.conditions) {
             filter.conditions = [];
@@ -487,7 +487,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         value: string | undefined,
         onChange: (value: string | undefined) => void
     ): void {
-        const row = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        const row = grid.createDiv({ cls: "propsec-filter-row" });
         row.createEl("label", { text: label });
         const input = row.createEl("input", { type: "date" });
         input.value = value || "";
@@ -503,18 +503,18 @@ export class SchemaEditorModal extends FieldEditorModal {
         onUpdate: () => void
     ): void {
         const condition = conditions[index];
-        const row = container.createDiv({ cls: "frontmatter-linter-condition-row" });
+        const row = container.createDiv({ cls: "propsec-condition-row" });
 
         // Property input
         const propInput = row.createEl("input", {
             type: "text",
             placeholder: "property",
-            cls: "frontmatter-linter-condition-property",
+            cls: "propsec-condition-property",
         });
         propInput.value = condition.property;
 
         // Operator select
-        const operatorSelect = row.createEl("select", { cls: "frontmatter-linter-condition-operator" });
+        const operatorSelect = row.createEl("select", { cls: "propsec-condition-operator" });
 
         const updateOperators = () => {
             const propertyType = this.getPropertyType(condition.property);
@@ -563,7 +563,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         const valueInput = row.createEl("input", {
             type: "text",
             placeholder: "value",
-            cls: "frontmatter-linter-condition-value",
+            cls: "propsec-condition-value",
         });
         valueInput.value = condition.value;
         valueInput.addEventListener("input", (e) => {
@@ -571,7 +571,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         });
 
         // Delete button
-        const deleteBtn = row.createEl("button", { cls: "frontmatter-linter-condition-delete" });
+        const deleteBtn = row.createEl("button", { cls: "propsec-condition-delete" });
         setIcon(deleteBtn, "x");
         deleteBtn.addEventListener("click", () => {
             conditions.splice(index, 1);
@@ -625,11 +625,11 @@ class PropertySuggest extends AbstractInputSuggest<string> {
     }
 
     renderSuggestion(value: string, el: HTMLElement): void {
-        el.addClass("frontmatter-linter-property-suggestion");
+        el.addClass("propsec-property-suggestion");
         const displayName = this.getDisplayName(value);
-        el.createSpan({ text: displayName, cls: "frontmatter-linter-property-name" });
+        el.createSpan({ text: displayName, cls: "propsec-property-name" });
         const propType = this.getType(value);
-        el.createSpan({ text: propType, cls: "frontmatter-linter-property-type" });
+        el.createSpan({ text: propType, cls: "propsec-property-type" });
     }
 
     selectSuggestion(value: string, _evt: MouseEvent | KeyboardEvent): void {
@@ -660,12 +660,12 @@ class TemplateSelectorModal extends Modal {
         contentEl.createEl("h3", { text: "Select template" });
 
         const list = contentEl.createEl("div", {
-            cls: "frontmatter-linter-template-list",
+            cls: "propsec-template-list",
         });
 
         for (const file of this.files) {
             const item = list.createEl("div", {
-                cls: "frontmatter-linter-template-item",
+                cls: "propsec-template-item",
             });
             item.setText(file.basename);
             item.addEventListener("click", () => {

@@ -54,7 +54,7 @@ export abstract class FieldEditorModal extends Modal {
             const card = this.fieldsContainer?.children[index] as HTMLElement;
             if (card) {
                 card.removeClass("expanded");
-                const btn = card.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
+                const btn = card.querySelector(".propsec-icon-btn:not(.propsec-delete-btn)");
                 if (btn) setIcon(btn as HTMLElement, "chevron-right");
             }
         }
@@ -90,7 +90,7 @@ export abstract class FieldEditorModal extends Modal {
             const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
             if (prevCard) {
                 prevCard.removeClass("expanded");
-                const prevBtn = prevCard.querySelector(".frontmatter-linter-icon-btn:not(.frontmatter-linter-delete-btn)");
+                const prevBtn = prevCard.querySelector(".propsec-icon-btn:not(.propsec-delete-btn)");
                 if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
             }
             this.expandedFields.clear();
@@ -115,7 +115,7 @@ export abstract class FieldEditorModal extends Modal {
         if (fields.length === 0) {
             this.fieldsContainer.createEl("p", {
                 text: emptyMessage,
-                cls: "frontmatter-linter-no-fields",
+                cls: "propsec-no-fields",
             });
             return;
         }
@@ -132,17 +132,17 @@ export abstract class FieldEditorModal extends Modal {
         onNameInputCreated?: (input: HTMLInputElement) => void
     ): HTMLElement {
         const card = container.createDiv({
-            cls: "frontmatter-linter-field-card",
+            cls: "propsec-field-card",
         });
 
         const mainRow = card.createDiv({
-            cls: "frontmatter-linter-field-main-row",
+            cls: "propsec-field-main-row",
         });
 
         // Name input
         const nameInput = mainRow.createEl("input", {
             type: "text",
-            cls: "frontmatter-linter-field-name",
+            cls: "propsec-field-name",
         });
         nameInput.value = field.name;
         nameInput.placeholder = "Field name";
@@ -155,7 +155,7 @@ export abstract class FieldEditorModal extends Modal {
 
         // Type select
         const typeSelect = mainRow.createEl("select", {
-            cls: "frontmatter-linter-field-type",
+            cls: "propsec-field-type",
         });
 
         const availableTypes = this.getAvailableTypes();
@@ -179,7 +179,7 @@ export abstract class FieldEditorModal extends Modal {
 
         // Required checkbox
         const requiredLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
+            cls: "propsec-required-label",
         });
         const requiredCheckbox = requiredLabel.createEl("input", {
             type: "checkbox",
@@ -189,7 +189,7 @@ export abstract class FieldEditorModal extends Modal {
 
         // Warn checkbox
         const warnLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
+            cls: "propsec-required-label",
             attr: { title: "Warn if missing (not an error)" },
         });
         const warnCheckbox = warnLabel.createEl("input", {
@@ -200,7 +200,7 @@ export abstract class FieldEditorModal extends Modal {
 
         // Unique checkbox
         const uniqueLabel = mainRow.createEl("label", {
-            cls: "frontmatter-linter-required-label",
+            cls: "propsec-required-label",
             attr: { title: "Value must be unique across all files in schema" },
         });
         const uniqueCheckbox = uniqueLabel.createEl("input", {
@@ -231,7 +231,7 @@ export abstract class FieldEditorModal extends Modal {
         // Expand button
         const hasConstraints = this.typeSupportsConstraints(field.type);
         const expandBtn = mainRow.createEl("button", {
-            cls: "frontmatter-linter-icon-btn",
+            cls: "propsec-icon-btn",
             attr: { title: hasConstraints ? "Configure constraints" : "No constraints for this type" },
         });
         setIcon(expandBtn, "chevron-right");
@@ -247,13 +247,13 @@ export abstract class FieldEditorModal extends Modal {
                 }
             });
         } else {
-            expandBtn.addClass("frontmatter-linter-icon-btn-disabled");
+            expandBtn.addClass("propsec-icon-btn-disabled");
             expandBtn.disabled = true;
         }
 
         // Delete button
         const deleteBtn = mainRow.createEl("button", {
-            cls: "frontmatter-linter-icon-btn frontmatter-linter-delete-btn",
+            cls: "propsec-icon-btn propsec-delete-btn",
             attr: { title: "Remove field" },
         });
         setIcon(deleteBtn, "x");
@@ -287,7 +287,7 @@ export abstract class FieldEditorModal extends Modal {
         const rect = card.getBoundingClientRect();
 
         const section = this.containerEl.createDiv({
-            cls: "frontmatter-linter-constraints-section",
+            cls: "propsec-constraints-section",
         });
 
         section.style.left = `${rect.left}px`;
@@ -311,7 +311,7 @@ export abstract class FieldEditorModal extends Modal {
                 // Not enough space either way, position at bottom of viewport
                 section.style.top = `${Math.max(8, viewportHeight - sectionRect.height - 8)}px`;
                 section.style.maxHeight = `${viewportHeight - 16}px`;
-                section.addClass("frontmatter-linter-constraints-overflow");
+                section.addClass("propsec-constraints-overflow");
             }
         });
     }
@@ -342,15 +342,15 @@ export abstract class FieldEditorModal extends Modal {
 
         container.createEl("div", {
             text: "String constraints",
-            cls: "frontmatter-linter-constraints-title",
+            cls: "propsec-constraints-title",
         });
 
         const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
+            cls: "propsec-constraints-grid",
         });
 
         // Pattern
-        const patternRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const patternRow = grid.createDiv({ cls: "propsec-constraint-row" });
         patternRow.createEl("label", { text: "Pattern (regex):" });
         const patternInput = patternRow.createEl("input", {
             type: "text",
@@ -363,7 +363,7 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Min length
-        const minLenRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const minLenRow = grid.createDiv({ cls: "propsec-constraint-row" });
         minLenRow.createEl("label", { text: "Min length:" });
         const minLenInput = minLenRow.createEl("input", {
             type: "number",
@@ -376,7 +376,7 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Max length
-        const maxLenRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const maxLenRow = grid.createDiv({ cls: "propsec-constraint-row" });
         maxLenRow.createEl("label", { text: "Max length:" });
         const maxLenInput = maxLenRow.createEl("input", {
             type: "number",
@@ -400,15 +400,15 @@ export abstract class FieldEditorModal extends Modal {
 
         container.createEl("div", {
             text: "Number constraints",
-            cls: "frontmatter-linter-constraints-title",
+            cls: "propsec-constraints-title",
         });
 
         const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
+            cls: "propsec-constraints-grid",
         });
 
         // Min
-        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const minRow = grid.createDiv({ cls: "propsec-constraint-row" });
         minRow.createEl("label", { text: "Min value:" });
         const minInput = minRow.createEl("input", { type: "number" });
         minInput.value = constraints.min !== undefined ? String(constraints.min) : "";
@@ -418,7 +418,7 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Max
-        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const maxRow = grid.createDiv({ cls: "propsec-constraint-row" });
         maxRow.createEl("label", { text: "Max value:" });
         const maxInput = maxRow.createEl("input", { type: "number" });
         maxInput.value = constraints.max !== undefined ? String(constraints.max) : "";
@@ -439,15 +439,15 @@ export abstract class FieldEditorModal extends Modal {
 
         container.createEl("div", {
             text: "Date constraints",
-            cls: "frontmatter-linter-constraints-title",
+            cls: "propsec-constraints-title",
         });
 
         const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
+            cls: "propsec-constraints-grid",
         });
 
         // Min date
-        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const minRow = grid.createDiv({ cls: "propsec-constraint-row" });
         minRow.createEl("label", { text: "Min date:" });
         const minInput = minRow.createEl("input", { type: "date" });
         minInput.value = constraints.min || "";
@@ -457,7 +457,7 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Max date
-        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const maxRow = grid.createDiv({ cls: "propsec-constraint-row" });
         maxRow.createEl("label", { text: "Max date:" });
         const maxInput = maxRow.createEl("input", { type: "date" });
         maxInput.value = constraints.max || "";
@@ -473,15 +473,15 @@ export abstract class FieldEditorModal extends Modal {
     protected renderCrossFieldConstraint(container: HTMLElement, field: SchemaField): void {
         container.createEl("div", {
             text: "Compare to another field",
-            cls: "frontmatter-linter-constraints-title",
+            cls: "propsec-constraints-title",
         });
 
         const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
+            cls: "propsec-constraints-grid",
         });
 
         // Operator select
-        const operatorRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const operatorRow = grid.createDiv({ cls: "propsec-constraint-row" });
         operatorRow.createEl("label", { text: "Must be:" });
         const operatorSelect = operatorRow.createEl("select");
 
@@ -505,7 +505,7 @@ export abstract class FieldEditorModal extends Modal {
         }
 
         // Field name input
-        const fieldRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const fieldRow = grid.createDiv({ cls: "propsec-constraint-row" });
         fieldRow.createEl("label", { text: "Field:" });
         const fieldInput = fieldRow.createEl("input", {
             type: "text",
@@ -540,15 +540,15 @@ export abstract class FieldEditorModal extends Modal {
 
         container.createEl("div", {
             text: "Array configuration",
-            cls: "frontmatter-linter-constraints-title",
+            cls: "propsec-constraints-title",
         });
 
         const grid = container.createDiv({
-            cls: "frontmatter-linter-constraints-grid",
+            cls: "propsec-constraints-grid",
         });
 
         // Element type selector
-        const elementTypeRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const elementTypeRow = grid.createDiv({ cls: "propsec-constraint-row" });
         elementTypeRow.createEl("label", { text: "Element type:" });
         const elementTypeSelect = elementTypeRow.createEl("select");
 
@@ -578,7 +578,7 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Min items
-        const minRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const minRow = grid.createDiv({ cls: "propsec-constraint-row" });
         minRow.createEl("label", { text: "Min items:" });
         const minInput = minRow.createEl("input", {
             type: "number",
@@ -591,7 +591,7 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Max items
-        const maxRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const maxRow = grid.createDiv({ cls: "propsec-constraint-row" });
         maxRow.createEl("label", { text: "Max items:" });
         const maxInput = maxRow.createEl("input", {
             type: "number",
@@ -604,7 +604,7 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Contains
-        const containsRow = grid.createDiv({ cls: "frontmatter-linter-constraint-row" });
+        const containsRow = grid.createDiv({ cls: "propsec-constraint-row" });
         containsRow.createEl("label", { text: "Contains:" });
         const containsInput = containsRow.createEl("input", {
             type: "text",

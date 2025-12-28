@@ -1,4 +1,4 @@
-// Core type definitions for Frontmatter Linter
+// Core type definitions
 
 // Import operator types from centralized module
 import type {

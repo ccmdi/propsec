@@ -62,13 +62,13 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Custom types list
         this.customTypesContainer = containerEl.createDiv({
-            cls: "frontmatter-linter-custom-types-list",
+            cls: "propsec-custom-types-list",
         });
 
         if (this.settings.customTypes.length === 0) {
             this.customTypesContainer.createEl("p", {
                 text: "No types defined. Click the button below to add one.",
-                cls: "frontmatter-linter-no-types",
+                cls: "propsec-no-types",
             });
         } else {
             this.settings.customTypes.forEach((customType, index) => {
@@ -93,7 +93,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                             await this.onSettingsChange();
                             if (this.customTypesContainer) {
                                 // Remove "no types" placeholder if present
-                                this.customTypesContainer.querySelector(".frontmatter-linter-no-types")?.remove();
+                                this.customTypesContainer.querySelector(".propsec-no-types")?.remove();
                                 const newIndex = this.settings.customTypes.length - 1;
                                 this.renderCustomTypeItem(this.customTypesContainer, newType, newIndex);
                             }
@@ -111,13 +111,13 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Schema list
         this.schemaListContainer = containerEl.createDiv({
-            cls: "frontmatter-linter-schema-list",
+            cls: "propsec-schema-list",
         });
 
         if (this.settings.schemaMappings.length === 0) {
             this.schemaListContainer.createEl("p", {
                 text: "No schemas defined. Click the button below to add one.",
-                cls: "frontmatter-linter-no-schemas",
+                cls: "propsec-no-schemas",
             });
         } else {
             this.settings.schemaMappings.forEach((mapping, index) => {
@@ -143,7 +143,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                             this.onSchemaChange(mapping.id);
                             if (this.schemaListContainer) {
                                 // Remove "no schemas" placeholder if present
-                                this.schemaListContainer.querySelector(".frontmatter-linter-no-schemas")?.remove();
+                                this.schemaListContainer.querySelector(".propsec-no-schemas")?.remove();
                                 const newIndex = this.settings.schemaMappings.length - 1;
                                 this.renderSchemaMappingItem(this.schemaListContainer, mapping, newIndex);
                             }
@@ -269,7 +269,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         index: number
     ): void {
         const itemEl = container.createDiv({
-            cls: `frontmatter-linter-schema-item ${mapping.enabled ? "" : "frontmatter-linter-schema-disabled"}`,
+            cls: `propsec-schema-item ${mapping.enabled ? "" : "propsec-schema-disabled"}`,
         });
 
         //eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -283,12 +283,12 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Header row with drag handle, checkbox, name, and buttons
         const headerRow = itemEl.createDiv({
-            cls: "frontmatter-linter-schema-header",
+            cls: "propsec-schema-header",
         });
 
         // Drag handle
         const dragHandle = headerRow.createDiv({
-            cls: "frontmatter-linter-drag-handle",
+            cls: "propsec-drag-handle",
         });
         setIcon(dragHandle, "grip-vertical");
 
@@ -300,22 +300,22 @@ export class PropsecSettingTab extends PluginSettingTab {
             mapping.enabled = checkbox.checked;
             await this.onSettingsChange();
             this.onSchemaChange(mapping.id);
-            itemEl.toggleClass("frontmatter-linter-schema-disabled", !mapping.enabled);
-            itemEl.querySelector(".frontmatter-linter-schema-name")?.toggleClass("frontmatter-linter-schema-name-disabled", !mapping.enabled);
+            itemEl.toggleClass("propsec-schema-disabled", !mapping.enabled);
+            itemEl.querySelector(".propsec-schema-name")?.toggleClass("propsec-schema-name-disabled", !mapping.enabled);
         });
 
         // Schema name
         const nameEl = headerRow.createEl("span", {
             text: mapping.name,
-            cls: "frontmatter-linter-schema-name",
+            cls: "propsec-schema-name",
         });
         if (!mapping.enabled) {
-            nameEl.addClass("frontmatter-linter-schema-name-disabled");
+            nameEl.addClass("propsec-schema-name-disabled");
         }
 
         // Buttons container
         const buttonsEl = headerRow.createDiv({
-            cls: "frontmatter-linter-schema-buttons",
+            cls: "propsec-schema-buttons",
         });
 
         // Preview button
@@ -360,7 +360,7 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Delete button
         const deleteBtn = buttonsEl.createEl("button", {
-            cls: "frontmatter-linter-delete-btn",
+            cls: "propsec-delete-btn",
         });
         setIcon(deleteBtn, "x");
         deleteBtn.addEventListener("click", () => {
@@ -381,7 +381,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         if (this.settings.schemaMappings.length === 0) {
                             container.createEl("p", {
                                 text: "No schemas defined. Click the button below to add one.",
-                                cls: "frontmatter-linter-no-schemas",
+                                cls: "propsec-no-schemas",
                             });
                         }
                     }
@@ -392,7 +392,7 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Info row
         const infoRow = itemEl.createDiv({
-            cls: "frontmatter-linter-schema-info",
+            cls: "propsec-schema-info",
         });
 
         // Query info
@@ -405,13 +405,13 @@ export class PropsecSettingTab extends PluginSettingTab {
         }
         infoRow.createEl("span", {
             text: queryText,
-            cls: "frontmatter-linter-schema-query",
+            cls: "propsec-schema-query",
         });
 
         const requiredCount = mapping.fields.filter((f) => f.required).length;
         infoRow.createEl("span", {
             text: `${mapping.fields.length} fields (${requiredCount} required)`,
-            cls: "frontmatter-linter-schema-field-count",
+            cls: "propsec-schema-field-count",
         });
     }
 
@@ -421,7 +421,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         index: number
     ): void {
         const itemEl = container.createDiv({
-            cls: "frontmatter-linter-custom-type-item",
+            cls: "propsec-custom-type-item",
         });
 
         //eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -434,24 +434,24 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Header row with drag handle, name and buttons
         const headerRow = itemEl.createDiv({
-            cls: "frontmatter-linter-custom-type-header",
+            cls: "propsec-custom-type-header",
         });
 
         // Drag handle
         const dragHandle = headerRow.createDiv({
-            cls: "frontmatter-linter-drag-handle",
+            cls: "propsec-drag-handle",
         });
         setIcon(dragHandle, "grip-vertical");
 
         // Type name
         headerRow.createEl("span", {
             text: customType.name,
-            cls: "frontmatter-linter-custom-type-name",
+            cls: "propsec-custom-type-name",
         });
 
         // Buttons container
         const buttonsEl = headerRow.createDiv({
-            cls: "frontmatter-linter-custom-type-buttons",
+            cls: "propsec-custom-type-buttons",
         });
 
         // Preview button
@@ -500,7 +500,7 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Delete button
         const deleteBtn = buttonsEl.createEl("button", {
-            cls: "frontmatter-linter-delete-btn",
+            cls: "propsec-delete-btn",
         });
         setIcon(deleteBtn, "x");
         deleteBtn.addEventListener("click", () => {
@@ -534,7 +534,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         if (this.settings.customTypes.length === 0) {
                             container.createEl("p", {
                                 text: "No types defined. Click the button below to add one.",
-                                cls: "frontmatter-linter-no-types",
+                                cls: "propsec-no-types",
                             });
                         }
                     }
@@ -545,11 +545,11 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         // Info row
         const infoRow = itemEl.createDiv({
-            cls: "frontmatter-linter-custom-type-info",
+            cls: "propsec-custom-type-info",
         });
         infoRow.createEl("span", {
             text: `${customType.fields.length} fields`,
-            cls: "frontmatter-linter-custom-type-field-count",
+            cls: "propsec-custom-type-field-count",
         });
     }
 }

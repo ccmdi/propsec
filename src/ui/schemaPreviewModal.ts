@@ -26,7 +26,7 @@ export class SchemaPreviewModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.addClass("frontmatter-linter-schema-preview-modal");
+        contentEl.addClass("propsec-schema-preview-modal");
 
         // Title
         contentEl.createEl("h2", { text: this.mapping.name });
@@ -36,7 +36,7 @@ export class SchemaPreviewModal extends Modal {
             const matchCount = this.countMatchingNotes();
             contentEl.createEl("p", {
                 text: `matches ${matchCount} note${matchCount === 1 ? "" : "s"}`,
-                cls: "frontmatter-linter-preview-query",
+                cls: "propsec-preview-query",
             });
         }
 
@@ -46,24 +46,24 @@ export class SchemaPreviewModal extends Modal {
         if (resolvedFields.length === 0) {
             contentEl.createEl("p", {
                 text: "No fields defined",
-                cls: "frontmatter-linter-preview-empty",
+                cls: "propsec-preview-empty",
             });
             return;
         }
 
         // Field list
         const fieldList = contentEl.createEl("div", {
-            cls: "frontmatter-linter-preview-fields",
+            cls: "propsec-preview-fields",
         });
 
         for (const field of resolvedFields) {
             const fieldEl = fieldList.createEl("div", {
-                cls: "frontmatter-linter-preview-field",
+                cls: "propsec-preview-field",
             });
 
             // Field name
             const nameEl = fieldEl.createEl("span", {
-                cls: "frontmatter-linter-preview-field-name",
+                cls: "propsec-preview-field-name",
             });
             nameEl.createEl("code", { text: field.name });
 
@@ -74,19 +74,19 @@ export class SchemaPreviewModal extends Modal {
             const typeText = field.typeDisplays.join(" | ");
             fieldEl.createEl("code", {
                 text: typeText,
-                cls: "frontmatter-linter-preview-field-type",
+                cls: "propsec-preview-field-type",
             });
 
             // Required/warn badge
             if (field.required) {
                 fieldEl.createEl("span", {
                     text: "Required",
-                    cls: "frontmatter-linter-preview-badge frontmatter-linter-preview-required",
+                    cls: "propsec-preview-badge propsec-preview-required",
                 });
             } else if (field.warn) {
                 fieldEl.createEl("span", {
                     text: "Warn",
-                    cls: "frontmatter-linter-preview-badge frontmatter-linter-preview-warn",
+                    cls: "propsec-preview-badge propsec-preview-warn",
                 });
             }
         }

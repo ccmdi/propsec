@@ -74,7 +74,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
     onOpen(): void {
         const { contentEl } = this;
 
-        contentEl.addClass("frontmatter-linter-schema-editor");
+        contentEl.addClass("propsec-schema-editor");
 
         // Header
         contentEl.createEl("h2", {
@@ -99,13 +99,13 @@ export class CustomTypeEditorModal extends FieldEditorModal {
 
         // Fields section header
         const fieldsHeader = contentEl.createDiv({
-            cls: "frontmatter-linter-fields-header",
+            cls: "propsec-fields-header",
         });
         fieldsHeader.createEl("h3", { text: "Fields" });
 
         // Fields container
         this.fieldsContainer = contentEl.createDiv({
-            cls: "frontmatter-linter-fields-container",
+            cls: "propsec-fields-container",
         });
 
         this.setupScrollHandler();
@@ -113,7 +113,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
 
         // Add field button
         const buttonsRow = contentEl.createDiv({
-            cls: "frontmatter-linter-buttons-row",
+            cls: "propsec-buttons-row",
         });
 
         //eslint-disable-next-line obsidianmd/ui/sentence-case
@@ -125,7 +125,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
 
         // Save/Cancel buttons
         const footerButtons = contentEl.createDiv({
-            cls: "frontmatter-linter-footer-buttons",
+            cls: "propsec-footer-buttons",
         });
 
         const cancelBtn = footerButtons.createEl("button", { text: "Cancel" });

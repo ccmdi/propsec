@@ -20,25 +20,25 @@ export class ViolationsModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
 
-        contentEl.addClass("frontmatter-linter-violations-modal");
+        contentEl.addClass("propsec-violations-modal");
 
         // Header
         contentEl.createEl("h2", { text: "Schema violations" });
 
         // Filter tabs
         const filterContainer = contentEl.createDiv({
-            cls: "frontmatter-linter-filter-tabs",
+            cls: "propsec-filter-tabs",
         });
         this.renderFilterTabs(filterContainer);
 
         // Search bar
         const searchContainer = contentEl.createDiv({
-            cls: "frontmatter-linter-search-container",
+            cls: "propsec-search-container",
         });
         const searchInput = searchContainer.createEl("input", {
             type: "text",
             placeholder: "Search violations...",
-            cls: "frontmatter-linter-search-input",
+            cls: "propsec-search-input",
         });
         searchInput.addEventListener("input", (e) => {
             this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
@@ -47,7 +47,7 @@ export class ViolationsModal extends Modal {
 
         // Create scrollable container
         this.container = contentEl.createDiv({
-            cls: "frontmatter-linter-violations-container",
+            cls: "propsec-violations-container",
         });
 
         this.renderViolations();
@@ -64,7 +64,7 @@ export class ViolationsModal extends Modal {
 
         for (const tab of tabs) {
             const tabEl = container.createEl("button", {
-                cls: `frontmatter-linter-filter-tab ${this.filter === tab.value ? "active" : ""}`,
+                cls: `propsec-filter-tab ${this.filter === tab.value ? "active" : ""}`,
                 attr: { "aria-label": tab.tooltip, title: tab.tooltip },
             });
             setIcon(tabEl, tab.icon);
@@ -90,7 +90,7 @@ export class ViolationsModal extends Modal {
                     : "No warnings found.";
             this.container.createEl("p", {
                 text: emptyMessage,
-                cls: "frontmatter-linter-no-violations",
+                cls: "propsec-no-violations",
             });
             return;
         }
@@ -108,7 +108,7 @@ export class ViolationsModal extends Modal {
         if (!hasResults && this.searchQuery) {
             this.container.createEl("p", {
                 text: "No violations match your search.",
-                cls: "frontmatter-linter-no-violations",
+                cls: "propsec-no-violations",
             });
         }
     }
@@ -135,17 +135,17 @@ export class ViolationsModal extends Modal {
         violations: Violation[]
     ): void {
         const fileSection = container.createDiv({
-            cls: "frontmatter-linter-file-section",
+            cls: "propsec-file-section",
         });
 
         // File header with clickable path
         const fileHeader = fileSection.createDiv({
-            cls: "frontmatter-linter-file-header",
+            cls: "propsec-file-header",
         });
 
         const fileLink = fileHeader.createEl("a", {
             text: filePath.replace(/\.md$/, ""),
-            cls: "frontmatter-linter-file-link",
+            cls: "propsec-file-link",
         });
 
         //eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -173,34 +173,34 @@ export class ViolationsModal extends Modal {
             const schemaName = schemaViolations[0].schemaMapping.name;
             
             const schemaGroup = fileSection.createDiv({
-                cls: "frontmatter-linter-schema-group",
+                cls: "propsec-schema-group",
             });
             
             schemaGroup.createEl("span", {
                 text: schemaName,
-                cls: "frontmatter-linter-schema-badge",
+                cls: "propsec-schema-badge",
             });
 
             const violationList = schemaGroup.createEl("ul", {
-                cls: "frontmatter-linter-violation-list",
+                cls: "propsec-violation-list",
             });
 
             for (const violation of schemaViolations) {
                 const isWarning = isWarningViolation(violation);
                 const item = violationList.createEl("li", {
-                    cls: `frontmatter-linter-violation-item frontmatter-linter-${violation.type} ${isWarning ? "frontmatter-linter-warning" : "frontmatter-linter-error-item"}`,
+                    cls: `propsec-violation-item propsec-${violation.type} ${isWarning ? "propsec-warning" : "propsec-error-item"}`,
                 });
 
                 // Icon based on violation type
                 const icon = getViolationIcon(violation.type);
                 item.createEl("span", {
                     text: icon + " ",
-                    cls: "frontmatter-linter-violation-icon",
+                    cls: "propsec-violation-icon",
                 });
 
                 item.createEl("span", {
                     text: violation.message,
-                    cls: "frontmatter-linter-violation-message",
+                    cls: "propsec-violation-message",
                 });
             }
         }

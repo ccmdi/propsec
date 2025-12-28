@@ -24,7 +24,7 @@ export interface ValidatorHooks {
 }
 
 /**
- * Core validation engine for the Frontmatter Linter
+ * Core validation engine
  */
 export class Validator {
     private app: App;

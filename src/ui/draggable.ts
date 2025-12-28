@@ -6,14 +6,14 @@
  * @param container - The parent container holding all draggable items
  * @param index - The current index of this item
  * @param onReorder - Callback when item is dropped at a new position
- * @param handleSelector - CSS selector for the drag handle (default: ".frontmatter-linter-drag-handle")
+ * @param handleSelector - CSS selector for the drag handle (default: ".propsec-drag-handle")
  */
 export function makeDraggable(
     itemEl: HTMLElement,
     container: HTMLElement,
     index: number,
     onReorder: (fromIndex: number, toIndex: number) => void,
-    handleSelector = ".frontmatter-linter-drag-handle"
+    handleSelector = ".propsec-drag-handle"
 ): void {
     itemEl.dataset.index = String(index);
 
