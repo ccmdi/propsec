@@ -127,10 +127,13 @@ export class Validator {
 
     /**
      * Re-validate unique constraints for a schema
-     * Clears existing duplicate_value violations and re-checks
+     * Clears existing duplicate_value violations and re-checks using incremental approach
      */
     private revalidateSchemaUniqueConstraints(mapping: SchemaMapping): void {
         if (!mapping.enabled || !mapping.query) return;
+
+        const uniqueFields = mapping.fields.filter(f => f.unique);
+        if (uniqueFields.length === 0) return;
 
         // Get all files matching this schema
         const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
@@ -145,8 +148,20 @@ export class Validator {
             matchedFiles.push(file);
         }
 
-        // Re-run unique validation
-        this.validateUniqueConstraints(mapping, matchedFiles);
+        // Re-run unique validation using incremental approach
+        const seenValues = new Map<string, TFile[]>();
+        for (const file of matchedFiles) {
+            this.checkUniqueConstraintsIncremental(file, mapping, uniqueFields, seenValues);
+        }
+
+        // Fire hooks after all files processed - violations are now complete
+        for (const file of matchedFiles) {
+            this.hooks.onFileValidated?.(
+                file,
+                this.getMatchingSchemas(file).map(s => s.id),
+                this.store.getFileViolations(file.path)
+            );
+        }
     }
 
     /**
@@ -159,8 +174,12 @@ export class Validator {
         // Get files that match the query using the index (fast!)
         const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
 
-        // Track files that match for unique validation
-        const matchedFiles: TFile[] = [];
+        // Track unique field values incrementally: "fieldName:normalizedValue" -> files with that value
+        const uniqueFields = mapping.fields.filter(f => f.unique);
+        const seenValues = new Map<string, TFile[]>();
+
+        // Collect all processed files - we fire hooks at the end so duplicate violations are complete
+        const processedFiles: TFile[] = [];
 
         let processed = 0;
         for (const file of candidateFiles) {
@@ -170,13 +189,8 @@ export class Validator {
             }
 
             this.validateFile(file, mapping);
-            matchedFiles.push(file);
-
-            this.hooks.onFileValidated?.(
-                file,
-                this.getMatchingSchemas(file).map(s => s.id),
-                this.store.getFileViolations(file.path)
-            );
+            this.checkUniqueConstraintsIncremental(file, mapping, uniqueFields, seenValues);
+            processedFiles.push(file);
 
             processed++;
             if (processed % BATCH_SIZE === 0) {
@@ -184,65 +198,81 @@ export class Validator {
             }
         }
 
-        // Check unique constraints across all matched files
-        this.validateUniqueConstraints(mapping, matchedFiles);
+        // Fire hooks after all files processed - violations (including duplicates) are now complete
+        for (const file of processedFiles) {
+            this.hooks.onFileValidated?.(
+                file,
+                this.getMatchingSchemas(file).map(s => s.id),
+                this.store.getFileViolations(file.path)
+            );
+        }
 
         this.hooks.onSchemaValidated?.(mapping);
     }
 
     /**
-     * Check unique constraints for a schema across all matched files
-     * Adds duplicate_value violations for fields marked as unique
+     * Check unique constraints incrementally as files are processed.
+     * Adds duplicate violations to all files with the same value.
      */
-    private validateUniqueConstraints(mapping: SchemaMapping, files: TFile[]): void {
-        // Find fields with unique constraint
-        const uniqueFields = mapping.fields.filter(f => f.unique);
+    private checkUniqueConstraintsIncremental(
+        currentFile: TFile,
+        mapping: SchemaMapping,
+        uniqueFields: SchemaField[],
+        seenValues: Map<string, TFile[]>
+    ): void {
         if (uniqueFields.length === 0) return;
 
-        // Build value -> files map for each unique field
+        const frontmatter = this.app.metadataCache.getFileCache(currentFile)?.frontmatter;
+        if (!frontmatter) return;
+
+        const keyMap = buildLowerKeyMap(frontmatter);
+
         for (const field of uniqueFields) {
-            const valueToFiles = new Map<string, TFile[]>();
+            const actualKey = lookupKey(keyMap, field.name);
+            if (!actualKey) continue;
 
-            for (const file of files) {
-                const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-                if (!frontmatter) continue;
+            const value = frontmatter[actualKey];
+            if (value === null || value === undefined) continue;
 
-                // Build key map for O(1) lookup
-                const keyMap = buildLowerKeyMap(frontmatter);
-                const actualKey = lookupKey(keyMap, field.name);
-                if (!actualKey) continue;
+            const valueStr = this.normalizeValueForUnique(value);
+            const mapKey = `${field.name}:${valueStr}`;
 
-                const value = frontmatter[actualKey];
-                if (value === null || value === undefined) continue;
+            const existingFiles = seenValues.get(mapKey);
 
-                // Normalize value to string for comparison
-                const valueStr = this.normalizeValueForUnique(value);
-
-                const existing = valueToFiles.get(valueStr) || [];
-                existing.push(file);
-                valueToFiles.set(valueStr, existing);
+            if (!existingFiles) {
+                // First occurrence - just track it, no violation
+                seenValues.set(mapKey, [currentFile]);
+                continue;
             }
 
-            // Add violations for duplicate values
-            for (const [value, duplicateFiles] of valueToFiles) {
-                if (duplicateFiles.length > 1) {
-                    const otherFiles = duplicateFiles.map(f => f.basename);
-                    for (const file of duplicateFiles) {
-                        const othersExceptCurrent = otherFiles.filter(name => name !== file.basename);
-                        const violation: Violation = {
-                            filePath: file.path,
-                            schemaMapping: mapping,
-                            field: field.name,
-                            type: "duplicate_value",
-                            message: `Duplicate value: "${value}" also in: ${othersExceptCurrent.join(", ")}`,
-                            actual: value,
-                        };
-                        this.store.addFileViolations(file.path, [violation]);
-                    }
-                }
+            // Duplicate found! Add current file to tracking
+            existingFiles.push(currentFile);
+
+            // Update violations for ALL files with this duplicate value
+            for (const dupFile of existingFiles) {
+                // Remove old violation for this specific field (in case list grew)
+                this.store.removeFileSchemaFieldViolationsByType(
+                    dupFile.path, mapping.id, field.name, "duplicate_value"
+                );
+
+                // Build list of other files (using path for comparison, basename for display)
+                const othersExceptThis = existingFiles
+                    .filter(f => f.path !== dupFile.path)
+                    .map(f => f.basename);
+
+                const violation: Violation = {
+                    filePath: dupFile.path,
+                    schemaMapping: mapping,
+                    field: field.name,
+                    type: "duplicate_value",
+                    message: `Duplicate value: "${valueStr}" also in: ${othersExceptThis.join(", ")}`,
+                    actual: valueStr,
+                };
+                this.store.addFileViolations(dupFile.path, [violation]);
             }
         }
     }
+
 
     /**
      * Normalize a value for unique comparison

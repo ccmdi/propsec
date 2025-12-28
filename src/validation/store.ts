@@ -154,6 +154,26 @@ export class ViolationStore {
     }
 
     /**
+     * Remove violations of a specific type for a specific field from a file/schema
+     */
+    removeFileSchemaFieldViolationsByType(filePath: string, schemaId: string, field: string, violationType: ViolationType): void {
+        const violations = this.state.violations.get(filePath);
+        if (!violations) return;
+
+        const filtered = violations.filter(v =>
+            !(v.schemaMapping.id === schemaId && v.type === violationType && v.field === field)
+        );
+        if (filtered.length === violations.length) return; // No change
+
+        if (filtered.length === 0) {
+            this.state.violations.delete(filePath);
+        } else {
+            this.state.violations.set(filePath, filtered);
+        }
+        this.notifyListeners();
+    }
+
+    /**
      * Update file path when a file is renamed
      */
     renameFile(oldPath: string, newPath: string): void {
