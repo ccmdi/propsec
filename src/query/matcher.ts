@@ -314,6 +314,17 @@ export function describeQuery(query: string): string {
  * All specified filters must match (AND logic)
  */
 export function fileMatchesPropertyFilter(app: App, file: TFile, filter: PropertyFilter): boolean {
+    // Check file name pattern (regex)
+    if (filter.fileNamePattern) {
+        try {
+            const regex = new RegExp(filter.fileNamePattern, "i");
+            if (!regex.test(file.basename)) return false;
+        } catch {
+            // Invalid regex - treat as no match
+            return false;
+        }
+    }
+
     // Check modified date filters
     if (filter.modifiedAfter) {
         const filterDate = new Date(filter.modifiedAfter).getTime();

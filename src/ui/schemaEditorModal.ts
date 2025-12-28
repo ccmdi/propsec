@@ -4,10 +4,9 @@ import {
     SchemaMapping,
     CustomType,
     PropertyCondition,
-    PropertyConditionOperator,
 } from "../types";
 import { extractSchemaFromTemplate, getAllFieldTypes } from "../schema/extractor";
-import { getOperatorDisplayName, getOperatorsForPropertyType, PROPERTY_OPERATORS } from "../operators";
+import { getOperatorDisplayName, getOperatorsForPropertyType, PROPERTY_OPERATORS, PropertyOperator } from "../operators";
 import { validateQuery } from "../query/matcher";
 import { FieldEditorModal } from "./fieldEditorModal";
 
@@ -302,7 +301,7 @@ export class SchemaEditorModal extends FieldEditorModal {
             if (op === condition.operator) option.selected = true;
         }
         operatorSelect.addEventListener("change", (e) => {
-            condition.operator = (e.target as HTMLSelectElement).value as PropertyConditionOperator;
+            condition.operator = (e.target as HTMLSelectElement).value as PropertyOperator;
         });
 
         // Value input
@@ -400,7 +399,8 @@ export class SchemaEditorModal extends FieldEditorModal {
             cls: "frontmatter-linter-filter-content frontmatter-linter-hidden",
         });
 
-        const hasFilters = filter.modifiedAfter || filter.modifiedBefore ||
+        const hasFilters = filter.fileNamePattern ||
+            filter.modifiedAfter || filter.modifiedBefore ||
             filter.createdAfter || filter.createdBefore ||
             filter.hasProperty || filter.notHasProperty ||
             (filter.conditions && filter.conditions.length > 0);
@@ -417,6 +417,15 @@ export class SchemaEditorModal extends FieldEditorModal {
         });
 
         const grid = content.createDiv({ cls: "frontmatter-linter-filter-grid" });
+
+        // File name pattern (regex)
+        const fileNameRow = grid.createDiv({ cls: "frontmatter-linter-filter-row" });
+        fileNameRow.createEl("label", { text: "File name matches:" });
+        const fileNameInput = fileNameRow.createEl("input", { type: "text", placeholder: "e.g., ^Project-.+" });
+        fileNameInput.value = filter.fileNamePattern || "";
+        fileNameInput.addEventListener("input", (e) => {
+            filter.fileNamePattern = (e.target as HTMLInputElement).value || undefined;
+        });
 
         // Date filters
         this.createDateFilterRow(grid, "Modified after:", filter.modifiedAfter, (v) => filter.modifiedAfter = v);
@@ -547,7 +556,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         });
 
         operatorSelect.addEventListener("change", (e) => {
-            condition.operator = (e.target as HTMLSelectElement).value as PropertyConditionOperator;
+            condition.operator = (e.target as HTMLSelectElement).value as PropertyOperator;
         });
 
         // Value input

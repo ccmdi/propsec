@@ -107,6 +107,8 @@ export interface FieldCondition {
 
 // Property filter for fine-grained schema application
 export interface PropertyFilter {
+    // Filter by file name
+    fileNamePattern?: string; // Regex pattern to match against file name (without extension)
     // Filter by file dates
     modifiedAfter?: string;   // ISO date: only files modified after this date
     modifiedBefore?: string;  // ISO date: only files modified before this date
