@@ -32,6 +32,7 @@ The query field allows schema matching based on file paths and/or tags:
 
 You can also narrow which files a schema applies to with properties:
 
+- `fileNamePattern`: Filter by file name (regex)
 - `modifiedAfter` / `modifiedBefore`: Filter by modification date
 - `createdAfter` / `createdBefore`: Filter by creation date
 - `hasProperty` / `notHasProperty`: Filter by property existence
@@ -43,11 +44,13 @@ Files are matched to schemas in the order of the schemas.
 
 **Primitives:** `string`, `number`, `boolean`, `date`, `array`, `object`, `null`, `unknown`
 
-**Custom Types:** Define reusable types in settings. A custom type is a named group of fields. Use them when multiple schemas share the same structure or you need nested validation.[^1]
+**Custom Types:** Define reusable types in settings. A custom type is a named group of fields. Use them when multiple schemas share the same structure or you need nested validation.
 
 **Union Types:** Add multiple field entries with the same name but different types. For example, two entries for `status` with types `string` and `null` creates `string | null`.
 
-Fields can be flagged to be **required** (key is required) xor **warn** (soft requirement).
+Fields can be flagged to be **required** (key is required) xor **warn** (soft requirement). There is also a **unique** constraint that prevents duplicate values on that field.
+
+Finally, there are **cross-field constraints** (compare this field's value to another field) and **conditional validation** (only validate this field when another field matches a condition).
 
 ## Constraints
 
@@ -58,9 +61,8 @@ Each field type supports optional constraints:
 | string | `pattern` (regex), `minLength`, `maxLength` |
 | number | `min`, `max` |
 | array | `minItems`, `maxItems`, `contains` (required values) |
+| date  | `min`, `max` |
 
 ## Installation
 
 Copy to `.obsidian/plugins/` or install via BRAT.
-
-[^1]: When defining order for custom types, it is purely visual.
