@@ -10,8 +10,16 @@ import { parseQuerySegments, fileMatchesQuery, fileMatchesPropertyFilter } from 
 import { SchemaMapping, SchemaField, CustomType, Violation } from "./types";
 import { App, TFile, Vault, MetadataCache } from "obsidian";
 import { execSync } from "child_process";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
+
+// ============ GC Helper ============
+
+function forceGC(): void {
+    if (global.gc) {
+        global.gc();
+    }
+}
 
 // ============ Output Capture ============
 
@@ -598,45 +606,72 @@ function runBulkBenchmarks(): void {
 
 // ============ Memory Benchmarks ============
 
+/**
+ * Measure memory by creating objects in a function, holding reference, and comparing.
+ * Forces GC before measurement to get consistent baseline.
+ */
+function measureMemory<T>(label: string, createFn: () => T): T {
+    // Force GC to get clean baseline (requires --expose-gc flag)
+    forceGC();
+
+    const before = process.memoryUsage?.()?.heapUsed ?? 0;
+    const result = createFn();
+
+    // Force GC again to ensure we're measuring retained memory
+    forceGC();
+
+    const after = process.memoryUsage?.()?.heapUsed ?? 0;
+    const deltaKB = (after - before) / 1024;
+
+    // If negative (GC collected other stuff), show as ~0 or note uncertainty
+    if (deltaKB < 0) {
+        log(`${label}: <measurement uncertain, run with --expose-gc>`);
+    } else {
+        log(`${label}: ~${deltaKB.toFixed(0)} KB`);
+    }
+
+    return result;
+}
+
 function runMemoryBenchmarks(): void {
     section("MEMORY USAGE ESTIMATES");
 
-    // ViolationStore memory with many violations
-    {
-        const store = new ViolationStore();
-        const before = process.memoryUsage?.() || { heapUsed: 0 };
+    if (!global.gc) {
+        log("Note: Run with 'node --expose-gc' for accurate memory measurements");
+        log("");
+    }
 
+    // ViolationStore memory with many violations
+    // Hold reference to prevent GC during measurement
+    const store = measureMemory("ViolationStore with 10,000 violations", () => {
+        const s = new ViolationStore();
         for (let i = 0; i < 1000; i++) {
-            store.addFileViolations(`file${i}.md`, Array.from({ length: 10 }, (_, j) =>
+            s.addFileViolations(`file${i}.md`, Array.from({ length: 10 }, (_, j) =>
                 createMockViolation(`file${i}.md`, "s1", `field${j}`)
             ));
         }
+        return s;
+    });
 
-        const after = process.memoryUsage?.() || { heapUsed: 0 };
-        const deltaKB = (after.heapUsed - before.heapUsed) / 1024;
-        log(`ViolationStore with 10,000 violations: ~${deltaKB.toFixed(0)} KB`);
-    }
-
-    // Schema memory
-    {
-        const before = process.memoryUsage?.() || { heapUsed: 0 };
-        const schemas: SchemaMapping[] = [];
-
+    // Schema memory - hold reference
+    const schemas = measureMemory("100 schemas with 30 fields each", () => {
+        const arr: SchemaMapping[] = [];
         for (let i = 0; i < 100; i++) {
-            schemas.push(createMockSchema(30, { withConstraints: true, withConditions: true }));
+            arr.push(createMockSchema(30, { withConstraints: true, withConditions: true }));
         }
+        return arr;
+    });
 
-        const after = process.memoryUsage?.() || { heapUsed: 0 };
-        const deltaKB = (after.heapUsed - before.heapUsed) / 1024;
-        log(`100 schemas with 30 fields each: ~${deltaKB.toFixed(0)} KB`);
-    }
+    // Prevent unused variable warnings and keep references alive
+    void store;
+    void schemas;
 }
 
 // ============ Save Results ============
 
 function saveResults(gitInfo: { commit: string; tag: string; branch: string }): void {
     const benchmarkDir = join(process.cwd(), "benchmarks");
-    
+
     if (!existsSync(benchmarkDir)) {
         mkdirSync(benchmarkDir, { recursive: true });
     }
@@ -646,7 +681,121 @@ function saveResults(gitInfo: { commit: string; tag: string; branch: string }): 
     const filepath = join(benchmarkDir, filename);
 
     writeFileSync(filepath, outputLines.join("\n"), "utf-8");
-    console.log(`\n📁 Results saved to: ${filepath}`);
+    console.log(`\n Results saved to: ${filepath}`);
+}
+
+// ============ Comparison to Previous Run ============
+
+interface ParsedMetric {
+    name: string;
+    avgMs: number;
+    opsPerSec: number;
+}
+
+function parseMetricsFromFile(content: string): ParsedMetric[] {
+    const metrics: ParsedMetric[] = [];
+    // Match lines like: "validateFrontmatter: 20 fields      0.0532 ms/op      18,797 ops/sec  (5000 iters)"
+    const regex = /^(.+?)\s+([\d.]+)\s+ms\/op\s+([\d,]+)\s+ops\/sec/gm;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+        metrics.push({
+            name: match[1].trim(),
+            avgMs: parseFloat(match[2]),
+            opsPerSec: parseInt(match[3].replace(/,/g, ""), 10),
+        });
+    }
+    return metrics;
+}
+
+function findPreviousBenchmark(currentCommit: string): { filepath: string; commit: string; content: string } | null {
+    const benchmarkDir = join(process.cwd(), "benchmarks");
+    if (!existsSync(benchmarkDir)) return null;
+
+    const files = readdirSync(benchmarkDir)
+        .filter(f => f.startsWith("benchmark-") && f.endsWith(".txt"))
+        .sort()
+        .reverse(); // Most recent first
+
+    for (const file of files) {
+        // Extract commit from filename: benchmark-TIMESTAMP-COMMIT.txt
+        const match = file.match(/benchmark-.+-([a-f0-9]+)\.txt$/);
+        if (match && match[1] !== currentCommit) {
+            const filepath = join(benchmarkDir, file);
+            const content = readFileSync(filepath, "utf-8");
+            return { filepath, commit: match[1], content };
+        }
+    }
+    return null;
+}
+
+function compareWithPrevious(currentCommit: string): void {
+    const previous = findPreviousBenchmark(currentCommit);
+    if (!previous) {
+        log("\nNo previous benchmark from a different commit found for comparison.");
+        return;
+    }
+
+    section("COMPARISON TO PREVIOUS COMMIT");
+    log(`Comparing: ${currentCommit} (current) vs ${previous.commit} (previous)`);
+    log(`Previous file: ${previous.filepath}`);
+    log("");
+
+    const currentContent = outputLines.join("\n");
+    const currentMetrics = parseMetricsFromFile(currentContent);
+    const previousMetrics = parseMetricsFromFile(previous.content);
+
+    // Create lookup map for previous metrics
+    const prevMap = new Map(previousMetrics.map(m => [m.name, m]));
+
+    // Key benchmarks to highlight
+    const keyBenchmarks = [
+        "validateFrontmatter: 20 fields",
+        "validateFrontmatter: 20 fields + constraints",
+        "Bulk validate: 100 files x 15 fields",
+        "ViolationStore.addFileViolations: 20 violations",
+        "ViolationStore: batch add 100 files",
+        "fileMatchesQuery: AND query",
+    ];
+
+    let totalCurrentOps = 0;
+    let totalPrevOps = 0;
+    let matchedCount = 0;
+
+    log("Benchmark".padEnd(55) + "Current".padStart(12) + "Previous".padStart(12) + "Change".padStart(10));
+    log("-".repeat(89));
+
+    for (const current of currentMetrics) {
+        const prev = prevMap.get(current.name);
+        if (!prev) continue;
+
+        const isKey = keyBenchmarks.some(k => current.name.includes(k));
+        const changePercent = ((current.opsPerSec - prev.opsPerSec) / prev.opsPerSec) * 100;
+        const changeStr = changePercent >= 0
+            ? `+${changePercent.toFixed(1)}%`
+            : `${changePercent.toFixed(1)}%`;
+        const indicator = changePercent > 5 ? " FASTER" : changePercent < -5 ? " SLOWER" : "";
+
+        if (isKey) {
+            log(
+                current.name.substring(0, 54).padEnd(55) +
+                `${current.opsPerSec.toLocaleString()}`.padStart(12) +
+                `${prev.opsPerSec.toLocaleString()}`.padStart(12) +
+                changeStr.padStart(10) +
+                indicator
+            );
+        }
+
+        totalCurrentOps += current.opsPerSec;
+        totalPrevOps += prev.opsPerSec;
+        matchedCount++;
+    }
+
+    if (matchedCount > 0) {
+        log("-".repeat(89));
+        const overallChange = ((totalCurrentOps - totalPrevOps) / totalPrevOps) * 100;
+        const overallStr = overallChange >= 0 ? `+${overallChange.toFixed(1)}%` : `${overallChange.toFixed(1)}%`;
+        log(`OVERALL (${matchedCount} benchmarks)`.padEnd(55) + overallStr.padStart(34));
+    }
 }
 
 // ============ Main ============
@@ -654,7 +803,7 @@ function saveResults(gitInfo: { commit: string; tag: string; branch: string }): 
 async function main(): Promise<void> {
     const gitInfo = getGitInfo();
 
-    log("\n🗿🗿🗿 PROPSEC BENCHMARKS 🗿🗿🗿");
+    log("\n PROPSEC BENCHMARKS");
     log("=".repeat(90));
     log(`Date:    ${new Date().toISOString()}`);
     log(`Node:    ${process.version}`);
@@ -666,6 +815,9 @@ async function main(): Promise<void> {
     runViolationStoreBenchmarks();
     runBulkBenchmarks();
     runMemoryBenchmarks();
+
+    // Compare with previous commit's benchmark
+    compareWithPrevious(gitInfo.commit);
 
     log("\n" + "=".repeat(90));
     log(" BENCHMARK COMPLETE");
