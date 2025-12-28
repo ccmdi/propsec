@@ -472,6 +472,93 @@ describe("validateFrontmatter", () => {
             expect(violations[0].type).toBe("array_missing_value");
         });
 
+        it("validates array uniqueItems", () => {
+            const schema = createSchema([
+                field("tags", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ tags: ["a", "b", "c"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            const violations = validateFrontmatter({ tags: ["a", "b", "a"] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("array_duplicate_item");
+        });
+
+        it("validates array uniqueItems with objects", () => {
+            const schema = createSchema([
+                field("items", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            // Different objects are unique
+            expect(validateFrontmatter({ items: [{ a: 1 }, { a: 2 }] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            // Identical objects are duplicates
+            const violations = validateFrontmatter({ items: [{ a: 1 }, { a: 1 }] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("array_duplicate_item");
+        });
+
+        it("validates array uniqueItems with empty array", () => {
+            const schema = createSchema([
+                field("tags", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ tags: [] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+        });
+
+        it("validates array uniqueItems with single item", () => {
+            const schema = createSchema([
+                field("tags", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ tags: ["only"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+        });
+
+        it("combines multiple array constraints", () => {
+            const schema = createSchema([
+                field("tags", "array", {
+                    required: true,
+                    arrayConstraints: { minItems: 2, maxItems: 5, uniqueItems: true },
+                }),
+            ]);
+
+            // Valid: meets all constraints
+            expect(validateFrontmatter({ tags: ["a", "b", "c"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            // Fails minItems
+            expect(validateFrontmatter({ tags: ["a"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(1);
+
+            // Fails maxItems
+            expect(validateFrontmatter({ tags: ["a", "b", "c", "d", "e", "f"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(1);
+
+            // Fails uniqueItems
+            expect(validateFrontmatter({ tags: ["a", "b", "a"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(1);
+
+            // Fails both minItems AND uniqueItems (but we only report one unique violation)
+            const violations = validateFrontmatter({ tags: ["a", "a"] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations.length).toBeGreaterThanOrEqual(1);
+        });
+
         it("validates date min constraint", () => {
             const schema = createSchema([
                 field("published", "date", {
@@ -1389,6 +1476,196 @@ describe("validateFrontmatter", () => {
                 .toHaveLength(1);
             expect(validateFrontmatter({ container: { value: true } }, schemaWithCustomType, "test.md", { checkUnknownFields: false }))
                 .toHaveLength(1);
+        });
+    });
+
+    describe("conditions with constraints", () => {
+        it("applies constraints only when condition is met", () => {
+            const schema = createSchema([
+                field("type", "string", { required: true }),
+                field("rating", "number", {
+                    required: true,
+                    conditions: [{ field: "type", operator: "equals", value: "review" }],
+                    numberConstraints: { min: 1, max: 5 },
+                }),
+            ]);
+
+            // Condition met, constraint satisfied
+            expect(validateFrontmatter(
+                { type: "review", rating: 4 },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // Condition met, constraint violated
+            const violations = validateFrontmatter(
+                { type: "review", rating: 10 },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("number_too_large");
+
+            // Condition not met, field not required
+            expect(validateFrontmatter(
+                { type: "note" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+        });
+
+        it("validates conditional array with uniqueItems", () => {
+            const schema = createSchema([
+                field("type", "string", { required: true }),
+                field("categories", "array", {
+                    required: true,
+                    conditions: [{ field: "type", operator: "equals", value: "article" }],
+                    arrayConstraints: { uniqueItems: true, minItems: 1 },
+                }),
+            ]);
+
+            // Condition met, valid array
+            expect(validateFrontmatter(
+                { type: "article", categories: ["tech", "news"] },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // Condition met, duplicate violation
+            const violations = validateFrontmatter(
+                { type: "article", categories: ["tech", "tech"] },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("array_duplicate_item");
+
+            // Condition not met
+            expect(validateFrontmatter(
+                { type: "note" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+        });
+    });
+
+    describe("array uniqueItems edge cases", () => {
+        it("handles duplicate numbers", () => {
+            const schema = createSchema([
+                field("values", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ values: [1, 2, 3] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            const violations = validateFrontmatter({ values: [1, 2, 1] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("array_duplicate_item");
+        });
+
+        it("handles duplicate booleans", () => {
+            const schema = createSchema([
+                field("flags", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ flags: [true, false] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            const violations = validateFrontmatter({ flags: [true, true] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+        });
+
+        it("handles duplicate nulls", () => {
+            const schema = createSchema([
+                field("items", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            const violations = validateFrontmatter({ items: [null, null] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("array_duplicate_item");
+        });
+
+        it("treats different types as unique", () => {
+            const schema = createSchema([
+                field("items", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            // "1" (string) and 1 (number) are different
+            expect(validateFrontmatter({ items: ["1", 1] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            // true (boolean) and "true" (string) are different
+            expect(validateFrontmatter({ items: [true, "true"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+        });
+
+        it("handles nested arrays as items", () => {
+            const schema = createSchema([
+                field("matrix", "array", {
+                    required: true,
+                    arrayConstraints: { uniqueItems: true },
+                }),
+            ]);
+
+            // Different nested arrays
+            expect(validateFrontmatter({ matrix: [[1, 2], [3, 4]] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            // Identical nested arrays
+            const violations = validateFrontmatter({ matrix: [[1, 2], [1, 2]] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+        });
+    });
+
+    describe("cross-field with other constraints", () => {
+        it("validates cross-field AND date constraints together", () => {
+            const schema = createSchema([
+                field("startDate", "date", {
+                    required: true,
+                    dateConstraints: { min: "2024-01-01" },
+                }),
+                field("endDate", "date", {
+                    required: true,
+                    dateConstraints: { max: "2024-12-31" },
+                    crossFieldConstraint: { operator: "greater_than", field: "startDate" },
+                }),
+            ]);
+
+            // Valid: endDate > startDate, both within bounds
+            expect(validateFrontmatter(
+                { startDate: "2024-03-01", endDate: "2024-06-01" },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+
+            // Fails: startDate before min
+            const violations1 = validateFrontmatter(
+                { startDate: "2023-12-01", endDate: "2024-06-01" },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations1).toHaveLength(1);
+            expect(violations1[0].type).toBe("date_too_early");
+
+            // Fails: endDate after max
+            const violations2 = validateFrontmatter(
+                { startDate: "2024-03-01", endDate: "2025-01-01" },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations2).toHaveLength(1);
+            expect(violations2[0].type).toBe("date_too_late");
+
+            // Fails: endDate <= startDate
+            const violations3 = validateFrontmatter(
+                { startDate: "2024-06-01", endDate: "2024-03-01" },
+                schema, "test.md", { checkUnknownFields: false }
+            );
+            expect(violations3).toHaveLength(1);
+            expect(violations3[0].type).toBe("cross_field_violation");
         });
     });
 });
