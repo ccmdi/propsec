@@ -122,7 +122,7 @@ export class SchemaPreviewModal extends Modal {
         for (const [name, variants] of groups) {
             const typeDisplays = variants.map(v => formatTypeDisplay(v));
             const required = variants.some(v => v.required);
-            const warn = !required && variants.some(v => v.warn);
+            const warn = !required && variants.some(v => v.warn === true);
 
             resolved.push({ name, typeDisplays, required, warn });
         }

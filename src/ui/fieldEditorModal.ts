@@ -614,7 +614,7 @@ export abstract class FieldEditorModal extends Modal {
         containsInput.addEventListener("input", (e) => {
             const val = (e.target as HTMLInputElement).value;
             if (val.trim()) {
-                constraints.contains = val.split(",").map((v) => v.trim()).filter((v) => v);
+                constraints.contains = val.split(",").map((v) => v.trim()).filter((v) => v !== "");
             } else {
                 constraints.contains = undefined;
             }

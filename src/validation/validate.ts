@@ -97,7 +97,7 @@ function validateField(
 
     // Check required/warned from applicable variants only
     const isRequired = applicableVariants.some(v => v.required);
-    const isWarned = !isRequired && applicableVariants.some(v => v.warn);
+    const isWarned = !isRequired && applicableVariants.some(v => v.warn === true);
 
     // Key is missing entirely - required fields must have the key present
     if (!hasField) {
@@ -273,7 +273,7 @@ function validateCustomTypeObject(
         const fieldPath = `${path}.${fieldName}`;
         
         const isRequired = variants.some(v => v.required);
-        const isWarned = !isRequired && variants.some(v => v.warn);
+        const isWarned = !isRequired && variants.some(v => v.warn === true);
 
         // Check required
         if (!hasField) {

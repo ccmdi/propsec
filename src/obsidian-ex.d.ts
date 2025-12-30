@@ -28,7 +28,7 @@ declare module "obsidian" {
         | 'number'
         | 'tags'
         | 'text'
-        | string;
+        | (string & {}); // Allow unknown widget types while preserving autocomplete
     interface MetadataTypeManager {
         properties: Record<string, { widget: PropertyWidgetType, name: string } | undefined>;
     }

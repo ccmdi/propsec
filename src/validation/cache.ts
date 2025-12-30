@@ -190,7 +190,7 @@ export class ValidationCache {
             const raw = await this.app.vault.adapter.read(this.cachePath);
             const readTime = performance.now();
 
-            const parsed = JSON.parse(raw) as ValidationCacheData;
+            const parsed = JSON.parse(raw) as unknown as ValidationCacheData;
             const parseTime = performance.now();
 
             if (parsed.version !== CACHE_VERSION) {
