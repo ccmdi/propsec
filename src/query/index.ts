@@ -68,7 +68,7 @@ export class QueryIndex {
             const data = await this.app.vault.adapter.read(
                 this.app.vault.configDir + "/plugins/" + this.indexPath
             );
-            const parsed = JSON.parse(data) as TagIndexData;
+            const parsed = JSON.parse(data) as unknown as TagIndexData;
             
             if (parsed.version !== INDEX_VERSION) {
                 return false;
@@ -230,8 +230,7 @@ export class QueryIndex {
         const tags: string[] = [];
 
         // Frontmatter tags
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const frontmatterTags = cache.frontmatter?.tags;
+        const frontmatterTags = cache.frontmatter?.tags as string | string[] | undefined;
         if (frontmatterTags) {
             const tagsArray = Array.isArray(frontmatterTags)
                 ? frontmatterTags

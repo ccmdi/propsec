@@ -34,7 +34,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         enablePropertySuggestions: boolean = true
     ) {
         super(app);
-        this.mapping = JSON.parse(JSON.stringify(mapping)) as SchemaMapping;
+        this.mapping = JSON.parse(JSON.stringify(mapping)) as unknown as SchemaMapping;
         this.templatesFolder = templatesFolder;
         this.customTypes = customTypes;
         this.onSave = onSave;
@@ -197,13 +197,11 @@ export class SchemaEditorModal extends FieldEditorModal {
             cls: "propsec-buttons-row",
         });
 
-        //eslint-disable-next-line obsidianmd/ui/sentence-case
-        const addFieldBtn = buttonsRow.createEl("button", { text: "+ Add Field" });
+        const addFieldBtn = buttonsRow.createEl("button", { text: "Add field" });
         addFieldBtn.addEventListener("click", () => this.onAddField());
 
         const importBtn = buttonsRow.createEl("button", {
-            //eslint-disable-next-line obsidianmd/ui/sentence-case
-            text: "Import from Template...",
+            text: "Import from template...",
         });
         importBtn.addEventListener("click", () => this.showTemplateSelector());
 
@@ -348,9 +346,8 @@ export class SchemaEditorModal extends FieldEditorModal {
         const modal = new TemplateSelectorModal(
             this.app,
             templateFiles,
-            //eslint-disable-next-line @typescript-eslint/no-misused-promises
-            async (file) => {
-                const fields = await extractSchemaFromTemplate(this.app, file);
+            (file) => {
+                const fields = extractSchemaFromTemplate(this.app, file);
                 const existingNames = new Set(this.mapping.fields.map((f) => f.name));
                 for (const newField of fields) {
                     if (!existingNames.has(newField.name)) {

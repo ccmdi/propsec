@@ -85,10 +85,10 @@ export function inferFieldTypeWithObsidian(app: App, key: string, value: unknown
  * All fields default to required=true
  * Uses Obsidian's metadata type system as fallback for empty values
  */
-export async function extractSchemaFromTemplate(
+export function extractSchemaFromTemplate(
     app: App,
     templateFile: TFile
-): Promise<SchemaField[]> {
+): SchemaField[] {
     const frontmatter = app.metadataCache.getFileCache(templateFile)?.frontmatter;
 
     if (!frontmatter) {

@@ -148,7 +148,7 @@ export class ViolationsModal extends Modal {
             cls: "propsec-file-link",
         });
 
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         fileLink.addEventListener("click", async (e) => {
             e.preventDefault();
             const file = this.app.vault.getAbstractFileByPath(filePath);

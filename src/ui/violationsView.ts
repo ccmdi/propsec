@@ -71,6 +71,7 @@ export class ViolationsView extends ItemView {
     async onOpen(): Promise<void> {
         this.store.onChange(this.changeListener);
         this.render();
+        await Promise.resolve();
     }
 
     async onClose(): Promise<void> {
@@ -80,6 +81,7 @@ export class ViolationsView extends ItemView {
             this.intersectionObserver.disconnect();
             this.intersectionObserver = null;
         }
+        await Promise.resolve();
     }
 
     private render(): void {
@@ -380,9 +382,9 @@ export class ViolationsView extends ItemView {
         fileLink.addEventListener("mousedown", (e) => {
             if (e.button === 1) e.preventDefault();
         });
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         fileLink.addEventListener("click", async (e) => await openFile(e, false));
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         fileLink.addEventListener("auxclick", async (e) => {
             if (e.button === 1) {
                 await openFile(e, true);

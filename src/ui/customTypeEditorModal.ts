@@ -24,7 +24,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
 
         // Deep copy or create new
         if (customType) {
-            this.customType = JSON.parse(JSON.stringify(customType)) as CustomType;
+            this.customType = JSON.parse(JSON.stringify(customType)) as unknown as CustomType;
         } else {
             this.customType = {
                 id: generatePrefixedId("ct"),
@@ -116,8 +116,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
             cls: "propsec-buttons-row",
         });
 
-        //eslint-disable-next-line obsidianmd/ui/sentence-case
-        const addFieldBtn = buttonsRow.createEl("button", { text: "+ Add Field" });
+        const addFieldBtn = buttonsRow.createEl("button", { text: "Add field" });
         addFieldBtn.addEventListener("click", () => this.onAddField());
 
         // Separator
@@ -162,8 +161,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
         );
 
         if (this.hasCircularReference()) {
-            //eslint-disable-next-line obsidianmd/ui/sentence-case
-            new Notice("Circular reference detected: A custom type cannot reference itself directly or indirectly.");
+            new Notice("Circular reference detected: a custom type cannot reference itself directly or indirectly.");
             return;
         }
 

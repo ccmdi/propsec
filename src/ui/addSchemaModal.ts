@@ -145,9 +145,8 @@ export class AddSchemaModal extends Modal {
             text: "Next",
             cls: "mod-cta",
         });
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
-        nextBtn.addEventListener("click", async () => {
-            await this.proceedToEditor();
+        nextBtn.addEventListener("click", () => {
+            this.proceedToEditor();
         });
     }
 
@@ -175,7 +174,7 @@ export class AddSchemaModal extends Modal {
         return files;
     }
 
-    private async proceedToEditor(): Promise<void> {
+    private proceedToEditor(): void {
         let fields: SchemaField[] = [];
         let sourceTemplatePath: string | null = null;
         let defaultName = "New Schema";
@@ -185,7 +184,7 @@ export class AddSchemaModal extends Modal {
                 // Show error
                 return;
             }
-            fields = await extractSchemaFromTemplate(this.app, this.selectedTemplate);
+            fields = extractSchemaFromTemplate(this.app, this.selectedTemplate);
             sourceTemplatePath = this.selectedTemplate.path;
             defaultName = this.selectedTemplate.basename;
         }

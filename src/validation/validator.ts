@@ -113,7 +113,7 @@ export class Validator {
         // Re-validate unique constraints for schemas that have them
         // This is needed because the file's value change might affect other files
         for (const schema of matchingSchemas) {
-            if (schema.fields.some(f => f.unique)) {
+            if (schema.fields.some(f => f.unique === true)) {
                 this.revalidateSchemaUniqueConstraints(schema);
             }
         }
@@ -132,7 +132,7 @@ export class Validator {
     private revalidateSchemaUniqueConstraints(mapping: SchemaMapping): void {
         if (!mapping.enabled || !mapping.query) return;
 
-        const uniqueFields = mapping.fields.filter(f => f.unique);
+        const uniqueFields = mapping.fields.filter(f => f.unique === true);
         if (uniqueFields.length === 0) return;
 
         // Get all files matching this schema
@@ -175,7 +175,7 @@ export class Validator {
         const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
 
         // Track unique field values incrementally: "fieldName:normalizedValue" -> files with that value
-        const uniqueFields = mapping.fields.filter(f => f.unique);
+        const uniqueFields = mapping.fields.filter(f => f.unique === true);
         const seenValues = new Map<string, TFile[]>();
 
         // Collect all processed files - we fire hooks at the end so duplicate violations are complete
@@ -282,7 +282,7 @@ export class Validator {
         if (typeof value === "number" || typeof value === "boolean") return String(value);
         if (value instanceof Date) return value.toISOString();
         if (Array.isArray(value)) return JSON.stringify(value.sort());
-        if (typeof value === "object" && value !== null) return JSON.stringify(value);
+        if (typeof value === "object" && value !== null) return JSON.stringify(value) ?? "";
         return String(value);
     }
 

@@ -41,8 +41,8 @@ export class PropsecSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName("Templates folder")
             .setDesc(
-                //eslint-disable-next-line obsidianmd/ui/sentence-case
-                "Folder containing your template files. Auto-detected from core 'Templates' or community 'Templater' plugin if enabled."
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Templates and Templater are proper nouns (plugin names)
+                "Folder containing your template files. Auto-detected from core Templates or community Templater plugin if enabled."
             )
             .addText((text) =>
                 text
@@ -79,15 +79,14 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Add Custom Type button
         new Setting(containerEl).addButton((button) =>
             button
-                //eslint-disable-next-line obsidianmd/ui/sentence-case
-                .setButtonText("+ Add Type")
+                .setButtonText("Add type")
                 .setCta()
                 .onClick(() => {
                     const modal = new CustomTypeEditorModal(
                         this.app,
                         null,
                         this.settings.customTypes,
-                        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                         async (newType) => {
                             this.settings.customTypes.push(newType);
                             await this.onSettingsChange();
@@ -128,15 +127,14 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Add Schema button
         new Setting(containerEl).addButton((button) =>
             button
-                //eslint-disable-next-line obsidianmd/ui/sentence-case
-                .setButtonText("+ Add Schema")
+                .setButtonText("Add schema")
                 .setCta()
                 .onClick(() => {
                     const modal = new AddSchemaModal(
                         this.app,
                         this.settings.templatesFolder,
                         this.settings.customTypes,
-                        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                         async (mapping) => {
                             this.settings.schemaMappings.push(mapping);
                             await this.onSettingsChange();
@@ -272,7 +270,7 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: `propsec-schema-item ${mapping.enabled ? "" : "propsec-schema-disabled"}`,
         });
 
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
             const [moved] = this.settings.schemaMappings.splice(fromIndex, 1);
             this.settings.schemaMappings.splice(toIndex, 0, moved);
@@ -295,7 +293,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         // Enable/disable checkbox
         const checkbox = headerRow.createEl("input", { type: "checkbox" });
         checkbox.checked = mapping.enabled;
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         checkbox.addEventListener("change", async () => {
             mapping.enabled = checkbox.checked;
             await this.onSettingsChange();
@@ -337,7 +335,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                 mapping,
                 this.settings.templatesFolder,
                 this.settings.customTypes,
-                //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async (updatedMapping) => {
                     // Update the mapping in place
                     const idx = this.settings.schemaMappings.findIndex(
@@ -368,7 +366,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.app,
                 "Delete schema",
                 `Are you sure you want to delete "${mapping.name}"?`,
-                //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async () => {
                     const idx = this.settings.schemaMappings.findIndex(
                         (m) => m.id === mapping.id
@@ -424,7 +422,7 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "propsec-custom-type-item",
         });
 
-        //eslint-disable-next-line @typescript-eslint/no-misused-promises
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
             const [moved] = this.settings.customTypes.splice(fromIndex, 1);
             this.settings.customTypes.splice(toIndex, 0, moved);
@@ -471,7 +469,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.app,
                 customType,
                 this.settings.customTypes,
-                //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async (updatedType) => {
                     // Update the custom type in place
                     const idx = this.settings.customTypes.findIndex(
@@ -522,7 +520,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.app,
                 "Delete type",
                 `Are you sure you want to delete "${customType.name}"?`,
-                //eslint-disable-next-line @typescript-eslint/no-misused-promises
+                //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async () => {
                     const index = this.settings.customTypes.findIndex(
                         (t) => t.id === customType.id

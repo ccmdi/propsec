@@ -231,8 +231,7 @@ function matchTag(app: App, file: TFile, tag: string): boolean {
     if (!cache) return false;
 
     // Check tags in frontmatter
-    //eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const frontmatterTags = cache.frontmatter?.tags;
+    const frontmatterTags = cache.frontmatter?.tags as string | string[] | undefined;
     if (frontmatterTags) {
         const tagsArray = Array.isArray(frontmatterTags)
             ? frontmatterTags

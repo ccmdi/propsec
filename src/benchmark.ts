@@ -5,7 +5,7 @@
  * This is a standalone Node.js script, not bundled with the plugin.
  */
 
-/* eslint-disable import/no-nodejs-modules, no-console, obsidianmd/no-tfile-tfolder-cast, obsidianmd/hardcoded-config-path */
+/* eslint-disable import/no-nodejs-modules, no-console, obsidianmd/no-tfile-tfolder-cast, obsidianmd/hardcoded-config-path -- Standalone Node.js benchmark script (not bundled with plugin) */
 
 import { validateFrontmatter } from "./validation/validate";
 import { validationContext } from "./validation/context";
@@ -804,7 +804,7 @@ function compareWithPrevious(currentCommit: string): void {
 
 // ============ Main ============
 
-async function main(): Promise<void> {
+function main(): void {
     const gitInfo = getGitInfo();
 
     log("\n PROPSEC BENCHMARKS");
@@ -830,4 +830,6 @@ async function main(): Promise<void> {
     saveResults(gitInfo);
 }
 
-main().catch(console.error);
+main();
+
+/* eslint-enable import/no-nodejs-modules, no-console, obsidianmd/no-tfile-tfolder-cast, obsidianmd/hardcoded-config-path */
