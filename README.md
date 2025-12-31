@@ -4,7 +4,7 @@
 
 # Propsec
 
-Schema enforcement for Obsidian frontmatter. 
+Schema enforcement for Obsidian properties. 
 
 Define schemas based on templates or invariants in your vault, add custom reusable types, and more.
 
