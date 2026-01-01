@@ -1,12 +1,16 @@
-<p align="center">
-  <img src="images/logo.jpg" alt="Propsec Logo">
-</p>
-
 # Propsec
 
-Schema enforcement for Obsidian properties. 
+Schema enforcement for Obsidian frontmatter. 
 
 Define schemas based on templates or invariants in your vault, add custom reusable types, and more.
+
+<p align="center">
+  <img src="images/example.webp" alt="Example">
+</p>
+
+<p align="center">
+  <img src="images/example2.png" alt="Example">
+</p>
 
 ## Why
 
@@ -36,9 +40,7 @@ You can also narrow which files a schema applies to with properties:
 - `modifiedAfter` / `modifiedBefore`: Filter by modification date
 - `createdAfter` / `createdBefore`: Filter by creation date
 - `hasProperty` / `notHasProperty`: Filter by property existence
-- `propertyEquals`: Filter by specific property values (property-operator-value list)
-
-Files are matched to schemas in the order of the schemas.
+- `conditions`: Filter by property values (property-operator-value list)
 
 ## Field Types
 
