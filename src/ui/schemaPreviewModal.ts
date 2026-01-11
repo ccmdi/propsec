@@ -1,4 +1,4 @@
-import { App, Modal } from "obsidian";
+import { App, Modal, Notice, Platform, setIcon } from "obsidian";
 import { SchemaField, SchemaMapping } from "../types";
 import { queryContext } from "../query/context";
 import { fileMatchesPropertyFilter } from "../query/matcher";
@@ -31,10 +31,21 @@ export class SchemaPreviewModal extends Modal {
         // Title
         contentEl.createEl("h2", { text: this.mapping.name });
 
-        // Query info - count matching notes
+        // Query info row with copy button
+        const queryRow = contentEl.createDiv({ cls: "propsec-preview-query-row" });
+
+        const copyBtn = queryRow.createEl("button", {
+            cls: "propsec-preview-copy-btn clickable-icon",
+            attr: { "aria-label": "Copy schema as JSON" },
+        });
+        setIcon(copyBtn, "copy");
+        copyBtn.addEventListener("click", () => {
+            void this.copySchemaToClipboard();
+        });
+
         if (this.mapping.query) {
             const matchCount = this.countMatchingNotes();
-            contentEl.createEl("p", {
+            queryRow.createEl("span", {
                 text: `matches ${matchCount} note${matchCount === 1 ? "" : "s"}`,
                 cls: "propsec-preview-query",
             });
@@ -130,4 +141,9 @@ export class SchemaPreviewModal extends Modal {
         return resolved;
     }
 
+    private async copySchemaToClipboard(): Promise<void> {
+        const json = JSON.stringify(this.mapping, null, 2);
+        await navigator.clipboard.writeText(json);
+        new Notice("Schema copied to clipboard");
+    }
 }

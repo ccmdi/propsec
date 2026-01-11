@@ -1,4 +1,4 @@
-import { App, Modal } from "obsidian";
+import { App, Modal, Notice, setIcon } from "obsidian";
 import { SchemaField, CustomType } from "../types";
 import { formatTypeDisplay, groupFieldsByName } from "../utils/schema";
 
@@ -28,6 +28,17 @@ export class TypePreviewModal extends Modal {
 
         // Title
         contentEl.createEl("h2", { text: this.customType.name });
+
+        // Copy button row
+        const actionRow = contentEl.createDiv({ cls: "propsec-preview-query-row" });
+        const copyBtn = actionRow.createEl("button", {
+            cls: "propsec-preview-copy-btn clickable-icon",
+            attr: { "aria-label": "Copy type as JSON" },
+        });
+        setIcon(copyBtn, "copy");
+        copyBtn.addEventListener("click", () => {
+            void this.copyTypeToClipboard();
+        });
 
         // Resolve fields
         const resolvedFields = this.resolveFields(this.customType.fields);
@@ -101,6 +112,12 @@ export class TypePreviewModal extends Modal {
         }
 
         return resolved;
+    }
+
+    private async copyTypeToClipboard(): Promise<void> {
+        const json = JSON.stringify(this.customType, null, 2);
+        await navigator.clipboard.writeText(json);
+        new Notice("Type copied to clipboard");
     }
 }
 
