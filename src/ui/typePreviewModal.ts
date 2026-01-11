@@ -1,6 +1,9 @@
 import { App, Modal, Notice, setIcon } from "obsidian";
-import { SchemaField, CustomType } from "../types";
+import { SchemaField, CustomType, SchemaMapping } from "../types";
 import { formatTypeDisplay, groupFieldsByName } from "../utils/schema";
+import { getReferencedCustomTypes } from "../validation/cache";
+import { queryContext } from "../query/context";
+import { fileMatchesPropertyFilter } from "../query/matcher";
 
 interface ResolvedField {
     name: string;
@@ -15,10 +18,14 @@ interface ResolvedField {
  */
 export class TypePreviewModal extends Modal {
     private customType: CustomType;
+    private schemaMappings: SchemaMapping[];
+    private customTypes: CustomType[];
 
-    constructor(app: App, customType: CustomType) {
+    constructor(app: App, customType: CustomType, schemaMappings: SchemaMapping[], customTypes: CustomType[]) {
         super(app);
         this.customType = customType;
+        this.schemaMappings = schemaMappings;
+        this.customTypes = customTypes;
     }
 
     onOpen(): void {
@@ -29,7 +36,7 @@ export class TypePreviewModal extends Modal {
         // Title
         contentEl.createEl("h2", { text: this.customType.name });
 
-        // Copy button row
+        // Action row with copy button and usage stats
         const actionRow = contentEl.createDiv({ cls: "propsec-preview-query-row" });
         const copyBtn = actionRow.createEl("button", {
             cls: "propsec-preview-copy-btn clickable-icon",
@@ -39,6 +46,19 @@ export class TypePreviewModal extends Modal {
         copyBtn.addEventListener("click", () => {
             void this.copyTypeToClipboard();
         });
+
+        const { schemaCount, noteCount } = this.countUsage();
+        if (schemaCount > 0) {
+            actionRow.createEl("span", {
+                text: `used in ${schemaCount} schema${schemaCount === 1 ? "" : "s"}, ${noteCount} note${noteCount === 1 ? "" : "s"}`,
+                cls: "propsec-preview-query",
+            });
+        } else {
+            actionRow.createEl("span", {
+                text: "not used in any schema",
+                cls: "propsec-preview-query",
+            });
+        }
 
         // Resolve fields
         const resolvedFields = this.resolveFields(this.customType.fields);
@@ -118,6 +138,32 @@ export class TypePreviewModal extends Modal {
         const json = JSON.stringify(this.customType, null, 2);
         await navigator.clipboard.writeText(json);
         new Notice("Type copied to clipboard");
+    }
+
+    private countUsage(): { schemaCount: number; noteCount: number } {
+        const schemasUsingType = this.schemaMappings.filter(schema => {
+            const referencedTypes = getReferencedCustomTypes(schema.fields, this.customTypes);
+            return referencedTypes.some(t => t.name === this.customType.name);
+        });
+
+        const uniqueFiles = new Set<string>();
+        for (const schema of schemasUsingType) {
+            if (!schema.query) continue;
+            const files = queryContext.index.getFilesForQuery(schema.query);
+            if (schema.propertyFilter) {
+                for (const f of files) {
+                    if (fileMatchesPropertyFilter(this.app, f, schema.propertyFilter!)) {
+                        uniqueFiles.add(f.path);
+                    }
+                }
+            } else {
+                for (const f of files) {
+                    uniqueFiles.add(f.path);
+                }
+            }
+        }
+
+        return { schemaCount: schemasUsingType.length, noteCount: uniqueFiles.size };
     }
 }
 

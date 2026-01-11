@@ -510,7 +510,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
         setIcon(previewBtn, "eye");
         previewBtn.addEventListener("click", () => {
-            new TypePreviewModal(this.app, customType).open();
+            new TypePreviewModal(this.app, customType, this.settings.schemaMappings, this.settings.customTypes).open();
         });
 
         // Edit button
