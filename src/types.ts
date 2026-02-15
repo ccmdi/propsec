@@ -145,6 +145,7 @@ export interface PropsecSettings {
     colorStatusBarErrors: boolean;
     excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
     enablePropertySuggestions: boolean;  // Show property autocomplete in schema editor
+    globalExclusions: string;  // Query to exclude files from all schemas (e.g., "#status/archived")
 }
 
 // Obsidian's reserved frontmatter keys
@@ -162,6 +163,7 @@ export const DEFAULT_SETTINGS: PropsecSettings = {
     colorStatusBarErrors: true,
     excludeWarningsFromCount: true,
     enablePropertySuggestions: true,
+    globalExclusions: "",
 };
 
 export type ViolationType =

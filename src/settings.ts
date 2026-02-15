@@ -159,6 +159,20 @@ export class PropsecSettingTab extends PluginSettingTab {
         new Setting(containerEl).setName("Validation preferences").setHeading();
 
         new Setting(containerEl)
+            .setName("Global exclusions")
+            .setDesc("Notes matching this query are excluded from all schemas. Uses same syntax as schema queries (e.g., #status/archived, Templates/*)")
+            .addText((text) =>
+                text
+                    .setPlaceholder("e.g., #status/archived")
+                    .setValue(this.settings.globalExclusions)
+                    .onChange(async (value) => {
+                        this.settings.globalExclusions = value;
+                        await this.onSettingsChange();
+                        this.onSchemaChange();
+                    })
+            );
+
+        new Setting(containerEl)
             .setName("Warn on unknown fields")
             .setDesc(
                 "Show warning when a note has fields not defined in its schema"

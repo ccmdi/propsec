@@ -626,16 +626,21 @@ function evaluateFieldCondition(
     frontmatter: Record<string, unknown> | undefined,
     keyMap: LowerKeyMap
 ): boolean {
-    if (!frontmatter) return false;
+    if (!frontmatter) {
+        return condition.operator === "not_exists";
+    }
 
     // O(1) case-insensitive lookup
     const actualKey = lookupKey(keyMap, condition.field);
+
+    // Handle exists/not_exists before value resolution
+    if (condition.operator === "exists") return actualKey !== undefined;
+    if (condition.operator === "not_exists") return actualKey === undefined;
+
     const fieldValue = actualKey ? frontmatter[actualKey] : undefined;
 
     // Handle missing field - convert to empty string for comparison
-    // (different from matcher which returns true for not_equals/not_contains on missing)
     if (fieldValue === null || fieldValue === undefined) {
-        // For missing fields, use empty string as the value
         return evaluatePropertyOperator("", condition.operator, condition.value);
     }
 

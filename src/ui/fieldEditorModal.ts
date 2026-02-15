@@ -1,5 +1,5 @@
 import { App, Modal, setIcon } from "obsidian";
-import { FieldType, SchemaField, isPrimitiveType } from "../types";
+import { SchemaField } from "../types";
 import { getTypeDisplayName } from "../schema/extractor";
 import { clearFieldConstraints } from "../utils/schema";
 import { ComparisonOperator, getComparisonOperatorOptions } from "../operators";
@@ -229,27 +229,21 @@ export abstract class FieldEditorModal extends Modal {
         });
 
         // Expand button
-        const hasConstraints = this.typeSupportsConstraints(field.type);
         const expandBtn = mainRow.createEl("button", {
             cls: "propsec-icon-btn",
-            attr: { title: hasConstraints ? "Configure constraints" : "No constraints for this type" },
+            attr: { title: "Configure constraints" },
         });
         setIcon(expandBtn, "chevron-right");
 
-        if (hasConstraints) {
-            expandBtn.addEventListener("click", () => {
-                if (this.expandedFields.has(index)) {
-                    this.collapseField(index, card, expandBtn);
-                } else {
-                    this.expandField(index, card, expandBtn, () => {
-                        this.showConstraintsOverlay(card, field);
-                    });
-                }
-            });
-        } else {
-            expandBtn.addClass("propsec-icon-btn-disabled");
-            expandBtn.disabled = true;
-        }
+        expandBtn.addEventListener("click", () => {
+            if (this.expandedFields.has(index)) {
+                this.collapseField(index, card, expandBtn);
+            } else {
+                this.expandField(index, card, expandBtn, () => {
+                    this.showConstraintsOverlay(card, field);
+                });
+            }
+        });
 
         // Delete button
         const deleteBtn = mainRow.createEl("button", {
@@ -275,10 +269,6 @@ export abstract class FieldEditorModal extends Modal {
         const temp = document.createElement("div");
         const newCard = this.renderFieldCard(temp, field, index, onNameInputCreated);
         oldCard.replaceWith(newCard);
-    }
-
-    protected typeSupportsConstraints(type: FieldType): boolean {
-        return isPrimitiveType(type) && ["string", "number", "date", "array"].includes(type);
     }
 
     // ========== Constraints Overlay ==========

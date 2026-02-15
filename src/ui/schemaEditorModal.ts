@@ -298,9 +298,6 @@ export class SchemaEditorModal extends FieldEditorModal {
             const option = operatorSelect.createEl("option", { value: op, text: getOperatorDisplayName(op) });
             if (op === condition.operator) option.selected = true;
         }
-        operatorSelect.addEventListener("change", (e) => {
-            condition.operator = (e.target as HTMLSelectElement).value as PropertyOperator;
-        });
 
         // Value input
         const valueInput = row.createEl("input", {
@@ -311,6 +308,14 @@ export class SchemaEditorModal extends FieldEditorModal {
         valueInput.value = condition.value;
         valueInput.addEventListener("input", (e) => {
             condition.value = (e.target as HTMLInputElement).value;
+        });
+
+        const isExistenceOp = (op: string) => op === "exists" || op === "not_exists";
+        valueInput.toggleClass("propsec-hidden", isExistenceOp(condition.operator));
+
+        operatorSelect.addEventListener("change", (e) => {
+            condition.operator = (e.target as HTMLSelectElement).value as PropertyOperator;
+            valueInput.toggleClass("propsec-hidden", isExistenceOp(condition.operator));
         });
 
         // Delete button
@@ -552,10 +557,6 @@ export class SchemaEditorModal extends FieldEditorModal {
             updateOperators();
         });
 
-        operatorSelect.addEventListener("change", (e) => {
-            condition.operator = (e.target as HTMLSelectElement).value as PropertyOperator;
-        });
-
         // Value input
         const valueInput = row.createEl("input", {
             type: "text",
@@ -565,6 +566,14 @@ export class SchemaEditorModal extends FieldEditorModal {
         valueInput.value = condition.value;
         valueInput.addEventListener("input", (e) => {
             condition.value = (e.target as HTMLInputElement).value;
+        });
+
+        const isExistenceOp = (op: string) => op === "exists" || op === "not_exists";
+        valueInput.toggleClass("propsec-hidden", isExistenceOp(condition.operator));
+
+        operatorSelect.addEventListener("change", (e) => {
+            condition.operator = (e.target as HTMLSelectElement).value as PropertyOperator;
+            valueInput.toggleClass("propsec-hidden", isExistenceOp(condition.operator));
         });
 
         // Delete button
