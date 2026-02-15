@@ -273,18 +273,20 @@ export abstract class FieldEditorModal extends Modal {
 
         // Expand button
         const expandBtn = mainRow.createEl("button", {
-            cls: "propsec-icon-btn",
+            cls: `propsec-icon-btn${this.hasExpandableContent(field) ? "" : " propsec-icon-btn-disabled"}`,
             attr: { title: "Configure constraints" },
         });
         setIcon(expandBtn, "chevron-right");
 
-        expandBtn.addEventListener("click", () => {
-            if (this.expandedFields.has(index)) {
-                this.collapseField(index, card, expandBtn);
-            } else {
-                this.expandField(index, card, expandBtn);
-            }
-        });
+        if (this.hasExpandableContent(field)) {
+            expandBtn.addEventListener("click", () => {
+                if (this.expandedFields.has(index)) {
+                    this.collapseField(index, card, expandBtn);
+                } else {
+                    this.expandField(index, card, expandBtn);
+                }
+            });
+        }
 
         // Delete button
         const deleteBtn = mainRow.createEl("button", {
@@ -313,6 +315,10 @@ export abstract class FieldEditorModal extends Modal {
     }
 
     // ========== Constraints Rendering ==========
+
+    protected hasExpandableContent(field: SchemaField): boolean {
+        return ["string", "number", "date", "array"].includes(field.type);
+    }
 
 
     protected renderConstraints(container: HTMLElement, field: SchemaField): void {

@@ -95,7 +95,9 @@ export class SchemaEditorModal extends FieldEditorModal {
         );
     }
 
-    // ========== Override renderConstraints to Add Conditions ==========
+    protected override hasExpandableContent(): boolean {
+        return true;
+    }
 
     protected override renderConstraints(container: HTMLElement, field: SchemaField): void {
         // Add condition section before type-specific constraints
