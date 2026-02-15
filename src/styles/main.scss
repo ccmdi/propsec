@@ -331,6 +331,18 @@
     }
 }
 
+.propsec-condition-badge {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    opacity: 0.7;
+
+    svg {
+        width: 12px;
+        height: 12px;
+    }
+}
+
 .propsec-delete-btn:hover {
     color: var(--text-error);
 }
@@ -415,6 +427,13 @@
     font-size: 0.8em;
     color: var(--text-muted);
     margin-bottom: 6px;
+}
+
+.propsec-condition-logic {
+    @include input-base;
+    padding: 1px 4px;
+    font-size: inherit;
+    margin: 0 2px;
 }
 
 .propsec-conditions-list {

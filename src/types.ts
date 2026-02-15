@@ -71,8 +71,9 @@ export interface SchemaField {
     // Value must be unique across all files matching the schema
     unique?: boolean;
 
-    // Conditional validation: only validate this field if ALL conditions are met
+    // Conditional validation
     conditions?: FieldCondition[];
+    conditionLogic?: "and" | "or";
 
     // For arrays: specify what type the elements should be
     arrayElementType?: FieldType;

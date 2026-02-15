@@ -224,6 +224,15 @@ export abstract class FieldEditorModal extends Modal {
             field.unique = (e.target as HTMLInputElement).checked;
         });
 
+        // Condition badge
+        if (field.conditions && field.conditions.length > 0) {
+            const badge = mainRow.createEl("span", {
+                cls: "propsec-condition-badge",
+                attr: { title: `${field.conditions.length} condition(s)` },
+            });
+            setIcon(badge, "filter");
+        }
+
         // Expand button
         const expandBtn = mainRow.createEl("button", {
             cls: "propsec-icon-btn",
