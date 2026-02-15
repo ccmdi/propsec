@@ -108,7 +108,6 @@ export class CustomTypeEditorModal extends FieldEditorModal {
             cls: "propsec-fields-container",
         });
 
-        this.setupScrollHandler();
         this.renderFields("No fields defined. Add fields to define the structure of this custom type.");
 
         // Add field button
@@ -213,7 +212,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
     }
 
     onClose(): void {
-        this.cleanupScrollHandler();
+        this.removeConstraintsSection();
         const { contentEl } = this;
         contentEl.empty();
     }

@@ -271,7 +271,7 @@
 .propsec-fields-container {
     margin: 12px 0;
     max-height: 50vh;
-    overflow-y: auto;
+    overflow-y: scroll;
 }
 
 .propsec-no-fields {
@@ -281,11 +281,6 @@
 // Field Cards
 .propsec-field-card {
     @include card-bordered;
-    position: relative;
-
-    &.expanded {
-        z-index: 10;
-    }
 }
 
 .propsec-field-main-row {
@@ -336,39 +331,61 @@
     }
 }
 
+.propsec-condition-badge {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    opacity: 0.7;
+
+    svg {
+        width: 12px;
+        height: 12px;
+    }
+}
+
 .propsec-delete-btn:hover {
     color: var(--text-error);
 }
 
-// Constraints Overlay
+// Union groups
+.propsec-union-group {
+    border-left: 3px solid var(--interactive-accent);
+    padding-left: 8px;
+    margin-bottom: 8px;
+}
+
+.propsec-union-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+
+
+// Constraints Section (inline accordion)
 .propsec-constraints-section {
-    position: fixed;
-    padding: 10px 12px 12px;
-    background: var(--background-primary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
+    padding: 0 12px 12px;
+    border-top: 1px solid var(--background-modifier-border);
+    overflow: hidden;
     opacity: 0;
-    transform: translateY(-4px);
-    animation: fl-fade-in 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: propsec-accordion-open 0.2s ease forwards;
 
     &.collapsing {
-        animation: fl-fade-out 0.12s cubic-bezier(0.4, 0, 1, 1) forwards;
-    }
-
-    &.propsec-constraints-overflow {
-        overflow-y: auto;
+        animation: propsec-accordion-close 0.15s ease forwards;
     }
 }
 
-@keyframes fl-fade-in {
-    to { opacity: 1; transform: translateY(0); }
+@keyframes propsec-accordion-open {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-@keyframes fl-fade-out {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(-4px); }
+@keyframes propsec-accordion-close {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }
 
 .propsec-constraints-title {
@@ -428,6 +445,13 @@
     font-size: 0.8em;
     color: var(--text-muted);
     margin-bottom: 6px;
+}
+
+.propsec-condition-logic {
+    @include input-base;
+    padding: 1px 4px;
+    font-size: inherit;
+    margin: 0 2px;
 }
 
 .propsec-conditions-list {

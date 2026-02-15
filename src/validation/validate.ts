@@ -85,9 +85,9 @@ function validateField(
 
     // Check field conditions - filter to variants whose conditions are met
     const applicableVariants = variants.filter(v => {
-        if (!v.conditions || v.conditions.length === 0) return true;  // No conditions = always applicable
-        // All conditions must be met (AND logic)
-        return v.conditions.every(c => evaluateFieldCondition(c, frontmatter, keyMap));
+        if (!v.conditions || v.conditions.length === 0) return true;
+        const check = v.conditionLogic === "or" ? "some" : "every";
+        return v.conditions[check](c => evaluateFieldCondition(c, frontmatter, keyMap));
     });
 
     // If no variants are applicable (all had conditions, none met), skip this field

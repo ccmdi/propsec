@@ -1007,6 +1007,36 @@ describe("validateFrontmatter", () => {
             )).toHaveLength(0);
         });
 
+        it("supports OR condition logic", () => {
+            const schema = createSchema([
+                field("deadline", "date", {
+                    required: true,
+                    conditionLogic: "or",
+                    conditions: [
+                        { field: "type", operator: "equals", value: "task" },
+                        { field: "priority", operator: "greater_than", value: "5" },
+                    ],
+                }),
+            ]);
+
+            // Either condition met - deadline required
+            expect(validateFrontmatter(
+                { type: "task", priority: 1 },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(1);
+
+            expect(validateFrontmatter(
+                { type: "note", priority: 8 },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(1);
+
+            // Neither condition met - deadline not required
+            expect(validateFrontmatter(
+                { type: "note", priority: 2 },
+                schema, "test.md", { checkUnknownFields: false }
+            )).toHaveLength(0);
+        });
+
         it("supports contains operator for arrays", () => {
             const schema = createSchema([
                 field("tags", "array", { required: true }),

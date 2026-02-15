@@ -70,32 +70,17 @@ export class SchemaEditorModal extends FieldEditorModal {
         this.doRenderFields();
     }
 
-    // ========== Override for Property Suggestions ==========
+    // ========== Property Suggestions ==========
+
+    private get suggestCallback(): ((input: HTMLInputElement) => void) | undefined {
+        return this.enablePropertySuggestions ? (input) => this.attachPropertySuggest(input) : undefined;
+    }
 
     private doRenderFields(): void {
-        if (!this.fieldsContainer) return;
-
-        this.removeConstraintsSection();
-        this.expandedFields.clear();
-        this.fieldsContainer.empty();
-
-        const fields = this.getFields();
-        if (fields.length === 0) {
-            this.fieldsContainer.createEl("p", {
-                text: "No fields defined. Add fields or import from a template.",
-                cls: "propsec-no-fields",
-            });
-            return;
-        }
-
-        fields.forEach((field, index) => {
-            this.renderFieldCard(
-                this.fieldsContainer!,
-                field,
-                index,
-                this.enablePropertySuggestions ? (input) => this.attachPropertySuggest(input) : undefined
-            );
-        });
+        this.renderFields(
+            "No fields defined. Add fields or import from a template.",
+            this.suggestCallback
+        );
     }
 
     private attachPropertySuggest(input: HTMLInputElement): void {
@@ -110,7 +95,9 @@ export class SchemaEditorModal extends FieldEditorModal {
         );
     }
 
-    // ========== Override renderConstraints to Add Conditions ==========
+    protected override hasExpandableContent(): boolean {
+        return true;
+    }
 
     protected override renderConstraints(container: HTMLElement, field: SchemaField): void {
         // Add condition section before type-specific constraints
@@ -189,7 +176,6 @@ export class SchemaEditorModal extends FieldEditorModal {
             cls: "propsec-fields-container",
         });
 
-        this.setupScrollHandler();
         this.doRenderFields();
 
         // Add field button and import button
@@ -230,7 +216,7 @@ export class SchemaEditorModal extends FieldEditorModal {
     }
 
     onClose(): void {
-        this.cleanupScrollHandler();
+        this.removeConstraintsSection();
         const { contentEl } = this;
         contentEl.empty();
     }
@@ -260,10 +246,16 @@ export class SchemaEditorModal extends FieldEditorModal {
         });
 
         if (field.conditions && field.conditions.length > 0) {
-            section.createEl("div", {
-                text: "Only validate when all conditions match:",
-                cls: "propsec-condition-desc"
+            const desc = section.createDiv({ cls: "propsec-condition-desc" });
+            desc.appendText("Only validate when ");
+            const logicSelect = desc.createEl("select", { cls: "propsec-condition-logic" });
+            logicSelect.createEl("option", { value: "and", text: "all" });
+            logicSelect.createEl("option", { value: "or", text: "any" });
+            logicSelect.value = field.conditionLogic || "and";
+            logicSelect.addEventListener("change", () => {
+                field.conditionLogic = logicSelect.value as "and" | "or";
             });
+            desc.appendText(" conditions match:");
 
             const list = section.createDiv({ cls: "propsec-conditions-list" });
             for (let i = 0; i < field.conditions.length; i++) {
