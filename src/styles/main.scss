@@ -946,10 +946,28 @@
 // Schema Preview
 // ============================================
 
+.propsec-preview-query-row {
+    @include flex-row;
+    margin-bottom: 16px;
+}
+
+.propsec-preview-copy-btn {
+    padding: 4px;
+    color: var(--text-muted);
+
+    &:hover {
+        color: var(--text-normal);
+    }
+
+    svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
 .propsec-preview-query {
     color: var(--text-muted);
     font-size: 0.9em;
-    margin-bottom: 16px;
 }
 
 .propsec-preview-empty {

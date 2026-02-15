@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, setIcon, Notice } from "obsidian";
+import { App, PluginSettingTab, Setting, setIcon, Notice, Platform } from "obsidian";
 import { PropsecSettings, SchemaMapping, CustomType } from "./types";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
@@ -273,6 +273,58 @@ export class PropsecSettingTab extends PluginSettingTab {
                         await this.onSettingsChange();
                     })
             );
+
+        // Export section (desktop only - File System Access API not available on mobile)
+        if (Platform.isDesktop) {
+            containerEl.createEl("hr");
+
+            new Setting(containerEl).setName("Export").setHeading();
+
+            new Setting(containerEl)
+                .setName("Export all schemas")
+                .setDesc("Save all types and schemas to a JSON file")
+                .addButton((button) =>
+                    button
+                        .setButtonText("Export")
+                        .onClick(() => {
+                            void this.exportSchemas();
+                        })
+                );
+        }
+    }
+
+    private async exportSchemas(): Promise<void> {
+        const exportData = {
+            customTypes: this.settings.customTypes,
+            schemaMappings: this.settings.schemaMappings,
+        };
+        const json = JSON.stringify(exportData, null, 2);
+
+        try {
+            // File System Access API (showSaveFilePicker)
+            const showSaveFilePicker = (window as unknown as {
+                showSaveFilePicker: (options: {
+                    suggestedName: string;
+                    types: { description: string; accept: Record<string, string[]> }[];
+                }) => Promise<FileSystemFileHandle>;
+            }).showSaveFilePicker;
+
+            const handle = await showSaveFilePicker({
+                suggestedName: "propsec-schemas.json",
+                types: [{
+                    description: "JSON",
+                    accept: { "application/json": [".json"] },
+                }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(json);
+            await writable.close();
+            new Notice("Schemas exported successfully");
+        } catch (e) {
+            if ((e as Error).name !== "AbortError") {
+                new Notice("Failed to export schemas");
+            }
+        }
     }
 
     private renderSchemaMappingItem(
@@ -472,7 +524,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
         setIcon(previewBtn, "eye");
         previewBtn.addEventListener("click", () => {
-            new TypePreviewModal(this.app, customType).open();
+            new TypePreviewModal(this.app, customType, this.settings.schemaMappings, this.settings.customTypes).open();
         });
 
         // Edit button
