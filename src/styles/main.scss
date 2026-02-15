@@ -621,17 +621,6 @@
     justify-content: center;
     padding: 40px 20px;
     text-align: center;
-
-    &-title {
-        font-weight: 500;
-        color: var(--text-muted);
-        margin-bottom: 4px;
-    }
-
-    &-desc {
-        font-size: 0.85em;
-        color: var(--text-faint);
-    }
 }
 
 .propsec-view-summary {

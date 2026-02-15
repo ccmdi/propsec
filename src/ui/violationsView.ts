@@ -198,31 +198,11 @@ export class ViolationsView extends ItemView {
         // Handle empty state
         if (this.allFileEntries.length === 0) {
             this.summaryEl.empty();
-            
-            const emptyState = this.listContainer.createDiv({
-                cls: "propsec-view-empty",
-            });
-            const emptyTitle = this.filter === "all"
-                ? "No violations"
-                : this.filter === "errors"
-                    ? "No errors"
-                    : "No warnings";
-            const emptyDesc = this.filter === "all"
-                ? "All notes match their schemas"
-                : this.filter === "errors"
-                    ? "No errors found"
-                    : "No warnings found";
-            
-            if (!this.searchQuery) {
-                emptyState.createEl("div", {
-                    text: emptyTitle,
-                    cls: "propsec-view-empty-title",
+
+            if (this.searchQuery) {
+                const emptyState = this.listContainer.createDiv({
+                    cls: "propsec-view-empty",
                 });
-                emptyState.createEl("div", {
-                    text: emptyDesc,
-                    cls: "propsec-view-empty-desc",
-                });
-            } else {
                 emptyState.createEl("p", {
                     text: "No violations match your search.",
                     cls: "propsec-view-no-results",
