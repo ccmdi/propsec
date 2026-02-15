@@ -271,7 +271,7 @@
 .propsec-fields-container {
     margin: 12px 0;
     max-height: 50vh;
-    overflow-y: auto;
+    overflow-y: scroll;
 }
 
 .propsec-no-fields {
@@ -363,11 +363,7 @@
     letter-spacing: 0.3px;
 }
 
-.propsec-add-variant-btn {
-    @include small-btn;
-    margin-top: 4px;
-    font-size: 0.8em;
-}
+
 
 // Constraints Section (inline accordion)
 .propsec-constraints-section {

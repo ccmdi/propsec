@@ -136,18 +136,6 @@ export abstract class FieldEditorModal extends Modal {
                 for (const idx of group.indices) {
                     this.renderFieldCard(wrapper, fields[idx], idx, onNameInputCreated);
                 }
-                const addVariantBtn = wrapper.createEl("button", {
-                    cls: "propsec-add-variant-btn",
-                    text: "+ Add variant",
-                });
-                addVariantBtn.addEventListener("click", () => {
-                    this.getFields().push({
-                        name: group.name,
-                        type: "string",
-                        required: false,
-                    });
-                    this.renderFields(emptyMessage, onNameInputCreated);
-                });
             }
         }
     }
