@@ -189,7 +189,6 @@ export class SchemaEditorModal extends FieldEditorModal {
             cls: "propsec-fields-container",
         });
 
-        this.setupScrollHandler();
         this.doRenderFields();
 
         // Add field button and import button
@@ -230,7 +229,7 @@ export class SchemaEditorModal extends FieldEditorModal {
     }
 
     onClose(): void {
-        this.cleanupScrollHandler();
+        this.removeConstraintsSection();
         const { contentEl } = this;
         contentEl.empty();
     }

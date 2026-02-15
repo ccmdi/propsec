@@ -5,18 +5,12 @@ import { clearFieldConstraints } from "../utils/schema";
 import { ComparisonOperator, getComparisonOperatorOptions } from "../operators";
 
 /**
- * Base class for modals that edit a list of schema fields with expandable constraint overlays.
- * Provides all shared field editing UI including:
- * - Field card rendering (name, type, required/warn, expand/delete)
- * - Constraint rendering (string, number, array)
- * - Expand/collapse state management
- * - Smart overlay positioning
+ * Base class for modals that edit a list of schema fields with inline expandable constraints.
  */
 export abstract class FieldEditorModal extends Modal {
     protected fieldsContainer: HTMLElement | null = null;
     protected expandedFields: Set<number> = new Set();
     protected activeConstraintsSection: HTMLElement | null = null;
-    protected scrollHandler: (() => void) | null = null;
 
     constructor(app: App) {
         super(app);
@@ -81,7 +75,6 @@ export abstract class FieldEditorModal extends Modal {
         index: number,
         card: HTMLElement,
         expandBtn: HTMLElement,
-        showOverlayCallback: () => void
     ): void {
         // Close any other expanded field first
         if (this.expandedFields.size > 0) {
@@ -99,7 +92,10 @@ export abstract class FieldEditorModal extends Modal {
         this.expandedFields.add(index);
         card.addClass("expanded");
         setIcon(expandBtn, "chevron-down");
-        showOverlayCallback();
+
+        const section = card.createDiv({ cls: "propsec-constraints-section" });
+        this.renderConstraints(section, this.getFields()[index]);
+        this.activeConstraintsSection = section;
     }
 
     // ========== Field Rendering ==========
@@ -239,9 +235,7 @@ export abstract class FieldEditorModal extends Modal {
             if (this.expandedFields.has(index)) {
                 this.collapseField(index, card, expandBtn);
             } else {
-                this.expandField(index, card, expandBtn, () => {
-                    this.showConstraintsOverlay(card, field);
-                });
+                this.expandField(index, card, expandBtn);
             }
         });
 
@@ -271,42 +265,9 @@ export abstract class FieldEditorModal extends Modal {
         oldCard.replaceWith(newCard);
     }
 
-    // ========== Constraints Overlay ==========
+    // ========== Constraints Rendering ==========
 
-    protected showConstraintsOverlay(card: HTMLElement, field: SchemaField): void {
-        const rect = card.getBoundingClientRect();
 
-        const section = this.containerEl.createDiv({
-            cls: "propsec-constraints-section",
-        });
-
-        section.style.left = `${rect.left}px`;
-        section.style.width = `${rect.width}px`;
-
-        this.renderConstraints(section, field);
-        this.activeConstraintsSection = section;
-
-        // Position after render so we know the height, keep on screen
-        requestAnimationFrame(() => {
-            const sectionRect = section.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-            const spaceBelow = viewportHeight - rect.bottom - 8;
-            const spaceAbove = rect.top - 8;
-
-            if (sectionRect.height <= spaceBelow) {
-                section.style.top = `${rect.bottom + 4}px`;
-            } else if (sectionRect.height <= spaceAbove) {
-                section.style.top = `${rect.top - sectionRect.height - 4}px`;
-            } else {
-                // Not enough space either way, position at bottom of viewport
-                section.style.top = `${Math.max(8, viewportHeight - sectionRect.height - 8)}px`;
-                section.style.maxHeight = `${viewportHeight - 16}px`;
-                section.addClass("propsec-constraints-overflow");
-            }
-        });
-    }
-
-    /** Override this to add content before type-specific constraints (e.g., conditions) */
     protected renderConstraints(container: HTMLElement, field: SchemaField): void {
         switch (field.type) {
             case "string":
@@ -611,21 +572,4 @@ export abstract class FieldEditorModal extends Modal {
         });
     }
 
-    // ========== Cleanup ==========
-
-    protected setupScrollHandler(): void {
-        this.scrollHandler = () => {
-            if (this.activeConstraintsSection && this.expandedFields.size > 0) {
-                this.closeAllExpanded();
-            }
-        };
-        this.containerEl.addEventListener("scroll", this.scrollHandler, true);
-    }
-
-    protected cleanupScrollHandler(): void {
-        if (this.scrollHandler) {
-            this.containerEl.removeEventListener("scroll", this.scrollHandler, true);
-        }
-        this.removeConstraintsSection();
-    }
 }
