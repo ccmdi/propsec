@@ -44,10 +44,20 @@ export class Validator {
     }
 
     /**
+     * Check if a file is excluded by global exclusion rules
+     */
+    private isFileGloballyExcluded(file: TFile): boolean {
+        const exclusions = this.settings().globalExclusions;
+        if (!exclusions) return false;
+        return fileMatchesQuery(this.app, file, exclusions);
+    }
+
+    /**
      * Check if a file matches a schema mapping
      */
     private fileMatchesMapping(file: TFile, mapping: SchemaMapping): boolean {
         if (!mapping.enabled || !mapping.query) return false;
+        if (this.isFileGloballyExcluded(file)) return false;
         if (!fileMatchesQuery(this.app, file, mapping.query)) return false;
         if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) return false;
         return true;
@@ -140,6 +150,7 @@ export class Validator {
         const matchedFiles: TFile[] = [];
 
         for (const file of candidateFiles) {
+            if (this.isFileGloballyExcluded(file)) continue;
             if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
                 continue;
             }
@@ -183,7 +194,7 @@ export class Validator {
 
         let processed = 0;
         for (const file of candidateFiles) {
-            // Apply property filter if present
+            if (this.isFileGloballyExcluded(file)) continue;
             if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
                 continue;
             }
