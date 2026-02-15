@@ -609,6 +609,15 @@ export abstract class FieldEditorModal extends Modal {
                 constraints.contains = undefined;
             }
         });
+
+        // Unique items
+        const uniqueRow = grid.createDiv({ cls: "propsec-constraint-row" });
+        uniqueRow.createEl("label", { text: "Unique items:" });
+        const uniqueInput = uniqueRow.createEl("input", { type: "checkbox" });
+        uniqueInput.checked = constraints.uniqueItems ?? false;
+        uniqueInput.addEventListener("change", (e) => {
+            constraints.uniqueItems = (e.target as HTMLInputElement).checked || undefined;
+        });
     }
 
     // ========== Cleanup ==========
