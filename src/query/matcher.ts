@@ -377,6 +377,10 @@ function evaluateCondition(frontmatter: Record<string, unknown> | undefined, con
     // O(1) case-insensitive property lookup
     const actualKey = lookupKey(keyMap, property);
 
+    // Handle exists/not_exists before value resolution
+    if (operator === "exists") return !!frontmatter && actualKey !== undefined;
+    if (operator === "not_exists") return !frontmatter || actualKey === undefined;
+
     // If no frontmatter or property doesn't exist
     if (!frontmatter || !actualKey) {
         // For "not_equals" and "not_contains", missing property is a match
