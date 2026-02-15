@@ -347,6 +347,28 @@
     color: var(--text-error);
 }
 
+// Union groups
+.propsec-union-group {
+    border-left: 3px solid var(--interactive-accent);
+    padding-left: 8px;
+    margin-bottom: 8px;
+}
+
+.propsec-union-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.propsec-add-variant-btn {
+    @include small-btn;
+    margin-top: 4px;
+    font-size: 0.8em;
+}
+
 // Constraints Section (inline accordion)
 .propsec-constraints-section {
     padding: 0 12px 12px;

@@ -11,6 +11,7 @@ export abstract class FieldEditorModal extends Modal {
     protected fieldsContainer: HTMLElement | null = null;
     protected expandedFields: Set<number> = new Set();
     protected activeConstraintsSection: HTMLElement | null = null;
+    protected fieldCardMap: Map<number, HTMLElement> = new Map();
 
     constructor(app: App) {
         super(app);
@@ -45,7 +46,7 @@ export abstract class FieldEditorModal extends Modal {
     protected closeAllExpanded(): void {
         this.removeConstraintsSection();
         for (const index of this.expandedFields) {
-            const card = this.fieldsContainer?.children[index] as HTMLElement;
+            const card = this.fieldCardMap.get(index);
             if (card) {
                 card.removeClass("expanded");
                 const btn = card.querySelector(".propsec-icon-btn:not(.propsec-delete-btn)");
@@ -80,7 +81,7 @@ export abstract class FieldEditorModal extends Modal {
         if (this.expandedFields.size > 0) {
             this.removeConstraintsSection();
             const prevIndex = Array.from(this.expandedFields)[0];
-            const prevCard = this.fieldsContainer?.children[prevIndex] as HTMLElement;
+            const prevCard = this.fieldCardMap.get(prevIndex);
             if (prevCard) {
                 prevCard.removeClass("expanded");
                 const prevBtn = prevCard.querySelector(".propsec-icon-btn:not(.propsec-delete-btn)");
@@ -100,11 +101,15 @@ export abstract class FieldEditorModal extends Modal {
 
     // ========== Field Rendering ==========
 
-    protected renderFields(emptyMessage: string = "No fields defined."): void {
+    protected renderFields(
+        emptyMessage: string = "No fields defined.",
+        onNameInputCreated?: (input: HTMLInputElement) => void
+    ): void {
         if (!this.fieldsContainer) return;
 
         this.removeConstraintsSection();
         this.expandedFields.clear();
+        this.fieldCardMap.clear();
         this.fieldsContainer.empty();
 
         const fields = this.getFields();
@@ -116,9 +121,53 @@ export abstract class FieldEditorModal extends Modal {
             return;
         }
 
-        fields.forEach((field, index) => {
-            this.renderFieldCard(this.fieldsContainer!, field, index);
-        });
+        const groups = this.buildOrderedFieldGroups(fields);
+
+        for (const group of groups) {
+            if (group.indices.length === 1) {
+                const idx = group.indices[0];
+                this.renderFieldCard(this.fieldsContainer!, fields[idx], idx, onNameInputCreated);
+            } else {
+                const wrapper = this.fieldsContainer!.createDiv({ cls: "propsec-union-group" });
+                wrapper.createDiv({
+                    cls: "propsec-union-label",
+                    text: `Union: ${group.name}`,
+                });
+                for (const idx of group.indices) {
+                    this.renderFieldCard(wrapper, fields[idx], idx, onNameInputCreated);
+                }
+                const addVariantBtn = wrapper.createEl("button", {
+                    cls: "propsec-add-variant-btn",
+                    text: "+ Add variant",
+                });
+                addVariantBtn.addEventListener("click", () => {
+                    this.getFields().push({
+                        name: group.name,
+                        type: "string",
+                        required: false,
+                    });
+                    this.renderFields(emptyMessage, onNameInputCreated);
+                });
+            }
+        }
+    }
+
+    private buildOrderedFieldGroups(fields: SchemaField[]): { name: string; indices: number[] }[] {
+        const groups: { name: string; indices: number[] }[] = [];
+        const nameToGroup = new Map<string, { name: string; indices: number[] }>();
+
+        for (let i = 0; i < fields.length; i++) {
+            const name = fields[i].name;
+            if (name && nameToGroup.has(name)) {
+                nameToGroup.get(name)!.indices.push(i);
+            } else {
+                const group = { name, indices: [i] };
+                groups.push(group);
+                if (name) nameToGroup.set(name, group);
+            }
+        }
+
+        return groups;
     }
 
     protected renderFieldCard(
@@ -130,6 +179,7 @@ export abstract class FieldEditorModal extends Modal {
         const card = container.createDiv({
             cls: "propsec-field-card",
         });
+        this.fieldCardMap.set(index, card);
 
         const mainRow = card.createDiv({
             cls: "propsec-field-main-row",

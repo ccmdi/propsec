@@ -70,32 +70,17 @@ export class SchemaEditorModal extends FieldEditorModal {
         this.doRenderFields();
     }
 
-    // ========== Override for Property Suggestions ==========
+    // ========== Property Suggestions ==========
+
+    private get suggestCallback(): ((input: HTMLInputElement) => void) | undefined {
+        return this.enablePropertySuggestions ? (input) => this.attachPropertySuggest(input) : undefined;
+    }
 
     private doRenderFields(): void {
-        if (!this.fieldsContainer) return;
-
-        this.removeConstraintsSection();
-        this.expandedFields.clear();
-        this.fieldsContainer.empty();
-
-        const fields = this.getFields();
-        if (fields.length === 0) {
-            this.fieldsContainer.createEl("p", {
-                text: "No fields defined. Add fields or import from a template.",
-                cls: "propsec-no-fields",
-            });
-            return;
-        }
-
-        fields.forEach((field, index) => {
-            this.renderFieldCard(
-                this.fieldsContainer!,
-                field,
-                index,
-                this.enablePropertySuggestions ? (input) => this.attachPropertySuggest(input) : undefined
-            );
-        });
+        this.renderFields(
+            "No fields defined. Add fields or import from a template.",
+            this.suggestCallback
+        );
     }
 
     private attachPropertySuggest(input: HTMLInputElement): void {
