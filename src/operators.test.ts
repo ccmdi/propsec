@@ -32,7 +32,7 @@ describe("operators", () => {
 
     describe("PROPERTY_OPERATORS", () => {
         it("contains all comparison operators plus contains/not_contains", () => {
-            expect(PROPERTY_OPERATORS).toHaveLength(8);
+            expect(PROPERTY_OPERATORS).toHaveLength(10);
             expect(PROPERTY_OPERATORS).toContain("contains");
             expect(PROPERTY_OPERATORS).toContain("not_contains");
             COMPARISON_OPERATORS.forEach(op => {
@@ -94,7 +94,7 @@ describe("operators", () => {
 
         it("returns equals/not_equals for checkbox type", () => {
             const ops = getOperatorsForPropertyType("checkbox");
-            expect(ops).toEqual(["equals", "not_equals"]);
+            expect(ops).toEqual(["equals", "not_equals", "exists", "not_exists"]);
         });
 
         it("returns comparison operators for date types", () => {
@@ -139,7 +139,7 @@ describe("operators", () => {
     describe("getPropertyOperatorOptions", () => {
         it("returns options for all property operators", () => {
             const options = getPropertyOperatorOptions();
-            expect(options).toHaveLength(8);
+            expect(options).toHaveLength(10);
         });
     });
 
