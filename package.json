@@ -1,6 +1,6 @@
 {
 	"name": "propsec",
-	"version": "0.5.1",
+	"version": "0.6.0",
 	"description": "A type system for Obsidian frontmatter.",
 	"main": "main.js",
 	"scripts": {

@@ -1,7 +1,7 @@
 {
 	"id": "propsec",
 	"name": "Propsec",
-	"version": "0.5.1",
+	"version": "0.6.0",
 	"minAppVersion": "0.15.0",
 	"description": "Schema enforcement for frontmatter.",
 	"author": "ccmdi",
