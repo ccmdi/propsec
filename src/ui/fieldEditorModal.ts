@@ -131,7 +131,7 @@ export abstract class FieldEditorModal extends Modal {
                 const wrapper = this.fieldsContainer!.createDiv({ cls: "propsec-union-group" });
                 wrapper.createDiv({
                     cls: "propsec-union-label",
-                    text: `Union: ${group.name}`,
+                    text: group.name,
                 });
                 for (const idx of group.indices) {
                     this.renderFieldCard(wrapper, fields[idx], idx, onNameInputCreated);
