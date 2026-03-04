@@ -1,8 +1,5 @@
 /**
- * Benchmark script for propsec-sql validation/query layer
- * Run with: npx tsx src/benchmark.ts
- *
- * This is a standalone Node.js script, not bundled with the plugin.
+ * Benchmark script for propsec validation/query layer
  */
 
 /* eslint-disable import/no-nodejs-modules, no-console, obsidianmd/no-tfile-tfolder-cast, obsidianmd/hardcoded-config-path -- Standalone Node.js benchmark script (not bundled with plugin) */
