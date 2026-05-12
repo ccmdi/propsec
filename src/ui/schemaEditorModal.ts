@@ -232,7 +232,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         section.empty();
 
         const header = section.createDiv({ cls: "propsec-condition-header" });
-        header.createEl("span", { text: "Conditions", cls: "propsec-constraints-title" });
+        header.createSpan({ text: "Conditions", cls: "propsec-constraints-title" });
 
         const addBtn = header.createEl("button", {
             cls: "propsec-add-condition-btn",
@@ -385,8 +385,8 @@ export class SchemaEditorModal extends FieldEditorModal {
         const header = section.createDiv({
             cls: "propsec-filter-header",
         });
-        header.createEl("span", { text: "Filter (optional)" });
-        const toggleIcon = header.createEl("span", { cls: "propsec-filter-toggle" });
+        header.createSpan({ text: "Filter (optional)" });
+        const toggleIcon = header.createSpan({ cls: "propsec-filter-toggle" });
         setIcon(toggleIcon, "chevron-right");
 
         const content = section.createDiv({
@@ -450,7 +450,7 @@ export class SchemaEditorModal extends FieldEditorModal {
         // Property conditions
         const conditionsSection = content.createDiv({ cls: "propsec-conditions-section" });
         const conditionsHeader = conditionsSection.createDiv({ cls: "propsec-conditions-header" });
-        conditionsHeader.createEl("span", { text: "Property conditions" });
+        conditionsHeader.createSpan({ text: "Property conditions" });
         const addConditionBtn = conditionsHeader.createEl("button", { cls: "propsec-add-condition-btn" });
         setIcon(addConditionBtn, "plus");
 
@@ -657,12 +657,12 @@ class TemplateSelectorModal extends Modal {
 
         contentEl.createEl("h3", { text: "Select template" });
 
-        const list = contentEl.createEl("div", {
+        const list = contentEl.createDiv({
             cls: "propsec-template-list",
         });
 
         for (const file of this.files) {
-            const item = list.createEl("div", {
+            const item = list.createDiv({
                 cls: "propsec-template-item",
             });
             item.setText(file.basename);

@@ -126,9 +126,9 @@ export abstract class FieldEditorModal extends Modal {
         for (const group of groups) {
             if (group.indices.length === 1) {
                 const idx = group.indices[0];
-                this.renderFieldCard(this.fieldsContainer!, fields[idx], idx, onNameInputCreated);
+                this.renderFieldCard(this.fieldsContainer, fields[idx], idx, onNameInputCreated);
             } else {
-                const wrapper = this.fieldsContainer!.createDiv({ cls: "propsec-union-group" });
+                const wrapper = this.fieldsContainer.createDiv({ cls: "propsec-union-group" });
                 wrapper.createDiv({
                     cls: "propsec-union-label",
                     text: group.name,
@@ -264,7 +264,7 @@ export abstract class FieldEditorModal extends Modal {
 
         // Condition badge
         if (field.conditions && field.conditions.length > 0) {
-            const badge = mainRow.createEl("span", {
+            const badge = mainRow.createSpan({
                 cls: "propsec-condition-badge",
                 attr: { title: `${field.conditions.length} condition(s)` },
             });
@@ -344,7 +344,7 @@ export abstract class FieldEditorModal extends Modal {
         }
         const constraints = field.stringConstraints;
 
-        container.createEl("div", {
+        container.createDiv({
             text: "String constraints",
             cls: "propsec-constraints-title",
         });
@@ -402,7 +402,7 @@ export abstract class FieldEditorModal extends Modal {
         }
         const constraints = field.numberConstraints;
 
-        container.createEl("div", {
+        container.createDiv({
             text: "Number constraints",
             cls: "propsec-constraints-title",
         });
@@ -441,7 +441,7 @@ export abstract class FieldEditorModal extends Modal {
         }
         const constraints = field.dateConstraints;
 
-        container.createEl("div", {
+        container.createDiv({
             text: "Date constraints",
             cls: "propsec-constraints-title",
         });
@@ -475,7 +475,7 @@ export abstract class FieldEditorModal extends Modal {
     }
 
     protected renderCrossFieldConstraint(container: HTMLElement, field: SchemaField): void {
-        container.createEl("div", {
+        container.createDiv({
             text: "Compare to another field",
             cls: "propsec-constraints-title",
         });
@@ -542,7 +542,7 @@ export abstract class FieldEditorModal extends Modal {
         }
         const constraints = field.arrayConstraints;
 
-        container.createEl("div", {
+        container.createDiv({
             text: "Array configuration",
             cls: "propsec-constraints-title",
         });

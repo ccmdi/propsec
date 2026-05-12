@@ -301,7 +301,7 @@ export class ViolationsView extends ItemView {
                 cls: "propsec-view-schema-group",
             });
             
-            schemaGroup.createEl("span", {
+            schemaGroup.createSpan({
                 text: schemaName,
                 cls: "propsec-view-schema",
             });
@@ -382,12 +382,12 @@ export class ViolationsView extends ItemView {
         });
 
         const icon = getViolationIcon(violation.type);
-        item.createEl("span", {
+        item.createSpan({
             text: icon,
             cls: "propsec-view-icon",
         });
 
-        item.createEl("span", {
+        item.createSpan({
             text: violation.message,
             cls: "propsec-view-message",
         });

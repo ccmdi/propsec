@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Platform, setIcon } from "obsidian";
+import { App, Modal, Notice, setIcon } from "obsidian";
 import { SchemaField, SchemaMapping } from "../types";
 import { queryContext } from "../query/context";
 import { fileMatchesPropertyFilter } from "../query/matcher";
@@ -45,7 +45,7 @@ export class SchemaPreviewModal extends Modal {
 
         if (this.mapping.query) {
             const matchCount = this.countMatchingNotes();
-            queryRow.createEl("span", {
+            queryRow.createSpan({
                 text: `matches ${matchCount} note${matchCount === 1 ? "" : "s"}`,
                 cls: "propsec-preview-query",
             });
@@ -63,23 +63,23 @@ export class SchemaPreviewModal extends Modal {
         }
 
         // Field list
-        const fieldList = contentEl.createEl("div", {
+        const fieldList = contentEl.createDiv({
             cls: "propsec-preview-fields",
         });
 
         for (const field of resolvedFields) {
-            const fieldEl = fieldList.createEl("div", {
+            const fieldEl = fieldList.createDiv({
                 cls: "propsec-preview-field",
             });
 
             // Field name
-            const nameEl = fieldEl.createEl("span", {
+            const nameEl = fieldEl.createSpan({
                 cls: "propsec-preview-field-name",
             });
             nameEl.createEl("code", { text: field.name });
 
             // Colon separator
-            fieldEl.createEl("span", { text: ": " });
+            fieldEl.createSpan({ text: ": " });
 
             // Type(s)
             const typeText = field.typeDisplays.join(" | ");
@@ -90,12 +90,12 @@ export class SchemaPreviewModal extends Modal {
 
             // Required/warn badge
             if (field.required) {
-                fieldEl.createEl("span", {
+                fieldEl.createSpan({
                     text: "Required",
                     cls: "propsec-preview-badge propsec-preview-required",
                 });
             } else if (field.warn) {
-                fieldEl.createEl("span", {
+                fieldEl.createSpan({
                     text: "Warn",
                     cls: "propsec-preview-badge propsec-preview-warn",
                 });

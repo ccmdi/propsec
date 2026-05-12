@@ -176,7 +176,7 @@ export class ViolationsModal extends Modal {
                 cls: "propsec-schema-group",
             });
             
-            schemaGroup.createEl("span", {
+            schemaGroup.createSpan({
                 text: schemaName,
                 cls: "propsec-schema-badge",
             });
@@ -193,12 +193,12 @@ export class ViolationsModal extends Modal {
 
                 // Icon based on violation type
                 const icon = getViolationIcon(violation.type);
-                item.createEl("span", {
+                item.createSpan({
                     text: icon + " ",
                     cls: "propsec-violation-icon",
                 });
 
-                item.createEl("span", {
+                item.createSpan({
                     text: violation.message,
                     cls: "propsec-violation-message",
                 });

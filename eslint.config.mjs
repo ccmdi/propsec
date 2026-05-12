@@ -6,7 +6,7 @@ export default tseslint.config(
     ignores: [
       "node_modules/**",
       "main.js",
-      "src/benchmark.ts",
+      "benchmarks/**",
     ],
   },
 

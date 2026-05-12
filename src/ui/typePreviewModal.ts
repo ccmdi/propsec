@@ -49,12 +49,12 @@ export class TypePreviewModal extends Modal {
 
         const { schemaCount, noteCount } = this.countUsage();
         if (schemaCount > 0) {
-            actionRow.createEl("span", {
+            actionRow.createSpan({
                 text: `used in ${schemaCount} schema${schemaCount === 1 ? "" : "s"}, ${noteCount} note${noteCount === 1 ? "" : "s"}`,
                 cls: "propsec-preview-query",
             });
         } else {
-            actionRow.createEl("span", {
+            actionRow.createSpan({
                 text: "not used in any schema",
                 cls: "propsec-preview-query",
             });
@@ -72,23 +72,23 @@ export class TypePreviewModal extends Modal {
         }
 
         // Field list
-        const fieldList = contentEl.createEl("div", {
+        const fieldList = contentEl.createDiv({
             cls: "propsec-preview-fields",
         });
 
         for (const field of resolvedFields) {
-            const fieldEl = fieldList.createEl("div", {
+            const fieldEl = fieldList.createDiv({
                 cls: "propsec-preview-field",
             });
 
             // Field name
-            const nameEl = fieldEl.createEl("span", {
+            const nameEl = fieldEl.createSpan({
                 cls: "propsec-preview-field-name",
             });
             nameEl.createEl("code", { text: field.name });
 
             // Colon separator
-            fieldEl.createEl("span", { text: ": " });
+            fieldEl.createSpan({ text: ": " });
 
             // Type(s)
             const typeText = field.typeDisplays.join(" | ");
@@ -99,12 +99,12 @@ export class TypePreviewModal extends Modal {
 
             // Required/warn badge
             if (field.required) {
-                fieldEl.createEl("span", {
+                fieldEl.createSpan({
                     text: "Required",
                     cls: "propsec-preview-badge propsec-preview-required",
                 });
             } else if (field.warn) {
-                fieldEl.createEl("span", {
+                fieldEl.createSpan({
                     text: "Warn",
                     cls: "propsec-preview-badge propsec-preview-warn",
                 });
@@ -152,7 +152,7 @@ export class TypePreviewModal extends Modal {
             const files = queryContext.index.getFilesForQuery(schema.query);
             if (schema.propertyFilter) {
                 for (const f of files) {
-                    if (fileMatchesPropertyFilter(this.app, f, schema.propertyFilter!)) {
+                    if (fileMatchesPropertyFilter(this.app, f, schema.propertyFilter)) {
                         uniqueFiles.add(f.path);
                     }
                 }

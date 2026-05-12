@@ -52,7 +52,7 @@ export class AddSchemaModal extends Modal {
         templateLabel.setAttribute("for", "mode-template");
         templateLabel.createEl("strong", { text: "Start from a template" });
         templateLabel.createEl("br");
-        templateLabel.createEl("span", {
+        templateLabel.createSpan({
             text: "Import fields from an existing template file",
             cls: "propsec-option-desc",
         });
@@ -107,7 +107,7 @@ export class AddSchemaModal extends Modal {
         scratchLabel.setAttribute("for", "mode-scratch");
         scratchLabel.createEl("strong", { text: "Start from scratch" });
         scratchLabel.createEl("br");
-        scratchLabel.createEl("span", {
+        scratchLabel.createSpan({
             text: "Create an empty schema and add fields manually",
             cls: "propsec-option-desc",
         });

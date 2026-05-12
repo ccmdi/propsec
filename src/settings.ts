@@ -41,7 +41,6 @@ export class PropsecSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName("Templates folder")
             .setDesc(
-                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Templates and Templater are proper nouns (plugin names)
                 "Folder containing your template files. Auto-detected from core Templates or community Templater plugin if enabled."
             )
             .addText((text) =>
@@ -369,7 +368,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
 
         // Schema name
-        const nameEl = headerRow.createEl("span", {
+        const nameEl = headerRow.createSpan({
             text: mapping.name,
             cls: "propsec-schema-name",
         });
@@ -467,13 +466,13 @@ export class PropsecSettingTab extends PluginSettingTab {
                 queryText += ` [${filterDesc}]`;
             }
         }
-        infoRow.createEl("span", {
+        infoRow.createSpan({
             text: queryText,
             cls: "propsec-schema-query",
         });
 
         const requiredCount = mapping.fields.filter((f) => f.required).length;
-        infoRow.createEl("span", {
+        infoRow.createSpan({
             text: `${mapping.fields.length} fields (${requiredCount} required)`,
             cls: "propsec-schema-field-count",
         });
@@ -508,7 +507,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         setIcon(dragHandle, "grip-vertical");
 
         // Type name
-        headerRow.createEl("span", {
+        headerRow.createSpan({
             text: customType.name,
             cls: "propsec-custom-type-name",
         });
@@ -611,7 +610,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         const infoRow = itemEl.createDiv({
             cls: "propsec-custom-type-info",
         });
-        infoRow.createEl("span", {
+        infoRow.createSpan({
             text: `${customType.fields.length} fields`,
             cls: "propsec-custom-type-field-count",
         });
