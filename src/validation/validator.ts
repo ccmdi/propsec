@@ -11,7 +11,7 @@ import { buildLowerKeyMap, lookupKey } from "../utils/object";
 const BATCH_SIZE = 50;
 
 function yieldToMain(): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, 0));
+    return new Promise(resolve => window.setTimeout(resolve, 0));
 }
 
 /**

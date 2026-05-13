@@ -322,7 +322,7 @@ export default class PropsecPlugin extends Plugin {
                 this.app.metadataCache.on("changed", onCacheUpdate);
 
                 // Fallback timeout in case cache event doesn't fire (e.g., no frontmatter)
-                setTimeout(revalidate, 500);
+                window.setTimeout(revalidate, 500);
             })
         );
 

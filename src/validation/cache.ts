@@ -163,7 +163,7 @@ export class ValidationCache {
     private cachePath: string;
     private data: ValidationCacheData;
     private dirty: boolean = false;
-    private saveTimeout: NodeJS.Timeout | null = null;
+    private saveTimeout: number | null = null;
 
     constructor(app: App, pluginId: string, settings: () => PropsecSettings) {
         this.app = app;
@@ -214,9 +214,9 @@ export class ValidationCache {
     private scheduleSave(): void {
         this.dirty = true;
         if (this.saveTimeout) {
-            clearTimeout(this.saveTimeout);
+            window.clearTimeout(this.saveTimeout);
         }
-        this.saveTimeout = setTimeout(() => {
+        this.saveTimeout = window.setTimeout(() => {
             void this.saveToDisk();
         }, 2000);
     }
@@ -244,7 +244,7 @@ export class ValidationCache {
      */
     async flush(): Promise<void> {
         if (this.saveTimeout) {
-            clearTimeout(this.saveTimeout);
+            window.clearTimeout(this.saveTimeout);
             this.saveTimeout = null;
         }
         await this.saveToDisk();

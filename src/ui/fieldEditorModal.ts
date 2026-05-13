@@ -309,7 +309,7 @@ export abstract class FieldEditorModal extends Modal {
         index: number,
         onNameInputCreated?: (input: HTMLInputElement) => void
     ): void {
-        const temp = document.createElement("div");
+        const temp = activeDocument.createElement("div");
         const newCard = this.renderFieldCard(temp, field, index, onNameInputCreated);
         oldCard.replaceWith(newCard);
     }

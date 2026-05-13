@@ -24,7 +24,7 @@ export class QueryIndex {
     private fileToTags: Map<string, Set<string>> = new Map(); // Reverse index for O(1) file->tags lookup
     private indexPath: string;
     private dirty: boolean = false;
-    private saveTimeout: NodeJS.Timeout | null = null;
+    private saveTimeout: number | null = null;
 
     constructor(app: App, pluginId: string) {
         this.app = app;
@@ -93,9 +93,9 @@ export class QueryIndex {
     private scheduleSave(): void {
         this.dirty = true;
         if (this.saveTimeout) {
-            clearTimeout(this.saveTimeout);
+            window.clearTimeout(this.saveTimeout);
         }
-        this.saveTimeout = setTimeout(() => {
+        this.saveTimeout = window.setTimeout(() => {
             void this.saveToDisk();
         }, 1000);
     }

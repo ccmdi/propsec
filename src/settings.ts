@@ -411,7 +411,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         await this.onSettingsChange();
                         this.onSchemaChange(updatedMapping.id);
                         // Replace item instead of re-rendering everything TODO function
-                        const temp = document.createElement("div");
+                        const temp = activeDocument.createElement("div");
                         this.renderSchemaMappingItem(temp, updatedMapping, idx);
                         itemEl.replaceWith(temp.firstChild!);
                     }
@@ -544,7 +544,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         this.settings.customTypes[idx] = updatedType;
                         await this.onSettingsChange();
                         // Replace item instead of re-rendering everything TODO function
-                        const temp = document.createElement("div");
+                        const temp = activeDocument.createElement("div");
                         this.renderCustomTypeItem(temp, updatedType, idx);
                         itemEl.replaceWith(temp.firstChild!);
 
