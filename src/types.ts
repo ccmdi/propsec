@@ -152,6 +152,17 @@ export interface PropsecSettings {
 // Obsidian's reserved frontmatter keys
 export const OBSIDIAN_NATIVE_PROPERTIES = ["aliases", "tags", "cssclasses", "cssclass"];
 
+export const MALFORMED_SCHEMA_ID = "__malformed__";
+
+export const MALFORMED_SCHEMA: SchemaMapping = {
+    id: MALFORMED_SCHEMA_ID,
+    name: "Malformed frontmatter",
+    sourceTemplatePath: null,
+    query: "",
+    enabled: true,
+    fields: [],
+};
+
 export const DEFAULT_SETTINGS: PropsecSettings = {
     templatesFolder: "",
     schemaMappings: [],
@@ -185,7 +196,8 @@ export type ViolationType =
     | "array_missing_value"
     | "object_missing_key"
     | "duplicate_value"
-    | "cross_field_violation";
+    | "cross_field_violation"
+    | "malformed_frontmatter";
 
 export interface Violation {
     filePath: string;

@@ -1,5 +1,6 @@
 import {
     App,
+    Notice,
     Plugin,
     PluginSettingTab,
     TFile,
@@ -97,6 +98,20 @@ export default class PropsecPlugin extends Plugin {
             name: "Show violations sidebar",
             callback: () => {
                 void this.activateViolationsView();
+            },
+        });
+
+        this.addCommand({
+            id: "scan-malformed-frontmatter",
+            name: "Scan for malformed frontmatter",
+            callback: () => {
+                void this.validator.scanMalformedFrontmatter().then((count) => {
+                    new Notice(
+                        count === 0
+                            ? "No malformed frontmatter found"
+                            : `Found ${count} file${count === 1 ? "" : "s"} with malformed frontmatter`
+                    );
+                });
             },
         });
 
