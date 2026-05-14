@@ -9,6 +9,8 @@ export function getViolationIcon(type: string): string {
             return "~";
         case "unknown_field":
             return "?";
+        case "malformed_frontmatter":
+            return "#";
         default:
             return "-";
     }

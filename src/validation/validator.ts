@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { PropsecSettings, SchemaMapping, SchemaField, Violation, OBSIDIAN_NATIVE_PROPERTIES } from "../types";
+import { PropsecSettings, SchemaMapping, SchemaField, Violation, OBSIDIAN_NATIVE_PROPERTIES, MALFORMED_SCHEMA_ID, MALFORMED_SCHEMA } from "../types";
 import { ViolationStore } from "./store";
 import { validateFrontmatter } from "./validate";
 import { validationContext } from "./context";
@@ -133,6 +133,9 @@ export class Validator {
             matchingSchemas.map(s => s.id),
             this.store.getFileViolations(file.path)
         );
+
+        // Re-check malformed frontmatter (added after hook to stay out of cache)
+        this.recheckMalformedFrontmatter(file);
     }
 
     /**
@@ -332,5 +335,54 @@ export class Validator {
         if (mapping) {
             await this.validateMapping(mapping);
         }
+    }
+
+    /**
+     * Scan all markdown files for malformed (unparseable) YAML frontmatter.
+     * Results are ephemeral -- added to the store but NOT cached to disk.
+     */
+    async scanMalformedFrontmatter(): Promise<number> {
+        this.store.removeSchemaViolations(MALFORMED_SCHEMA_ID);
+
+        const files = this.app.vault.getMarkdownFiles();
+        let count = 0;
+        let processed = 0;
+
+        for (const file of files) {
+            if (this.isMalformedFrontmatter(file)) {
+                this.addMalformedViolation(file);
+                count++;
+            }
+            processed++;
+            if (processed % BATCH_SIZE === 0) {
+                await yieldToMain();
+            }
+        }
+
+        return count;
+    }
+
+    private isMalformedFrontmatter(file: TFile): boolean {
+        const cache = this.app.metadataCache.getFileCache(file);
+        if (!cache) return false;
+        return (cache.sections?.some(s => s.type === "yaml") ?? false) && !cache.frontmatter;
+    }
+
+    private recheckMalformedFrontmatter(file: TFile): void {
+        this.store.removeFileSchemaViolations(file.path, MALFORMED_SCHEMA_ID);
+        if (this.isMalformedFrontmatter(file)) {
+            this.addMalformedViolation(file);
+        }
+    }
+
+    private addMalformedViolation(file: TFile): void {
+        const violation: Violation = {
+            filePath: file.path,
+            schemaMapping: MALFORMED_SCHEMA,
+            field: "frontmatter",
+            type: "malformed_frontmatter",
+            message: "Malformed YAML frontmatter (unparseable)",
+        };
+        this.store.addFileViolations(file.path, [violation]);
     }
 }
