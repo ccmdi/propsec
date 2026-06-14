@@ -1,5 +1,5 @@
 import { App, Modal, TFile, TFolder } from "obsidian";
-import { SchemaMapping, SchemaField, CustomType } from "../types";
+import { SchemaMapping, SchemaField, CustomType } from "@propsec/core";
 import { extractSchemaFromTemplate } from "../schema/extractor";
 import { SchemaEditorModal } from "./schemaEditorModal";
 import { generateUUID } from "../utils/id";

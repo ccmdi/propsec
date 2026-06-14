@@ -1,5 +1,5 @@
 import { App, Notice, Setting } from "obsidian";
-import { SchemaField, CustomType, isPrimitiveType } from "../types";
+import { SchemaField, CustomType, isPrimitiveType } from "@propsec/core";
 import { getAllFieldTypes } from "../schema/extractor";
 import { generatePrefixedId } from "../utils/id";
 import { FieldEditorModal } from "./fieldEditorModal";

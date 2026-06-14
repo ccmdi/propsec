@@ -1,12 +1,11 @@
 import { App, PluginSettingTab, Setting, setIcon, Notice, Platform } from "obsidian";
-import { PropsecSettings, SchemaMapping, CustomType } from "./types";
+import { PropsecSettings, SchemaMapping, CustomType, describePropertyFilter } from "@propsec/core";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
 import { SchemaPreviewModal } from "./ui/schemaPreviewModal";
 import { TypePreviewModal } from "./ui/typePreviewModal";
 import { ConfirmModal } from "./ui/confirmModal";
-import { describePropertyFilter } from "./query/matcher";
 import { makeDraggable } from "./ui/draggable";
 import { getReferencedCustomTypes } from "./validation/cache";
 import PropsecPlugin from "./main";

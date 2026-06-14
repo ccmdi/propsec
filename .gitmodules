@@ -1,0 +1,3 @@
+[submodule "lib/mdlsp"]
+	path = lib/mdlsp
+	url = git@github.com:ccmdi/mdlsp.git

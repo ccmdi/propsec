@@ -1,9 +1,8 @@
 import { App, Modal, Notice, setIcon } from "obsidian";
-import { SchemaField, CustomType, SchemaMapping } from "../types";
-import { formatTypeDisplay, groupFieldsByName } from "../utils/schema";
+import { SchemaField, CustomType, SchemaMapping, formatTypeDisplay, groupFieldsByName, fileMatchesPropertyFilter } from "@propsec/core";
 import { getReferencedCustomTypes } from "../validation/cache";
 import { queryContext } from "../query/context";
-import { fileMatchesPropertyFilter } from "../query/matcher";
+import { toFileMeta } from "../adapter";
 
 interface ResolvedField {
     name: string;
@@ -152,7 +151,7 @@ export class TypePreviewModal extends Modal {
             const files = queryContext.index.getFilesForQuery(schema.query);
             if (schema.propertyFilter) {
                 for (const f of files) {
-                    if (fileMatchesPropertyFilter(this.app, f, schema.propertyFilter)) {
+                    if (fileMatchesPropertyFilter(toFileMeta(this.app, f), schema.propertyFilter)) {
                         uniqueFiles.add(f.path);
                     }
                 }

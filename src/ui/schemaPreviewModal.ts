@@ -1,8 +1,7 @@
 import { App, Modal, Notice, setIcon } from "obsidian";
-import { SchemaField, SchemaMapping } from "../types";
+import { SchemaField, SchemaMapping, fileMatchesPropertyFilter, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
 import { queryContext } from "../query/context";
-import { fileMatchesPropertyFilter } from "../query/matcher";
-import { formatTypeDisplay, groupFieldsByName } from "../utils/schema";
+import { toFileMeta } from "../adapter";
 
 interface ResolvedField {
     name: string;
@@ -115,8 +114,8 @@ export class SchemaPreviewModal extends Modal {
         const files = queryContext.index.getFilesForQuery(this.mapping.query);
         
         if (this.mapping.propertyFilter) {
-            return files.filter(f => 
-                fileMatchesPropertyFilter(this.app, f, this.mapping.propertyFilter!)
+            return files.filter(f =>
+                fileMatchesPropertyFilter(toFileMeta(this.app, f), this.mapping.propertyFilter!)
             ).length;
         }
         

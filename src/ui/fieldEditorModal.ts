@@ -1,8 +1,6 @@
 import { App, Modal, setIcon } from "obsidian";
-import { SchemaField } from "../types";
+import { SchemaField, clearFieldConstraints, ComparisonOperator, getComparisonOperatorOptions } from "@propsec/core";
 import { getTypeDisplayName } from "../schema/extractor";
-import { clearFieldConstraints } from "../utils/schema";
-import { ComparisonOperator, getComparisonOperatorOptions } from "../operators";
 
 /**
  * Base class for modals that edit a list of schema fields with inline expandable constraints.

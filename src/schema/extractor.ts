@@ -1,7 +1,6 @@
 import { App, TFile } from "obsidian";
-import { FieldType, SchemaField } from "../types";
+import { FieldType, SchemaField, EXCLUDE_FIELDS, ISO_DATE_REGEX } from "@propsec/core";
 import "../obsidian-ex.d.ts";
-import { EXCLUDE_FIELDS, ISO_DATE_REGEX } from "../utils/constant";
 
 /**
  * Map Obsidian's metadata type names to our FieldType

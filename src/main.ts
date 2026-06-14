@@ -10,7 +10,7 @@ import {
     PropsecSettings,
     DEFAULT_SETTINGS,
     Violation,
-} from "./types";
+} from "@propsec/core";
 import { ViolationStore } from "./validation/store";
 import { Validator } from "./validation/validator";
 import { ValidationCache } from "./validation/cache";

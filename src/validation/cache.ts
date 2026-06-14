@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { CustomType, PropsecSettings, SchemaField, SchemaMapping, Violation, ViolationType } from "../types";
+import { CustomType, PropsecSettings, SchemaField, SchemaMapping, Violation, ViolationType } from "@propsec/core";
 import { debug } from "../debug";
 
 /**

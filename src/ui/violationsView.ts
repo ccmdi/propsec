@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, TFile, setIcon, ViewStateResult } from "obsidian";
-import { Violation, ViolationFilter, isWarningViolation } from "../types";
+import { Violation, ViolationFilter, isWarningViolation } from "@propsec/core";
 import { ViolationStore } from "../validation/store";
 import { debug } from "../debug";
 import { getViolationIcon } from "../utils/violation";

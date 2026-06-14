@@ -1,5 +1,5 @@
 import { App, TFile, TFolder, TAbstractFile, Notice } from "obsidian";
-import { parseQuerySegments, QueryCondition, QuerySegment } from "./matcher";
+import { parseQuerySegments, QueryCondition, QuerySegment } from "@propsec/core";
 import { debug } from "../debug";
 
 /**

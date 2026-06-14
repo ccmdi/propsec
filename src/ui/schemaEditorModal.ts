@@ -4,10 +4,13 @@ import {
     SchemaMapping,
     CustomType,
     PropertyCondition,
-} from "../types";
+    getOperatorDisplayName,
+    getOperatorsForPropertyType,
+    PROPERTY_OPERATORS,
+    PropertyOperator,
+    validateQuery,
+} from "@propsec/core";
 import { extractSchemaFromTemplate, getAllFieldTypes } from "../schema/extractor";
-import { getOperatorDisplayName, getOperatorsForPropertyType, PROPERTY_OPERATORS, PropertyOperator } from "../operators";
-import { validateQuery } from "../query/matcher";
 import { FieldEditorModal } from "./fieldEditorModal";
 
 export interface SchemaEditorResult {

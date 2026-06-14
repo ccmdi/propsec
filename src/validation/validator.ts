@@ -1,12 +1,27 @@
 import { App, TFile } from "obsidian";
-import { PropsecSettings, SchemaMapping, SchemaField, Violation, OBSIDIAN_NATIVE_PROPERTIES, MALFORMED_SCHEMA_ID, MALFORMED_SCHEMA } from "../types";
+import {
+    PropsecSettings,
+    SchemaMapping,
+    SchemaField,
+    Violation,
+    UniqueEntry,
+    OBSIDIAN_NATIVE_PROPERTIES,
+    MALFORMED_SCHEMA_ID,
+    MALFORMED_SCHEMA,
+    validateFrontmatter,
+    validationContext,
+    findDuplicateViolations,
+    fileMatchesPropertyFilter,
+    getMatchingSchemas as coreGetMatchingSchemas,
+    isFileGloballyExcluded as coreIsFileGloballyExcluded,
+    fileMatchesMapping as coreFileMatchesMapping,
+    buildLowerKeyMap,
+    lookupKey,
+} from "@propsec/core";
 import { ViolationStore } from "./store";
-import { validateFrontmatter } from "./validate";
-import { validationContext } from "./context";
-import { fileMatchesQuery, fileMatchesPropertyFilter } from "../query/matcher";
 import { queryContext } from "../query/context";
+import { toFileMeta } from "../adapter";
 import { debug } from "../debug";
-import { buildLowerKeyMap, lookupKey } from "../utils/object";
 
 const BATCH_SIZE = 50;
 
@@ -47,28 +62,21 @@ export class Validator {
      * Check if a file is excluded by global exclusion rules
      */
     private isFileGloballyExcluded(file: TFile): boolean {
-        const exclusions = this.settings().globalExclusions;
-        if (!exclusions) return false;
-        return fileMatchesQuery(this.app, file, exclusions);
+        return coreIsFileGloballyExcluded(toFileMeta(this.app, file), this.settings());
     }
 
     /**
      * Check if a file matches a schema mapping
      */
     private fileMatchesMapping(file: TFile, mapping: SchemaMapping): boolean {
-        if (!mapping.enabled || !mapping.query) return false;
-        if (this.isFileGloballyExcluded(file)) return false;
-        if (!fileMatchesQuery(this.app, file, mapping.query)) return false;
-        if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) return false;
-        return true;
+        return coreFileMatchesMapping(toFileMeta(this.app, file), mapping, this.settings());
     }
 
     /**
      * Get all schema mappings that match a file (accumulation model)
      */
     getMatchingSchemas(file: TFile): SchemaMapping[] {
-        const settings = this.settings();
-        return settings.schemaMappings.filter(m => this.fileMatchesMapping(file, m));
+        return coreGetMatchingSchemas(toFileMeta(this.app, file), this.settings());
     }
 
     /**
@@ -139,8 +147,9 @@ export class Validator {
     }
 
     /**
-     * Re-validate unique constraints for a schema
-     * Clears existing duplicate_value violations and re-checks using incremental approach
+     * Re-validate unique constraints for a schema.
+     * Clears existing duplicate_value violations for matched files, then recomputes
+     * duplicates via core's findDuplicateViolations.
      */
     private revalidateSchemaUniqueConstraints(mapping: SchemaMapping): void {
         if (!mapping.enabled || !mapping.query) return;
@@ -154,7 +163,7 @@ export class Validator {
 
         for (const file of candidateFiles) {
             if (this.isFileGloballyExcluded(file)) continue;
-            if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
+            if (mapping.propertyFilter && !fileMatchesPropertyFilter(toFileMeta(this.app, file), mapping.propertyFilter)) {
                 continue;
             }
             // Remove existing duplicate_value violations for this file/schema
@@ -162,11 +171,7 @@ export class Validator {
             matchedFiles.push(file);
         }
 
-        // Re-run unique validation using incremental approach
-        const seenValues = new Map<string, TFile[]>();
-        for (const file of matchedFiles) {
-            this.checkUniqueConstraintsIncremental(file, mapping, uniqueFields, seenValues);
-        }
+        this.applyUniqueViolations(mapping, uniqueFields, matchedFiles);
 
         // Fire hooks after all files processed - violations are now complete
         for (const file of matchedFiles) {
@@ -188,9 +193,7 @@ export class Validator {
         // Get files that match the query using the index (fast!)
         const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
 
-        // Track unique field values incrementally: "fieldName:normalizedValue" -> files with that value
         const uniqueFields = mapping.fields.filter(f => f.unique === true);
-        const seenValues = new Map<string, TFile[]>();
 
         // Collect all processed files - we fire hooks at the end so duplicate violations are complete
         const processedFiles: TFile[] = [];
@@ -198,12 +201,12 @@ export class Validator {
         let processed = 0;
         for (const file of candidateFiles) {
             if (this.isFileGloballyExcluded(file)) continue;
-            if (mapping.propertyFilter && !fileMatchesPropertyFilter(this.app, file, mapping.propertyFilter)) {
+            if (mapping.propertyFilter && !fileMatchesPropertyFilter(toFileMeta(this.app, file), mapping.propertyFilter)) {
                 continue;
             }
 
+            // validateFile clears this schema's violations (incl. duplicate_value) for the file.
             this.validateFile(file, mapping);
-            this.checkUniqueConstraintsIncremental(file, mapping, uniqueFields, seenValues);
             processedFiles.push(file);
 
             processed++;
@@ -211,6 +214,9 @@ export class Validator {
                 await yieldToMain();
             }
         }
+
+        // Cross-file unique: compute over all processed files via core, then write to store.
+        this.applyUniqueViolations(mapping, uniqueFields, processedFiles);
 
         // Fire hooks after all files processed - violations (including duplicates) are now complete
         for (const file of processedFiles) {
@@ -225,79 +231,37 @@ export class Validator {
     }
 
     /**
-     * Check unique constraints incrementally as files are processed.
-     * Adds duplicate violations to all files with the same value.
+     * Cross-file unique: for each unique field, gather values from the matched files
+     * (read from Obsidian's metadata cache), delegate duplicate detection to core's
+     * findDuplicateViolations, and write the resulting violations to the store.
+     * Callers are responsible for clearing prior duplicate_value violations first.
      */
-    private checkUniqueConstraintsIncremental(
-        currentFile: TFile,
+    private applyUniqueViolations(
         mapping: SchemaMapping,
         uniqueFields: SchemaField[],
-        seenValues: Map<string, TFile[]>
+        files: TFile[]
     ): void {
         if (uniqueFields.length === 0) return;
 
-        const frontmatter = this.app.metadataCache.getFileCache(currentFile)?.frontmatter;
-        if (!frontmatter) return;
-
-        const keyMap = buildLowerKeyMap(frontmatter);
-
         for (const field of uniqueFields) {
-            const actualKey = lookupKey(keyMap, field.name);
-            if (!actualKey) continue;
-
-            const value: unknown = frontmatter[actualKey];
-            if (value === null || value === undefined) continue;
-
-            const valueStr = this.normalizeValueForUnique(value);
-            const mapKey = `${field.name}:${valueStr}`;
-
-            const existingFiles = seenValues.get(mapKey);
-
-            if (!existingFiles) {
-                // First occurrence - just track it, no violation
-                seenValues.set(mapKey, [currentFile]);
-                continue;
+            const entries: UniqueEntry[] = [];
+            for (const file of files) {
+                const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+                if (!frontmatter) continue;
+                const actualKey = lookupKey(buildLowerKeyMap(frontmatter), field.name);
+                if (!actualKey) continue;
+                entries.push({
+                    filePath: file.path,
+                    basename: file.basename,
+                    value: frontmatter[actualKey],
+                });
             }
 
-            // Duplicate found! Add current file to tracking
-            existingFiles.push(currentFile);
-
-            // Update violations for ALL files with this duplicate value
-            for (const dupFile of existingFiles) {
-                // Remove old violation for this specific field (in case list grew)
-                this.store.removeFileSchemaFieldViolationsByType(
-                    dupFile.path, mapping.id, field.name, "duplicate_value"
-                );
-
-                // Build list of other files (using path for comparison, basename for display)
-                const othersExceptThis = existingFiles
-                    .filter(f => f.path !== dupFile.path)
-                    .map(f => f.basename);
-
-                const violation: Violation = {
-                    filePath: dupFile.path,
-                    schemaMapping: mapping,
-                    field: field.name,
-                    type: "duplicate_value",
-                    message: `Duplicate value: "${valueStr}" also in: ${othersExceptThis.join(", ")}`,
-                    actual: valueStr,
-                };
-                this.store.addFileViolations(dupFile.path, [violation]);
+            const violations = findDuplicateViolations(mapping, field.name, entries);
+            for (const violation of violations) {
+                this.store.addFileViolations(violation.filePath, [violation]);
             }
         }
-    }
-
-
-    /**
-     * Normalize a value for unique comparison
-     */
-    private normalizeValueForUnique(value: unknown): string {
-        if (typeof value === "string") return value;
-        if (typeof value === "number" || typeof value === "boolean") return String(value);
-        if (value instanceof Date) return value.toISOString();
-        if (Array.isArray(value)) return JSON.stringify(value.sort());
-        if (typeof value === "object" && value !== null) return JSON.stringify(value) ?? "";
-        return String(value);
     }
 
     /**

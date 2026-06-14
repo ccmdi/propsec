@@ -1,4 +1,4 @@
-import { Violation, ValidationState, isWarningViolation, ViolationFilter, ViolationType } from "../types";
+import { Violation, ValidationState, isWarningViolation, ViolationFilter, ViolationType } from "@propsec/core";
 
 /**
  * In-memory store for validation violations

@@ -1,5 +1,5 @@
 import { App, Modal, TFile, setIcon } from "obsidian";
-import { Violation, ViolationFilter, isWarningViolation } from "../types";
+import { Violation, ViolationFilter, isWarningViolation } from "@propsec/core";
 import { ViolationStore } from "../validation/store";
 import { getViolationIcon } from "../utils/violation";
 
