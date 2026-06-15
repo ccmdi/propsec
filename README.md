@@ -75,7 +75,3 @@ Each field type supports optional constraints:
 | number | `min`, `max` |
 | array | `minItems`, `maxItems`, `contains` (required values) |
 | date  | `min`, `max` |
-
-## Installation
-
-Copy to `.obsidian/plugins/` or install via BRAT.
