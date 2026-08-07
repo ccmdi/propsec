@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Fetch core submodule
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.MDLSP_TOKEN }}@github.com/ccmdi/mdlsp".insteadOf "https://github.com/ccmdi/mdlsp"
+          git submodule update --init
       - name: Use Node.js
         uses: actions/setup-node@v3
         with:
@@ -35,4 +39,5 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           gh release create "$tag" \
             --title="$tag" \
+            --draft \
             main.js manifest.json styles.css
