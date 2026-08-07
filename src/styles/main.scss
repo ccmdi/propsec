@@ -419,6 +419,11 @@
             width: 80px;
             flex: 0 0 80px;
         }
+
+        &[type="checkbox"] {
+            width: auto;
+            flex: 0 0 auto;
+        }
     }
 
     select {
