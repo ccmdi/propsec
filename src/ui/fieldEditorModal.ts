@@ -1,5 +1,5 @@
 import { App, Modal, setIcon } from "obsidian";
-import { SchemaField, clearFieldConstraints, ComparisonOperator, getComparisonOperatorOptions } from "@propsec/core";
+import { SchemaField, clearFieldConstraints, ComparisonOperator, getComparisonOperatorOptions, CONSTRAINT_GROUPS, ConstraintFieldMeta } from "@propsec/core";
 import { getTypeDisplayName } from "../schema/extractor";
 
 /**
@@ -315,161 +315,117 @@ export abstract class FieldEditorModal extends Modal {
     // ========== Constraints Rendering ==========
 
     protected hasExpandableContent(field: SchemaField): boolean {
-        return ["string", "number", "date", "array"].includes(field.type);
+        return CONSTRAINT_GROUPS.some((g) => g.appliesTo === field.type);
     }
 
 
     protected renderConstraints(container: HTMLElement, field: SchemaField): void {
-        switch (field.type) {
-            case "string":
-                this.renderStringConstraints(container, field);
-                break;
+        const group = CONSTRAINT_GROUPS.find((g) => g.appliesTo === field.type);
+        if (!group) return;
+
+        const record = field as unknown as Record<string, Record<string, unknown>>;
+        if (!record[group.key]) {
+            record[group.key] = {};
+        }
+        const constraints = record[group.key];
+
+        container.createDiv({
+            text: group.title,
+            cls: "propsec-constraints-title",
+        });
+
+        const grid = container.createDiv({
+            cls: "propsec-constraints-grid",
+        });
+
+        if (field.type === "array") {
+            this.renderElementTypeRow(grid, field);
+        }
+
+        for (const meta of group.fields) {
+            this.renderConstraintRow(grid, constraints, meta);
+        }
+
+        if (field.type !== "array") {
+            this.renderCrossFieldConstraint(container, field);
+        }
+    }
+
+    private renderConstraintRow(grid: HTMLElement, constraints: Record<string, unknown>, meta: ConstraintFieldMeta): void {
+        const row = grid.createDiv({ cls: "propsec-constraint-row" });
+        row.createEl("label", { text: meta.label });
+
+        if (meta.input === "boolean") {
+            const input = row.createEl("input", { type: "checkbox" });
+            input.checked = (constraints[meta.key] as boolean | undefined) ?? false;
+            input.addEventListener("change", () => {
+                constraints[meta.key] = input.checked || undefined;
+            });
+            return;
+        }
+
+        const inputType = meta.input === "integer" || meta.input === "number" ? "number"
+            : meta.input === "date" ? "date"
+            : "text";
+        const input = row.createEl("input", {
+            type: inputType,
+            ...(meta.placeholder ? { placeholder: meta.placeholder } : {}),
+            ...(meta.input === "integer" ? { attr: { min: "0" } } : {}),
+        });
+        input.value = this.formatConstraintValue(constraints[meta.key], meta);
+        input.addEventListener("input", () => {
+            constraints[meta.key] = this.parseConstraintValue(input.value, meta);
+        });
+    }
+
+    private formatConstraintValue(value: unknown, meta: ConstraintFieldMeta): string {
+        if (value === undefined || value === null) return "";
+        if (meta.input === "string-list") return (value as string[]).join(", ");
+        return String(value);
+    }
+
+    private parseConstraintValue(raw: string, meta: ConstraintFieldMeta): unknown {
+        switch (meta.input) {
+            case "integer":
+                return raw ? parseInt(raw, 10) : undefined;
             case "number":
-                this.renderNumberConstraints(container, field);
-                break;
-            case "date":
-                this.renderDateConstraints(container, field);
-                break;
-            case "array":
-                this.renderArrayConstraints(container, field);
-                break;
+                return raw ? parseFloat(raw) : undefined;
+            case "string-list": {
+                const items = raw.split(",").map((v) => v.trim()).filter((v) => v !== "");
+                return items.length > 0 ? items : undefined;
+            }
+            default:
+                return raw || undefined;
         }
     }
 
-    protected renderStringConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.stringConstraints) {
-            field.stringConstraints = {};
+    private renderElementTypeRow(grid: HTMLElement, field: SchemaField): void {
+        const elementTypeRow = grid.createDiv({ cls: "propsec-constraint-row" });
+        elementTypeRow.createEl("label", { text: "Element type:" });
+        const elementTypeSelect = elementTypeRow.createEl("select");
+
+        const anyOption = elementTypeSelect.createEl("option", {
+            value: "",
+            text: "(any type)",
+        });
+        if (!field.arrayElementType) {
+            anyOption.selected = true;
         }
-        const constraints = field.stringConstraints;
 
-        container.createDiv({
-            text: "String constraints",
-            cls: "propsec-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "propsec-constraints-grid",
-        });
-
-        // Pattern
-        const patternRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        patternRow.createEl("label", { text: "Pattern (regex):" });
-        const patternInput = patternRow.createEl("input", {
-            type: "text",
-            placeholder: "e.g., ^[A-Z].*",
-        });
-        patternInput.value = constraints.pattern || "";
-        patternInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.pattern = val || undefined;
-        });
-
-        // Min length
-        const minLenRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        minLenRow.createEl("label", { text: "Min length:" });
-        const minLenInput = minLenRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        minLenInput.value = constraints.minLength !== undefined ? String(constraints.minLength) : "";
-        minLenInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.minLength = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Max length
-        const maxLenRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        maxLenRow.createEl("label", { text: "Max length:" });
-        const maxLenInput = maxLenRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        maxLenInput.value = constraints.maxLength !== undefined ? String(constraints.maxLength) : "";
-        maxLenInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.maxLength = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Cross-field constraint
-        this.renderCrossFieldConstraint(container, field);
-    }
-
-    protected renderNumberConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.numberConstraints) {
-            field.numberConstraints = {};
+        for (const type of this.getAvailableTypes()) {
+            const option = elementTypeSelect.createEl("option", {
+                value: type,
+                text: getTypeDisplayName(type),
+            });
+            if (type === field.arrayElementType) {
+                option.selected = true;
+            }
         }
-        const constraints = field.numberConstraints;
 
-        container.createDiv({
-            text: "Number constraints",
-            cls: "propsec-constraints-title",
+        elementTypeSelect.addEventListener("change", (e) => {
+            const value = (e.target as HTMLSelectElement).value;
+            field.arrayElementType = value || undefined;
         });
-
-        const grid = container.createDiv({
-            cls: "propsec-constraints-grid",
-        });
-
-        // Min
-        const minRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        minRow.createEl("label", { text: "Min value:" });
-        const minInput = minRow.createEl("input", { type: "number" });
-        minInput.value = constraints.min !== undefined ? String(constraints.min) : "";
-        minInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.min = val ? parseFloat(val) : undefined;
-        });
-
-        // Max
-        const maxRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        maxRow.createEl("label", { text: "Max value:" });
-        const maxInput = maxRow.createEl("input", { type: "number" });
-        maxInput.value = constraints.max !== undefined ? String(constraints.max) : "";
-        maxInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.max = val ? parseFloat(val) : undefined;
-        });
-
-        // Cross-field constraint
-        this.renderCrossFieldConstraint(container, field);
-    }
-
-    protected renderDateConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.dateConstraints) {
-            field.dateConstraints = {};
-        }
-        const constraints = field.dateConstraints;
-
-        container.createDiv({
-            text: "Date constraints",
-            cls: "propsec-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "propsec-constraints-grid",
-        });
-
-        // Min date
-        const minRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        minRow.createEl("label", { text: "Min date:" });
-        const minInput = minRow.createEl("input", { type: "date" });
-        minInput.value = constraints.min || "";
-        minInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.min = val || undefined;
-        });
-
-        // Max date
-        const maxRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        maxRow.createEl("label", { text: "Max date:" });
-        const maxInput = maxRow.createEl("input", { type: "date" });
-        maxInput.value = constraints.max || "";
-        maxInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.max = val || undefined;
-        });
-
-        // Cross-field constraint
-        this.renderCrossFieldConstraint(container, field);
     }
 
     protected renderCrossFieldConstraint(container: HTMLElement, field: SchemaField): void {
@@ -532,121 +488,6 @@ export abstract class FieldEditorModal extends Modal {
 
         operatorSelect.addEventListener("change", updateConstraint);
         fieldInput.addEventListener("input", updateConstraint);
-    }
-
-    protected renderArrayConstraints(container: HTMLElement, field: SchemaField): void {
-        if (!field.arrayConstraints) {
-            field.arrayConstraints = {};
-        }
-        const constraints = field.arrayConstraints;
-
-        container.createDiv({
-            text: "Array configuration",
-            cls: "propsec-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "propsec-constraints-grid",
-        });
-
-        // Element type selector
-        const elementTypeRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        elementTypeRow.createEl("label", { text: "Element type:" });
-        const elementTypeSelect = elementTypeRow.createEl("select");
-
-        // Add "any" option
-        const anyOption = elementTypeSelect.createEl("option", {
-            value: "",
-            text: "(any type)",
-        });
-        if (!field.arrayElementType) {
-            anyOption.selected = true;
-        }
-
-        const availableTypes = this.getAvailableTypes();
-        for (const type of availableTypes) {
-            const option = elementTypeSelect.createEl("option", {
-                value: type,
-                text: getTypeDisplayName(type),
-            });
-            if (type === field.arrayElementType) {
-                option.selected = true;
-            }
-        }
-
-        elementTypeSelect.addEventListener("change", (e) => {
-            const value = (e.target as HTMLSelectElement).value;
-            field.arrayElementType = value || undefined;
-        });
-
-        // Min items
-        const minRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        minRow.createEl("label", { text: "Min items:" });
-        const minInput = minRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        minInput.value = constraints.minItems !== undefined ? String(constraints.minItems) : "";
-        minInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.minItems = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Max items
-        const maxRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        maxRow.createEl("label", { text: "Max items:" });
-        const maxInput = maxRow.createEl("input", {
-            type: "number",
-            attr: { min: "0" },
-        });
-        maxInput.value = constraints.maxItems !== undefined ? String(constraints.maxItems) : "";
-        maxInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            constraints.maxItems = val ? parseInt(val, 10) : undefined;
-        });
-
-        // Contains
-        const containsRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        containsRow.createEl("label", { text: "Contains:" });
-        const containsInput = containsRow.createEl("input", {
-            type: "text",
-            placeholder: "value1, value2",
-        });
-        containsInput.value = constraints.contains?.join(", ") || "";
-        containsInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            if (val.trim()) {
-                constraints.contains = val.split(",").map((v) => v.trim()).filter((v) => v !== "");
-            } else {
-                constraints.contains = undefined;
-            }
-        });
-
-        // Allowed values
-        const allowedRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        allowedRow.createEl("label", { text: "Allowed values:" });
-        const allowedInput = allowedRow.createEl("input", {
-            type: "text",
-            placeholder: "value1, value2",
-        });
-        allowedInput.value = constraints.allowedValues?.join(", ") || "";
-        allowedInput.addEventListener("input", (e) => {
-            const val = (e.target as HTMLInputElement).value;
-            if (val.trim()) {
-                constraints.allowedValues = val.split(",").map((v) => v.trim()).filter((v) => v !== "");
-            } else {
-                constraints.allowedValues = undefined;
-            }
-        });
-
-        // Unique items
-        const uniqueRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        uniqueRow.createEl("label", { text: "Unique items:" });
-        const uniqueInput = uniqueRow.createEl("input", { type: "checkbox" });
-        uniqueInput.checked = constraints.uniqueItems ?? false;
-        uniqueInput.addEventListener("change", (e) => {
-            constraints.uniqueItems = (e.target as HTMLInputElement).checked || undefined;
-        });
     }
 
 }
