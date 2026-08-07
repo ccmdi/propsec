@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Fetch core submodule
         run: |
-          git config --global url."https://x-access-token:${{ secrets.MDLSP_TOKEN }}@github.com/ccmdi/mdlsp".insteadOf "https://github.com/ccmdi/mdlsp"
+          git config --global url."https://x-access-token:${{ secrets.MDLSP_TOKEN }}@github.com/ccmdi/mdlsp".insteadOf "git@github.com:ccmdi/mdlsp"
           git submodule update --init
       - name: Use Node.js
         uses: actions/setup-node@v3
