@@ -559,6 +559,65 @@ describe("validateFrontmatter", () => {
             expect(violations.length).toBeGreaterThanOrEqual(1);
         });
 
+        it("validates array allowedValues", () => {
+            const schema = createSchema([
+                field("statuses", "array", {
+                    required: true,
+                    arrayConstraints: { allowedValues: ["complete", "ongoing", "hold"] },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ statuses: ["complete", "hold"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            const violations = validateFrontmatter({ statuses: ["complete", "kino"] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(1);
+            expect(violations[0].type).toBe("array_disallowed_value");
+            expect(violations[0].message).toContain("statuses[1]");
+            expect(violations[0].message).toContain('"kino"');
+        });
+
+        it("reports each disallowed element", () => {
+            const schema = createSchema([
+                field("statuses", "array", {
+                    required: true,
+                    arrayConstraints: { allowedValues: ["a", "b"] },
+                }),
+            ]);
+
+            const violations = validateFrontmatter({ statuses: ["x", "a", "y"] }, schema, "test.md", { checkUnknownFields: false });
+            expect(violations).toHaveLength(2);
+            expect(violations[0].message).toContain("statuses[0]");
+            expect(violations[1].message).toContain("statuses[2]");
+        });
+
+        it("treats empty allowedValues as unconstrained", () => {
+            const schema = createSchema([
+                field("tags", "array", {
+                    required: true,
+                    arrayConstraints: { allowedValues: [] },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ tags: ["anything"] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+        });
+
+        it("matches allowedValues against non-string elements by string form", () => {
+            const schema = createSchema([
+                field("levels", "array", {
+                    required: true,
+                    arrayConstraints: { allowedValues: ["1", "2"] },
+                }),
+            ]);
+
+            expect(validateFrontmatter({ levels: [1, 2] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(0);
+
+            expect(validateFrontmatter({ levels: [3] }, schema, "test.md", { checkUnknownFields: false }))
+                .toHaveLength(1);
+        });
+
         it("validates date min constraint", () => {
             const schema = createSchema([
                 field("published", "date", {

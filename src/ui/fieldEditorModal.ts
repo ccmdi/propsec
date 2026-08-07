@@ -624,6 +624,23 @@ export abstract class FieldEditorModal extends Modal {
             }
         });
 
+        // Allowed values
+        const allowedRow = grid.createDiv({ cls: "propsec-constraint-row" });
+        allowedRow.createEl("label", { text: "Allowed values:" });
+        const allowedInput = allowedRow.createEl("input", {
+            type: "text",
+            placeholder: "value1, value2",
+        });
+        allowedInput.value = constraints.allowedValues?.join(", ") || "";
+        allowedInput.addEventListener("input", (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            if (val.trim()) {
+                constraints.allowedValues = val.split(",").map((v) => v.trim()).filter((v) => v !== "");
+            } else {
+                constraints.allowedValues = undefined;
+            }
+        });
+
         // Unique items
         const uniqueRow = grid.createDiv({ cls: "propsec-constraint-row" });
         uniqueRow.createEl("label", { text: "Unique items:" });

@@ -577,6 +577,20 @@ function checkArrayConstraints(
         }
     }
 
+    if (constraints.allowedValues && constraints.allowedValues.length > 0) {
+        const allowed = constraints.allowedValues;
+        for (let i = 0; i < value.length; i++) {
+            const item = String(value[i]);
+            if (!allowed.includes(item)) {
+                violations.push(createViolation(
+                    filePath, schema, path, "array_disallowed_value",
+                    `Disallowed value: ${path}[${i}] is "${item}" (allowed: ${allowed.join(", ")})`,
+                    allowed.join(", "), item
+                ));
+            }
+        }
+    }
+
     if (constraints.uniqueItems) {
         const seen = new Set<string>();
         for (const item of value) {

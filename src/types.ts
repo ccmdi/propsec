@@ -60,6 +60,7 @@ export interface ArrayConstraints {
     maxItems?: number;
     contains?: string[];  // Array must contain all these values
     uniqueItems?: boolean;  // Array items must be unique
+    allowedValues?: string[];  // Every element must be one of these values
 }
 
 export interface SchemaField {
@@ -199,7 +200,8 @@ export type ViolationType =
     | "duplicate_value"
     | "cross_field_violation"
     | "malformed_frontmatter"
-    | "array_duplicate_item";
+    | "array_duplicate_item"
+    | "array_disallowed_value";
 
 export interface Violation {
     filePath: string;
