@@ -56,10 +56,6 @@ export class CustomTypeEditorModal extends FieldEditorModal {
         return [...primitives, ...otherCustomTypes];
     }
 
-    protected onFieldDeleted(index: number): void {
-        this.customType.fields.splice(index, 1);
-    }
-
     protected onAddField(): void {
         this.customType.fields.push({
             name: "",

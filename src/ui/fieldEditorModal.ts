@@ -1,15 +1,26 @@
-import { App, Modal, setIcon } from "obsidian";
-import { SchemaField, clearFieldConstraints, ComparisonOperator, getComparisonOperatorOptions, CONSTRAINT_GROUPS, ConstraintFieldMeta } from "@propsec/core";
+import { App, Menu, Modal, setIcon } from "obsidian";
+import { SchemaField, clearFieldConstraints, groupFieldsByName, ComparisonOperator, getComparisonOperatorOptions, CONSTRAINT_GROUPS, ConstraintFieldMeta } from "@propsec/core";
 import { getTypeDisplayName } from "../schema/extractor";
 
+/** A field name and every flat-array entry (variant) declared under it. */
+interface FieldGroup {
+    name: string;
+    variants: SchemaField[];
+}
+
 /**
- * Base class for modals that edit a list of schema fields with inline expandable constraints.
+ * Base class for modals that edit a list of schema fields.
+ * One card per field name; union variants are chips inside that card.
  */
 export abstract class FieldEditorModal extends Modal {
     protected fieldsContainer: HTMLElement | null = null;
-    protected expandedFields: Set<number> = new Set();
     protected activeConstraintsSection: HTMLElement | null = null;
-    protected fieldCardMap: Map<number, HTMLElement> = new Map();
+
+    private expandedKey: SchemaField | null = null;
+    private expandedCard: HTMLElement | null = null;
+    private activeVariants: Map<SchemaField, SchemaField> = new Map();
+    private emptyMessage = "No fields defined.";
+    private onNameInputCreated?: (input: HTMLInputElement) => void;
 
     constructor(app: App) {
         super(app);
@@ -20,19 +31,308 @@ export abstract class FieldEditorModal extends Modal {
     /** Get the fields array being edited */
     protected abstract getFields(): SchemaField[];
 
-    /** Set the fields array (used for filtering empty fields on save) */
+    /** Set the fields array */
     protected abstract setFields(fields: SchemaField[]): void;
 
-    /** Get available types for the type dropdown (primitives + custom types) */
+    /** Get available types for the type menus (primitives + custom types) */
     protected abstract getAvailableTypes(): string[];
-
-    /** Called when a field is deleted */
-    protected abstract onFieldDeleted(index: number): void;
 
     /** Called when a new field should be added */
     protected abstract onAddField(): void;
 
-    // ========== Expand/Collapse Management ==========
+    // ========== Rendering ==========
+
+    protected renderFields(
+        emptyMessage: string = "No fields defined.",
+        onNameInputCreated?: (input: HTMLInputElement) => void
+    ): void {
+        this.emptyMessage = emptyMessage;
+        this.onNameInputCreated = onNameInputCreated;
+        this.draw();
+    }
+
+    private draw(): void {
+        if (!this.fieldsContainer) return;
+
+        this.removeConstraintsSection();
+        this.expandedCard = null;
+        this.fieldsContainer.empty();
+
+        const fields = this.getFields();
+        if (fields.length === 0) {
+            this.expandedKey = null;
+            this.fieldsContainer.createEl("p", {
+                text: this.emptyMessage,
+                cls: "propsec-no-fields",
+            });
+            return;
+        }
+
+        const groups = this.buildGroups(fields);
+        if (this.expandedKey && !groups.some((g) => g.variants[0] === this.expandedKey)) {
+            this.expandedKey = null;
+        }
+
+        for (const group of groups) {
+            this.renderFieldCard(this.fieldsContainer, group);
+        }
+    }
+
+    private buildGroups(fields: SchemaField[]): FieldGroup[] {
+        const named = groupFieldsByName(fields.filter((f) => f.name !== ""));
+        const groups: FieldGroup[] = [];
+        const seen = new Set<string>();
+
+        for (const field of fields) {
+            if (field.name === "") {
+                groups.push({ name: "", variants: [field] });
+                continue;
+            }
+            if (seen.has(field.name)) continue;
+            seen.add(field.name);
+            groups.push({ name: field.name, variants: named.get(field.name) ?? [field] });
+        }
+
+        return groups;
+    }
+
+    private renderFieldCard(container: HTMLElement, group: FieldGroup): void {
+        const card = container.createDiv({ cls: "propsec-field-card" });
+        const mainRow = card.createDiv({ cls: "propsec-field-main-row" });
+
+        const expandBtn = mainRow.createEl("button", {
+            cls: "propsec-icon-btn propsec-expand-btn",
+            attr: { title: "Configure field" },
+        });
+        setIcon(expandBtn, "chevron-right");
+        expandBtn.addEventListener("click", () => {
+            if (this.expandedCard === card) {
+                this.collapse(card, expandBtn);
+            } else {
+                this.expand(group, card, expandBtn);
+            }
+        });
+
+        const nameInput = mainRow.createEl("input", {
+            type: "text",
+            cls: "propsec-field-name",
+        });
+        nameInput.value = group.name;
+        nameInput.placeholder = "Field name";
+        nameInput.addEventListener("input", () => {
+            group.name = nameInput.value;
+            for (const variant of group.variants) {
+                variant.name = nameInput.value;
+            }
+        });
+        this.onNameInputCreated?.(nameInput);
+
+        this.renderTypeChips(mainRow, group, card, expandBtn);
+        this.renderGroupToggles(mainRow, group);
+
+        if (group.variants.some((v) => v.conditions && v.conditions.length > 0)) {
+            const badge = mainRow.createSpan({
+                cls: "propsec-condition-badge",
+                attr: { title: "Has conditions" },
+            });
+            setIcon(badge, "filter");
+        }
+
+        const deleteBtn = mainRow.createEl("button", {
+            cls: "propsec-icon-btn propsec-delete-btn",
+            attr: { title: "Remove field" },
+        });
+        setIcon(deleteBtn, "x");
+        deleteBtn.addEventListener("click", () => this.removeVariants(group, group.variants));
+
+        if (this.expandedKey === group.variants[0]) {
+            this.openSection(group, card, expandBtn);
+        }
+    }
+
+    // ========== Type Chips ==========
+
+    private renderTypeChips(
+        mainRow: HTMLElement,
+        group: FieldGroup,
+        card: HTMLElement,
+        expandBtn: HTMLElement
+    ): void {
+        const chipsEl = mainRow.createDiv({ cls: "propsec-type-chips" });
+        const visible = this.visibleVariants(group);
+        const active = this.getActiveVariant(group);
+        const chips: HTMLElement[] = [];
+
+        for (const variant of visible) {
+            const chip = chipsEl.createEl("button", {
+                cls: "propsec-type-chip",
+                text: this.variantLabel(variant),
+                attr: { title: "Right-click to change or remove this type" },
+            });
+            chip.toggleClass("is-active", variant === active);
+            chips.push(chip);
+
+            chip.addEventListener("click", () => {
+                this.activeVariants.set(group.variants[0], variant);
+                chips.forEach((el, i) => el.toggleClass("is-active", visible[i] === variant));
+                if (this.expandedCard === card) {
+                    this.removeConstraintsSection();
+                    this.openSection(group, card, expandBtn);
+                }
+            });
+
+            chip.addEventListener("contextmenu", (evt) => {
+                evt.preventDefault();
+                this.showVariantMenu(evt, group, variant);
+            });
+        }
+
+        const addChip = chipsEl.createEl("button", {
+            cls: "propsec-type-chip propsec-type-chip-add",
+            text: "+",
+            attr: { title: "Add a type this field may hold" },
+        });
+        addChip.addEventListener("click", (evt) => this.showTypeMenu(evt, group));
+    }
+
+    private visibleVariants(group: FieldGroup): SchemaField[] {
+        return group.variants;
+    }
+
+    private getActiveVariant(group: FieldGroup): SchemaField {
+        const visible = this.visibleVariants(group);
+        const stored = this.activeVariants.get(group.variants[0]);
+        if (stored && visible.includes(stored)) return stored;
+        return visible[0] ?? group.variants[0];
+    }
+
+    private variantLabel(field: SchemaField): string {
+        if (field.type === "array" && field.arrayElementType) {
+            return `array<${field.arrayElementType}>`;
+        }
+        return field.type;
+    }
+
+    private unusedTypes(group: FieldGroup, ignore?: SchemaField): string[] {
+        const present = new Set(
+            this.visibleVariants(group).filter((v) => v !== ignore).map((v) => v.type)
+        );
+        return this.getAvailableTypes().filter((t) => !present.has(t));
+    }
+
+    private showTypeMenu(evt: MouseEvent, group: FieldGroup): void {
+        const candidates = this.unusedTypes(group);
+        if (candidates.length === 0) return;
+
+        const menu = new Menu();
+        for (const type of candidates) {
+            menu.addItem((item) => item.setTitle(type).onClick(() => this.addVariant(group, type)));
+        }
+        menu.showAtMouseEvent(evt);
+    }
+
+    private showVariantMenu(evt: MouseEvent, group: FieldGroup, variant: SchemaField): void {
+        const menu = new Menu();
+
+        for (const type of this.unusedTypes(group, variant)) {
+            menu.addItem((item) =>
+                item.setTitle(`Change type to ${type}`).onClick(() => {
+                    variant.type = type;
+                    clearFieldConstraints(variant);
+                    this.activeVariants.set(group.variants[0], variant);
+                    this.draw();
+                })
+            );
+        }
+
+        if (this.visibleVariants(group).length > 1) {
+            menu.addSeparator();
+            menu.addItem((item) =>
+                item
+                    .setTitle("Remove variant")
+                    .setIcon("trash")
+                    .onClick(() => this.removeVariants(group, [variant]))
+            );
+        }
+
+        menu.showAtMouseEvent(evt);
+    }
+
+    private addVariant(group: FieldGroup, type: string): void {
+        const variant: SchemaField = {
+            name: group.name,
+            type,
+            required: type !== "null" && group.variants.some((v) => v.required),
+        };
+        const fields = this.getFields();
+        const last = group.variants[group.variants.length - 1];
+        fields.splice(fields.indexOf(last) + 1, 0, variant);
+        this.setFields(fields);
+
+        this.activeVariants.set(group.variants[0], variant);
+        this.draw();
+    }
+
+    private removeVariants(group: FieldGroup, variants: SchemaField[]): void {
+        const removed = new Set(variants);
+        const remaining = group.variants.filter((v) => !removed.has(v));
+
+        if (this.expandedKey && removed.has(this.expandedKey)) {
+            this.expandedKey = remaining[0] ?? null;
+        }
+        this.activeVariants.delete(group.variants[0]);
+
+        this.setFields(this.getFields().filter((f) => !removed.has(f)));
+        this.draw();
+    }
+
+    // ========== Group Toggles ==========
+
+    private renderGroupToggles(mainRow: HTMLElement, group: FieldGroup): void {
+        const flags = mainRow.createDiv({ cls: "propsec-field-flags" });
+
+        const requiredBtn = flags.createEl("button", {
+            cls: "propsec-flag-btn propsec-flag-required",
+            attr: { title: "Required: field must be present in matching files" },
+        });
+        setIcon(requiredBtn, "circle-alert");
+
+        const warnBtn = flags.createEl("button", {
+            cls: "propsec-flag-btn propsec-flag-warn",
+            attr: { title: "Warn only: report failures as soft warnings instead of errors" },
+        });
+        setIcon(warnBtn, "alert-triangle");
+
+        const sync = () => {
+            requiredBtn.toggleClass("is-on", group.variants.some((v) => v.required));
+            warnBtn.toggleClass("is-on", group.variants.some((v) => v.warn === true));
+        };
+        sync();
+
+        requiredBtn.addEventListener("click", () => {
+            const enable = !group.variants.some((v) => v.required);
+            for (const variant of group.variants) {
+                variant.required = enable && variant.type !== "null";
+                if (enable) delete variant.warn;
+            }
+            sync();
+        });
+
+        warnBtn.addEventListener("click", () => {
+            const enable = !group.variants.some((v) => v.warn === true);
+            for (const variant of group.variants) {
+                if (enable) {
+                    variant.warn = true;
+                    variant.required = false;
+                } else {
+                    delete variant.warn;
+                }
+            }
+            sync();
+        });
+    }
+
+    // ========== Expand / Collapse ==========
 
     protected removeConstraintsSection(): void {
         if (this.activeConstraintsSection) {
@@ -41,314 +341,99 @@ export abstract class FieldEditorModal extends Modal {
         }
     }
 
-    protected closeAllExpanded(): void {
-        this.removeConstraintsSection();
-        for (const index of this.expandedFields) {
-            const card = this.fieldCardMap.get(index);
-            if (card) {
-                card.removeClass("expanded");
-                const btn = card.querySelector(".propsec-icon-btn:not(.propsec-delete-btn)");
-                if (btn) setIcon(btn as HTMLElement, "chevron-right");
-            }
-        }
-        this.expandedFields.clear();
-    }
-
-    protected collapseField(index: number, card: HTMLElement, expandBtn: HTMLElement): void {
-        if (this.activeConstraintsSection) {
-            this.activeConstraintsSection.addClass("collapsing");
-            this.activeConstraintsSection.addEventListener("animationend", () => {
-                this.removeConstraintsSection();
-                this.expandedFields.delete(index);
-                card.removeClass("expanded");
-                setIcon(expandBtn, "chevron-right");
-            }, { once: true });
-        } else {
-            this.expandedFields.delete(index);
-            card.removeClass("expanded");
-            setIcon(expandBtn, "chevron-right");
-        }
-    }
-
-    protected expandField(
-        index: number,
-        card: HTMLElement,
-        expandBtn: HTMLElement,
-    ): void {
-        // Close any other expanded field first
-        if (this.expandedFields.size > 0) {
+    private expand(group: FieldGroup, card: HTMLElement, expandBtn: HTMLElement): void {
+        if (this.expandedCard && this.expandedCard !== card) {
             this.removeConstraintsSection();
-            const prevIndex = Array.from(this.expandedFields)[0];
-            const prevCard = this.fieldCardMap.get(prevIndex);
-            if (prevCard) {
-                prevCard.removeClass("expanded");
-                const prevBtn = prevCard.querySelector(".propsec-icon-btn:not(.propsec-delete-btn)");
-                if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
-            }
-            this.expandedFields.clear();
+            this.expandedCard.removeClass("expanded");
+            const prevBtn = this.expandedCard.querySelector(".propsec-expand-btn");
+            if (prevBtn) setIcon(prevBtn as HTMLElement, "chevron-right");
         }
-        // Expand this field
-        this.expandedFields.add(index);
+        this.openSection(group, card, expandBtn);
+    }
+
+    private openSection(group: FieldGroup, card: HTMLElement, expandBtn: HTMLElement): void {
+        this.expandedKey = group.variants[0];
+        this.expandedCard = card;
         card.addClass("expanded");
         setIcon(expandBtn, "chevron-down");
 
         const section = card.createDiv({ cls: "propsec-constraints-section" });
-        this.renderConstraints(section, this.getFields()[index]);
         this.activeConstraintsSection = section;
+        this.renderConstraints(section, this.getActiveVariant(group), group.variants);
     }
 
-    // ========== Field Rendering ==========
+    private collapse(card: HTMLElement, expandBtn: HTMLElement): void {
+        this.expandedKey = null;
+        this.expandedCard = null;
 
-    protected renderFields(
-        emptyMessage: string = "No fields defined.",
-        onNameInputCreated?: (input: HTMLInputElement) => void
-    ): void {
-        if (!this.fieldsContainer) return;
-
-        this.removeConstraintsSection();
-        this.expandedFields.clear();
-        this.fieldCardMap.clear();
-        this.fieldsContainer.empty();
-
-        const fields = this.getFields();
-        if (fields.length === 0) {
-            this.fieldsContainer.createEl("p", {
-                text: emptyMessage,
-                cls: "propsec-no-fields",
-            });
-            return;
-        }
-
-        const groups = this.buildOrderedFieldGroups(fields);
-
-        for (const group of groups) {
-            if (group.indices.length === 1) {
-                const idx = group.indices[0];
-                this.renderFieldCard(this.fieldsContainer, fields[idx], idx, onNameInputCreated);
-            } else {
-                const wrapper = this.fieldsContainer.createDiv({ cls: "propsec-union-group" });
-                wrapper.createDiv({
-                    cls: "propsec-union-label",
-                    text: group.name,
-                });
-                for (const idx of group.indices) {
-                    this.renderFieldCard(wrapper, fields[idx], idx, onNameInputCreated);
-                }
-            }
-        }
-    }
-
-    private buildOrderedFieldGroups(fields: SchemaField[]): { name: string; indices: number[] }[] {
-        const groups: { name: string; indices: number[] }[] = [];
-        const nameToGroup = new Map<string, { name: string; indices: number[] }>();
-
-        for (let i = 0; i < fields.length; i++) {
-            const name = fields[i].name;
-            if (name && nameToGroup.has(name)) {
-                nameToGroup.get(name)!.indices.push(i);
-            } else {
-                const group = { name, indices: [i] };
-                groups.push(group);
-                if (name) nameToGroup.set(name, group);
-            }
-        }
-
-        return groups;
-    }
-
-    protected renderFieldCard(
-        container: HTMLElement,
-        field: SchemaField,
-        index: number,
-        onNameInputCreated?: (input: HTMLInputElement) => void
-    ): HTMLElement {
-        const card = container.createDiv({
-            cls: "propsec-field-card",
-        });
-        this.fieldCardMap.set(index, card);
-
-        const mainRow = card.createDiv({
-            cls: "propsec-field-main-row",
-        });
-
-        // Name input
-        const nameInput = mainRow.createEl("input", {
-            type: "text",
-            cls: "propsec-field-name",
-        });
-        nameInput.value = field.name;
-        nameInput.placeholder = "Field name";
-        nameInput.addEventListener("input", (e) => {
-            field.name = (e.target as HTMLInputElement).value;
-        });
-
-        // Callback for property suggestions
-        onNameInputCreated?.(nameInput);
-
-        // Type select
-        const typeSelect = mainRow.createEl("select", {
-            cls: "propsec-field-type",
-        });
-
-        const availableTypes = this.getAvailableTypes();
-        for (const type of availableTypes) {
-            const option = typeSelect.createEl("option", {
-                value: type,
-                text: getTypeDisplayName(type),
-            });
-            if (type === field.type) {
-                option.selected = true;
-            }
-        }
-
-        typeSelect.addEventListener("change", (e) => {
-            field.type = (e.target as HTMLSelectElement).value;
-            clearFieldConstraints(field);
+        const finish = () => {
             this.removeConstraintsSection();
-            this.expandedFields.delete(index);
-            this.replaceFieldCard(card, field, index, onNameInputCreated);
-        });
+            card.removeClass("expanded");
+            setIcon(expandBtn, "chevron-right");
+        };
 
-        // Required checkbox
-        const requiredLabel = mainRow.createEl("label", {
-            cls: "propsec-required-label",
-        });
-        const requiredCheckbox = requiredLabel.createEl("input", {
-            type: "checkbox",
-        });
-        requiredCheckbox.checked = field.required;
-        requiredLabel.appendText(" Req");
-
-        // Warn checkbox
-        const warnLabel = mainRow.createEl("label", {
-            cls: "propsec-required-label",
-            attr: { title: "Warn if missing (not an error)" },
-        });
-        const warnCheckbox = warnLabel.createEl("input", {
-            type: "checkbox",
-        });
-        warnCheckbox.checked = field.warn || false;
-        warnLabel.appendText(" Warn");
-
-        // Unique checkbox
-        const uniqueLabel = mainRow.createEl("label", {
-            cls: "propsec-required-label",
-            attr: { title: "Value must be unique across all files in schema" },
-        });
-        const uniqueCheckbox = uniqueLabel.createEl("input", {
-            type: "checkbox",
-        });
-        uniqueCheckbox.checked = field.unique || false;
-        uniqueLabel.appendText(" Uniq");
-
-        // Mutual exclusion handlers for required/warn
-        requiredCheckbox.addEventListener("change", (e) => {
-            field.required = (e.target as HTMLInputElement).checked;
-            if (field.required) {
-                field.warn = false;
-                warnCheckbox.checked = false;
-            }
-        });
-        warnCheckbox.addEventListener("change", (e) => {
-            field.warn = (e.target as HTMLInputElement).checked;
-            if (field.warn) {
-                field.required = false;
-                requiredCheckbox.checked = false;
-            }
-        });
-        uniqueCheckbox.addEventListener("change", (e) => {
-            field.unique = (e.target as HTMLInputElement).checked;
-        });
-
-        // Condition badge
-        if (field.conditions && field.conditions.length > 0) {
-            const badge = mainRow.createSpan({
-                cls: "propsec-condition-badge",
-                attr: { title: `${field.conditions.length} condition(s)` },
-            });
-            setIcon(badge, "filter");
+        if (this.activeConstraintsSection) {
+            this.activeConstraintsSection.addClass("collapsing");
+            this.activeConstraintsSection.addEventListener("animationend", finish, { once: true });
+        } else {
+            finish();
         }
-
-        // Expand button
-        const expandBtn = mainRow.createEl("button", {
-            cls: `propsec-icon-btn${this.hasExpandableContent(field) ? "" : " propsec-icon-btn-disabled"}`,
-            attr: { title: "Configure constraints" },
-        });
-        setIcon(expandBtn, "chevron-right");
-
-        if (this.hasExpandableContent(field)) {
-            expandBtn.addEventListener("click", () => {
-                if (this.expandedFields.has(index)) {
-                    this.collapseField(index, card, expandBtn);
-                } else {
-                    this.expandField(index, card, expandBtn);
-                }
-            });
-        }
-
-        // Delete button
-        const deleteBtn = mainRow.createEl("button", {
-            cls: "propsec-icon-btn propsec-delete-btn",
-            attr: { title: "Remove field" },
-        });
-        setIcon(deleteBtn, "x");
-        deleteBtn.addEventListener("click", () => {
-            this.onFieldDeleted(index);
-            this.expandedFields.delete(index);
-            this.renderFields();
-        });
-
-        return card;
-    }
-
-    protected replaceFieldCard(
-        oldCard: HTMLElement,
-        field: SchemaField,
-        index: number,
-        onNameInputCreated?: (input: HTMLInputElement) => void
-    ): void {
-        const temp = activeDocument.createElement("div");
-        const newCard = this.renderFieldCard(temp, field, index, onNameInputCreated);
-        oldCard.replaceWith(newCard);
     }
 
     // ========== Constraints Rendering ==========
 
-    protected hasExpandableContent(field: SchemaField): boolean {
-        return CONSTRAINT_GROUPS.some((g) => g.appliesTo === field.type);
-    }
-
-
-    protected renderConstraints(container: HTMLElement, field: SchemaField): void {
+    protected renderConstraints(container: HTMLElement, field: SchemaField, variants: SchemaField[]): void {
         const group = CONSTRAINT_GROUPS.find((g) => g.appliesTo === field.type);
-        if (!group) return;
 
-        const record = field as unknown as Record<string, Record<string, unknown>>;
-        if (!record[group.key]) {
-            record[group.key] = {};
+        if (group) {
+            const record = field as unknown as Record<string, Record<string, unknown>>;
+            if (!record[group.key]) {
+                record[group.key] = {};
+            }
+            const constraints = record[group.key];
+
+            container.createDiv({
+                text: group.title,
+                cls: "propsec-constraints-title",
+            });
+
+            const grid = container.createDiv({ cls: "propsec-constraints-grid" });
+
+            if (field.type === "array") {
+                this.renderElementTypeRow(grid, field);
+            }
+
+            for (const meta of group.fields) {
+                this.renderConstraintRow(grid, constraints, meta);
+            }
         }
-        const constraints = record[group.key];
 
-        container.createDiv({
-            text: group.title,
-            cls: "propsec-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "propsec-constraints-grid",
-        });
-
-        if (field.type === "array") {
-            this.renderElementTypeRow(grid, field);
-        }
-
-        for (const meta of group.fields) {
-            this.renderConstraintRow(grid, constraints, meta);
-        }
+        this.renderFieldOptions(container, field, variants);
 
         if (field.type !== "array") {
             this.renderCrossFieldConstraint(container, field);
         }
+    }
+
+    private renderFieldOptions(container: HTMLElement, field: SchemaField, variants: SchemaField[]): void {
+        container.createDiv({
+            text: "Field options",
+            cls: "propsec-constraints-title",
+        });
+
+        const grid = container.createDiv({ cls: "propsec-constraints-grid" });
+
+        const uniqueRow = grid.createDiv({ cls: "propsec-constraint-row" });
+        uniqueRow.createEl("label", { text: "Unique across files:" });
+        const uniqueInput = uniqueRow.createEl("input", { type: "checkbox" });
+        uniqueInput.checked = field.unique === true;
+        uniqueInput.addEventListener("change", () => {
+            if (uniqueInput.checked) {
+                field.unique = true;
+            } else {
+                delete field.unique;
+            }
+        });
     }
 
     private renderConstraintRow(grid: HTMLElement, constraints: Record<string, unknown>, meta: ConstraintFieldMeta): void {
@@ -423,8 +508,9 @@ export abstract class FieldEditorModal extends Modal {
         }
 
         elementTypeSelect.addEventListener("change", (e) => {
-            const value = (e.target as HTMLSelectElement).value;
-            field.arrayElementType = value || undefined;
+            field.arrayElementType = (e.target as HTMLSelectElement).value || undefined;
+            const chip = this.expandedCard?.querySelector(".propsec-type-chip.is-active");
+            if (chip) (chip as HTMLElement).setText(this.variantLabel(field));
         });
     }
 

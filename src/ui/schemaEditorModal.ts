@@ -60,10 +60,6 @@ export class SchemaEditorModal extends FieldEditorModal {
         return [...primitives, ...customTypeNames];
     }
 
-    protected onFieldDeleted(index: number): void {
-        this.mapping.fields.splice(index, 1);
-    }
-
     protected onAddField(): void {
         this.mapping.fields.push({
             name: "",
@@ -98,15 +94,11 @@ export class SchemaEditorModal extends FieldEditorModal {
         );
     }
 
-    protected override hasExpandableContent(): boolean {
-        return true;
-    }
-
-    protected override renderConstraints(container: HTMLElement, field: SchemaField): void {
+    protected override renderConstraints(container: HTMLElement, field: SchemaField, variants: SchemaField[]): void {
         // Add condition section before type-specific constraints
         this.renderConditionSection(container, field);
         // Then render type-specific constraints from base class
-        super.renderConstraints(container, field);
+        super.renderConstraints(container, field, variants);
     }
 
     // ========== Modal Lifecycle ==========
