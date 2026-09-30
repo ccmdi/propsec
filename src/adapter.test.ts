@@ -13,7 +13,7 @@ function makeFile(over: Partial<{
     return {
         path: over.path ?? "Books/Dune.md",
         basename: over.basename ?? "Dune",
-        parent: parentPath === null ? null : { path: parentPath },
+        parent: parentPath === null ? null : { path: parentPath, isRoot: () => parentPath === "/" },
         stat: { mtime: over.mtime ?? 1000, ctime: over.ctime ?? 500 },
     } as unknown as TFile;
 }
@@ -45,6 +45,11 @@ describe("toFileMeta", () => {
         expect(meta.parentPath).toBe("");
         expect(meta.frontmatter).toBeUndefined();
         expect(meta.tags).toEqual([]);
+    });
+
+    it("maps a root-level note's folder to an empty string", () => {
+        const meta = toFileMeta(makeApp(undefined), makeFile({ path: "Dune.md", parentPath: "/" }));
+        expect(meta.parentPath).toBe("");
     });
 
     it("merges frontmatter and inline tags, strips '#', and dedupes", () => {

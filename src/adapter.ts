@@ -9,7 +9,7 @@ export function toFileMeta(app: App, file: TFile): FileMeta {
   if (cache?.tags) for (const t of cache.tags) tags.push(t.tag.replace(/^#/, ""));
   return {
     path: file.path,
-    parentPath: file.parent?.path ?? "",
+    parentPath: file.parent && !file.parent.isRoot() ? file.parent.path : "",
     basename: file.basename,
     mtime: file.stat.mtime,
     ctime: file.stat.ctime,
