@@ -6,18 +6,14 @@ import {
     TFile,
     TAbstractFile,
 } from "obsidian";
-import {
-    PropsecSettings,
-    DEFAULT_SETTINGS,
-    Violation,
-} from "@propsec/core";
+import { Violation } from "@propsec/core";
 import { ViolationStore } from "./validation/store";
 import { Validator } from "./validation/validator";
 import { ValidationCache } from "./validation/cache";
 import { StatusBarItem } from "./ui/statusBar";
 import { ViolationsModal } from "./ui/violationsModal";
 import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./ui/violationsView";
-import { PropsecSettingTab } from "./settings";
+import { PropsecSettingTab, PropsecSettings, DEFAULT_SETTINGS } from "./settings";
 import { queryContext } from "./query/context";
 import { debug } from "./debug";
 
@@ -25,7 +21,7 @@ export default class PropsecPlugin extends Plugin {
     settings: PropsecSettings;
     private store: ViolationStore;
     private cache: ValidationCache;
-    private validator: Validator;
+    validator: Validator;
     private statusBarItem: StatusBarItem | null = null;
     private statusBarEl: HTMLElement | null = null;
     private startupComplete: boolean = false;
@@ -190,10 +186,7 @@ export default class PropsecPlugin extends Plugin {
 
                 // Revalidate changed schemas
                 for (const schemaId of analysis.schemasToRevalidate) {
-                    const mapping = this.settings.schemaMappings.find(m => m.id === schemaId);
-                    if (mapping) {
-                        await this.validator.validateMapping(mapping);
-                    }
+                    await this.validator.validateMapping(schemaId);
                 }
 
                 // Revalidate modified files
@@ -252,6 +245,7 @@ export default class PropsecPlugin extends Plugin {
 
     async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
+        this.validator.recompile();
     }
 
     private detectTemplatesFolder(): void {
@@ -436,7 +430,8 @@ class PropsecSettingTabWrapper extends PluginSettingTab {
             },
             (mappingId?: string) => {
                 this.plugin.onSchemaChange(mappingId);
-            }
+            },
+            (mapping) => this.plugin.validator.filesMatching(mapping)
         );
         this.settingsTab.display();
     }

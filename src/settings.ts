@@ -1,5 +1,5 @@
-import { App, PluginSettingTab, Setting, setIcon, Notice, Platform } from "obsidian";
-import { PropsecSettings, SchemaMapping, CustomType, describePropertyFilter } from "@propsec/core";
+import { App, PluginSettingTab, Setting, setIcon, Notice, Platform, TFile } from "obsidian";
+import { SchemaMapping, CustomType, describePropertyFilter } from "@propsec/core";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
@@ -10,10 +10,41 @@ import { makeDraggable } from "./ui/draggable";
 import { getReferencedCustomTypes } from "./validation/cache";
 import PropsecPlugin from "./main";
 
+export interface PropsecSettings {
+    templatesFolder: string;
+    schemaMappings: SchemaMapping[];
+    customTypes: CustomType[];  // User-defined reusable types
+    warnOnUnknownFields: boolean;
+    allowObsidianProperties: boolean;  // Don't warn about aliases, tags, cssclasses
+    validateOnFileOpen: boolean;
+    validateOnFileSave: boolean;
+    showInStatusBar: boolean;
+    colorStatusBarErrors: boolean;
+    excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
+    enablePropertySuggestions: boolean;  // Show property autocomplete in schema editor
+    globalExclusions: string;  // Query to exclude files from all schemas (e.g., "#status/archived")
+}
+
+export const DEFAULT_SETTINGS: PropsecSettings = {
+    templatesFolder: "",
+    schemaMappings: [],
+    customTypes: [],
+    warnOnUnknownFields: true,
+    allowObsidianProperties: true,
+    validateOnFileOpen: true,
+    validateOnFileSave: true,
+    showInStatusBar: true,
+    colorStatusBarErrors: true,
+    excludeWarningsFromCount: true,
+    enablePropertySuggestions: true,
+    globalExclusions: "",
+};
+
 export class PropsecSettingTab extends PluginSettingTab {
     private settings: PropsecSettings;
     private onSettingsChange: () => Promise<void>;
     private onSchemaChange: (mappingId?: string) => void;
+    private filesMatching: (mapping: SchemaMapping) => TFile[];
     private customTypesContainer: HTMLElement | null = null;
     private schemaListContainer: HTMLElement | null = null;
 
@@ -23,13 +54,15 @@ export class PropsecSettingTab extends PluginSettingTab {
         containerEl: HTMLElement,
         settings: PropsecSettings,
         onSettingsChange: () => Promise<void>,
-        onSchemaChange: (mappingId?: string) => void
+        onSchemaChange: (mappingId?: string) => void,
+        filesMatching: (mapping: SchemaMapping) => TFile[]
     ) {
         super(app, plugin);
         this.containerEl = containerEl;
         this.settings = settings;
         this.onSettingsChange = onSettingsChange;
         this.onSchemaChange = onSchemaChange;
+        this.filesMatching = filesMatching;
     }
 
     display(): void {
@@ -386,7 +419,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
         setIcon(previewBtn, "eye");
         previewBtn.addEventListener("click", () => {
-            const modal = new SchemaPreviewModal(this.app, mapping);
+            const modal = new SchemaPreviewModal(this.app, mapping, this.filesMatching);
             modal.open();
         });
 
@@ -522,7 +555,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
         setIcon(previewBtn, "eye");
         previewBtn.addEventListener("click", () => {
-            new TypePreviewModal(this.app, customType, this.settings.schemaMappings, this.settings.customTypes).open();
+            new TypePreviewModal(this.app, customType, this.settings.schemaMappings, this.settings.customTypes, this.filesMatching).open();
         });
 
         // Edit button

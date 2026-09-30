@@ -1,4 +1,12 @@
-import { Violation, ValidationState, isWarningViolation, ViolationFilter, ViolationType } from "@propsec/core";
+import { Violation, isWarningViolation, ViolationType } from "@propsec/core";
+
+// Filter type for violation views
+export type ViolationFilter = "all" | "errors" | "warnings";
+
+interface ValidationState {
+    violations: Map<string, Violation[]>;
+    lastFullValidation: number;
+}
 
 /**
  * In-memory store for validation violations

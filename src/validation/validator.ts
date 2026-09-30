@@ -1,27 +1,20 @@
 import { App, TFile } from "obsidian";
 import {
-    PropsecSettings,
     SchemaMapping,
-    SchemaField,
     Violation,
-    UniqueEntry,
-    OBSIDIAN_NATIVE_PROPERTIES,
-    MALFORMED_SCHEMA_ID,
+    CompiledSchema,
+    FileMeta,
+    Program,
     MALFORMED_SCHEMA,
-    validateFrontmatter,
-    validationContext,
-    findDuplicateViolations,
-    fileMatchesPropertyFilter,
-    getMatchingSchemas as coreGetMatchingSchemas,
-    isFileGloballyExcluded as coreIsFileGloballyExcluded,
-    fileMatchesMapping as coreFileMatchesMapping,
-    buildLowerKeyMap,
-    lookupKey,
+    compile,
+    malformedViolation,
+    migrate,
 } from "@propsec/core";
 import { ViolationStore } from "./store";
 import { queryContext } from "../query/context";
 import { toFileMeta } from "../adapter";
 import { debug } from "../debug";
+import type { PropsecSettings } from "../settings";
 
 const BATCH_SIZE = 50;
 
@@ -45,6 +38,7 @@ export class Validator {
     private app: App;
     private store: ViolationStore;
     private settings: () => PropsecSettings;
+    private program: Program;
 
     hooks: ValidatorHooks = {};
 
@@ -56,62 +50,39 @@ export class Validator {
         this.app = app;
         this.store = store;
         this.settings = settings;
+        this.program = compile(migrate(settings()));
     }
 
     /**
-     * Check if a file is excluded by global exclusion rules
+     * Recompile the rule program from the current settings
      */
-    private isFileGloballyExcluded(file: TFile): boolean {
-        return coreIsFileGloballyExcluded(toFileMeta(this.app, file), this.settings());
+    recompile(): void {
+        this.program = compile(migrate(this.settings()));
     }
 
     /**
-     * Check if a file matches a schema mapping
+     * Get all compiled schemas that match a file (accumulation model)
      */
-    private fileMatchesMapping(file: TFile, mapping: SchemaMapping): boolean {
-        return coreFileMatchesMapping(toFileMeta(this.app, file), mapping, this.settings());
+    getMatchingSchemas(file: TFile): CompiledSchema[] {
+        const meta = toFileMeta(this.app, file);
+        return this.program.schemas.filter(s => s.matches(meta));
     }
 
     /**
-     * Get all schema mappings that match a file (accumulation model)
+     * Files that a schema would apply to, whether or not it is enabled
      */
-    getMatchingSchemas(file: TFile): SchemaMapping[] {
-        return coreGetMatchingSchemas(toFileMeta(this.app, file), this.settings());
-    }
-
-    /**
-     * Get the first matching schema (for backwards compatibility)
-     */
-    getMatchingSchema(file: TFile): SchemaMapping | null {
-        const matches = this.getMatchingSchemas(file);
-        return matches.length > 0 ? matches[0] : null;
+    filesMatching(mapping: SchemaMapping): TFile[] {
+        const [schema] = compile(migrate({ ...this.settings(), schemaMappings: [{ ...mapping, enabled: true }] })).schemas;
+        return queryContext.index.getFilesForQuery(mapping.query).filter(f => schema.matches(toFileMeta(this.app, f)));
     }
 
     /**
      * Validate a single file against a specific schema
      * Accumulates violations - doesn't overwrite other schemas' violations
      */
-    validateFile(file: TFile, mapping: SchemaMapping): Violation[] {
-        const settings = this.settings();
-        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-
-        validationContext.setCustomTypes(settings.customTypes);
-
-        let violations = validateFrontmatter(frontmatter, mapping, file.path, {
-            checkUnknownFields: settings.warnOnUnknownFields,
-        });
-
-        if (settings.allowObsidianProperties) {
-            violations = violations.filter(v =>
-                v.type !== "unknown_field" || !OBSIDIAN_NATIVE_PROPERTIES.includes(v.field)
-            );
-        }
-
-        // Remove old violations from this schema for this file, then add new ones
-        this.store.removeFileSchemaViolations(file.path, mapping.id);
-        this.store.addFileViolations(file.path, violations);
-
-        return violations;
+    private validateFile(meta: FileMeta, schema: CompiledSchema): void {
+        this.store.removeFileSchemaViolations(meta.path, schema.schema.id);
+        this.store.addFileViolations(meta.path, schema.check(meta));
     }
 
     /**
@@ -122,23 +93,23 @@ export class Validator {
         // Remove all existing violations for this file
         this.store.removeFile(file.path);
 
-        // Validate against all matching schemas
-        const matchingSchemas = this.getMatchingSchemas(file);
+        const meta = toFileMeta(this.app, file);
+        const matchingSchemas = this.program.schemas.filter(s => s.matches(meta));
         for (const schema of matchingSchemas) {
-            this.validateFile(file, schema);
+            this.validateFile(meta, schema);
         }
 
         // Re-validate unique constraints for schemas that have them
         // This is needed because the file's value change might affect other files
         for (const schema of matchingSchemas) {
-            if (schema.fields.some(f => f.unique === true)) {
+            if (schema.schema.fields.some(f => f.unique === true)) {
                 this.revalidateSchemaUniqueConstraints(schema);
             }
         }
 
         this.hooks.onFileValidated?.(
             file,
-            matchingSchemas.map(s => s.id),
+            matchingSchemas.map(s => s.schema.id),
             this.store.getFileViolations(file.path)
         );
 
@@ -147,67 +118,51 @@ export class Validator {
     }
 
     /**
-     * Re-validate unique constraints for a schema.
-     * Clears existing duplicate_value violations for matched files, then recomputes
-     * duplicates via core's findDuplicateViolations.
+     * Candidate files for a schema, paired with their metadata, keeping only real matches
      */
-    private revalidateSchemaUniqueConstraints(mapping: SchemaMapping): void {
-        if (!mapping.enabled || !mapping.query) return;
+    private matchedFiles(schema: CompiledSchema): { file: TFile; meta: FileMeta }[] {
+        const mapping = this.settings().schemaMappings.find(m => m.id === schema.schema.id);
+        if (!mapping) return [];
+        return queryContext.index.getFilesForQuery(mapping.query)
+            .map(file => ({ file, meta: toFileMeta(this.app, file) }))
+            .filter(({ meta }) => schema.matches(meta));
+    }
 
-        const uniqueFields = mapping.fields.filter(f => f.unique === true);
-        if (uniqueFields.length === 0) return;
-
-        // Get all files matching this schema
-        const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
-        const matchedFiles: TFile[] = [];
-
-        for (const file of candidateFiles) {
-            if (this.isFileGloballyExcluded(file)) continue;
-            if (mapping.propertyFilter && !fileMatchesPropertyFilter(toFileMeta(this.app, file), mapping.propertyFilter)) {
-                continue;
-            }
-            // Remove existing duplicate_value violations for this file/schema
-            this.store.removeFileSchemaViolationsByType(file.path, mapping.id, "duplicate_value");
-            matchedFiles.push(file);
+    /**
+     * Re-validate unique constraints for a schema.
+     * Clears existing duplicate_value violations for matched files, then recomputes them.
+     */
+    private revalidateSchemaUniqueConstraints(schema: CompiledSchema): void {
+        const matched = this.matchedFiles(schema);
+        for (const { file } of matched) {
+            this.store.removeFileSchemaViolationsByType(file.path, schema.schema.id, "duplicate_value");
         }
 
-        this.applyUniqueViolations(mapping, uniqueFields, matchedFiles);
+        this.applyUniqueViolations(schema, matched.map(m => m.meta));
 
         // Fire hooks after all files processed - violations are now complete
-        for (const file of matchedFiles) {
+        for (const { file } of matched) {
             this.hooks.onFileValidated?.(
                 file,
-                this.getMatchingSchemas(file).map(s => s.id),
+                this.getMatchingSchemas(file).map(s => s.schema.id),
                 this.store.getFileViolations(file.path)
             );
         }
     }
 
     /**
-     * Validate all files that match a schema mapping's query
-     * Uses QueryIndex for efficient file lookup instead of scanning all files
+     * Validate all files that match a schema
      */
-    async validateMapping(mapping: SchemaMapping): Promise<void> {
-        if (!mapping.enabled || !mapping.query) return;
+    async validateMapping(mappingId: string): Promise<void> {
+        const schema = this.program.schemas.find(s => s.schema.id === mappingId);
+        if (!schema) return;
 
-        // Get files that match the query using the index (fast!)
-        const candidateFiles = queryContext.index.getFilesForQuery(mapping.query);
-
-        const uniqueFields = mapping.fields.filter(f => f.unique === true);
-
-        // Collect all processed files - we fire hooks at the end so duplicate violations are complete
-        const processedFiles: TFile[] = [];
+        const matched = this.matchedFiles(schema);
 
         let processed = 0;
-        for (const file of candidateFiles) {
-            if (this.isFileGloballyExcluded(file)) continue;
-            if (mapping.propertyFilter && !fileMatchesPropertyFilter(toFileMeta(this.app, file), mapping.propertyFilter)) {
-                continue;
-            }
-
+        for (const { meta } of matched) {
             // validateFile clears this schema's violations (incl. duplicate_value) for the file.
-            this.validateFile(file, mapping);
-            processedFiles.push(file);
+            this.validateFile(meta, schema);
 
             processed++;
             if (processed % BATCH_SIZE === 0) {
@@ -215,52 +170,27 @@ export class Validator {
             }
         }
 
-        // Cross-file unique: compute over all processed files via core, then write to store.
-        this.applyUniqueViolations(mapping, uniqueFields, processedFiles);
+        this.applyUniqueViolations(schema, matched.map(m => m.meta));
 
         // Fire hooks after all files processed - violations (including duplicates) are now complete
-        for (const file of processedFiles) {
+        for (const { file } of matched) {
             this.hooks.onFileValidated?.(
                 file,
-                this.getMatchingSchemas(file).map(s => s.id),
+                this.getMatchingSchemas(file).map(s => s.schema.id),
                 this.store.getFileViolations(file.path)
             );
         }
 
-        this.hooks.onSchemaValidated?.(mapping);
+        const mapping = this.settings().schemaMappings.find(m => m.id === mappingId);
+        if (mapping) this.hooks.onSchemaValidated?.(mapping);
     }
 
     /**
-     * Cross-file unique: for each unique field, gather values from the matched files
-     * (read from Obsidian's metadata cache), delegate duplicate detection to core's
-     * findDuplicateViolations, and write the resulting violations to the store.
-     * Callers are responsible for clearing prior duplicate_value violations first.
+     * Cross-file unique: callers are responsible for clearing prior duplicate_value violations first.
      */
-    private applyUniqueViolations(
-        mapping: SchemaMapping,
-        uniqueFields: SchemaField[],
-        files: TFile[]
-    ): void {
-        if (uniqueFields.length === 0) return;
-
-        for (const field of uniqueFields) {
-            const entries: UniqueEntry[] = [];
-            for (const file of files) {
-                const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-                if (!frontmatter) continue;
-                const actualKey = lookupKey(buildLowerKeyMap(frontmatter), field.name);
-                if (!actualKey) continue;
-                entries.push({
-                    filePath: file.path,
-                    basename: file.basename,
-                    value: frontmatter[actualKey],
-                });
-            }
-
-            const violations = findDuplicateViolations(mapping, field.name, entries);
-            for (const violation of violations) {
-                this.store.addFileViolations(violation.filePath, [violation]);
-            }
+    private applyUniqueViolations(schema: CompiledSchema, files: FileMeta[]): void {
+        for (const violation of schema.duplicates(files)) {
+            this.store.addFileViolations(violation.filePath, [violation]);
         }
     }
 
@@ -275,8 +205,8 @@ export class Validator {
             this.store.clear();
             this.hooks.onCleared?.();
 
-            for (const mapping of this.settings().schemaMappings) {
-                await this.validateMapping(mapping);
+            for (const schema of this.program.schemas) {
+                await this.validateMapping(schema.schema.id);
             }
 
             this.store.setLastFullValidation(Date.now());
@@ -293,12 +223,7 @@ export class Validator {
     async revalidateMapping(mappingId: string): Promise<void> {
         // Remove all violations from this schema
         this.store.removeSchemaViolations(mappingId);
-
-        // Re-validate if schema exists and is enabled
-        const mapping = this.settings().schemaMappings.find((m) => m.id === mappingId);
-        if (mapping) {
-            await this.validateMapping(mapping);
-        }
+        await this.validateMapping(mappingId);
     }
 
     /**
@@ -306,7 +231,7 @@ export class Validator {
      * Results are ephemeral -- added to the store but NOT cached to disk.
      */
     async scanMalformedFrontmatter(): Promise<number> {
-        this.store.removeSchemaViolations(MALFORMED_SCHEMA_ID);
+        this.store.removeSchemaViolations(MALFORMED_SCHEMA.id);
 
         const files = this.app.vault.getMarkdownFiles();
         let count = 0;
@@ -314,7 +239,7 @@ export class Validator {
 
         for (const file of files) {
             if (this.isMalformedFrontmatter(file)) {
-                this.addMalformedViolation(file);
+                this.store.addFileViolations(file.path, [malformedViolation(file.path)]);
                 count++;
             }
             processed++;
@@ -333,21 +258,9 @@ export class Validator {
     }
 
     private recheckMalformedFrontmatter(file: TFile): void {
-        this.store.removeFileSchemaViolations(file.path, MALFORMED_SCHEMA_ID);
+        this.store.removeFileSchemaViolations(file.path, MALFORMED_SCHEMA.id);
         if (this.isMalformedFrontmatter(file)) {
-            this.addMalformedViolation(file);
+            this.store.addFileViolations(file.path, [malformedViolation(file.path)]);
         }
-    }
-
-    private addMalformedViolation(file: TFile): void {
-        const violation: Violation = {
-            filePath: file.path,
-            schemaMapping: MALFORMED_SCHEMA,
-            field: "frontmatter",
-            type: "malformed_frontmatter",
-            severity: "error",
-            message: "Malformed YAML frontmatter (unparseable)",
-        };
-        this.store.addFileViolations(file.path, [violation]);
     }
 }

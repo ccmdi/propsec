@@ -1,7 +1,5 @@
-import { App, Modal, Notice, setIcon } from "obsidian";
-import { SchemaField, SchemaMapping, fileMatchesPropertyFilter, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
-import { queryContext } from "../query/context";
-import { toFileMeta } from "../adapter";
+import { App, Modal, Notice, setIcon, TFile } from "obsidian";
+import { SchemaField, SchemaMapping, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
 
 interface ResolvedField {
     name: string;
@@ -16,10 +14,12 @@ interface ResolvedField {
  */
 export class SchemaPreviewModal extends Modal {
     private mapping: SchemaMapping;
+    private filesMatching: (mapping: SchemaMapping) => TFile[];
 
-    constructor(app: App, mapping: SchemaMapping) {
+    constructor(app: App, mapping: SchemaMapping, filesMatching: (mapping: SchemaMapping) => TFile[]) {
         super(app);
         this.mapping = mapping;
+        this.filesMatching = filesMatching;
     }
 
     onOpen(): void {
@@ -107,19 +107,10 @@ export class SchemaPreviewModal extends Modal {
     }
 
     /**
-     * Count how many notes match this schema's query
-     * Uses QueryIndex for fast lookup
+     * Count how many notes match this schema
      */
     private countMatchingNotes(): number {
-        const files = queryContext.index.getFilesForQuery(this.mapping.query);
-        
-        if (this.mapping.propertyFilter) {
-            return files.filter(f =>
-                fileMatchesPropertyFilter(toFileMeta(this.app, f), this.mapping.propertyFilter!)
-            ).length;
-        }
-        
-        return files.length;
+        return this.filesMatching(this.mapping).length;
     }
 
     /**

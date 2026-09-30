@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { FieldType, SchemaField, EXCLUDE_FIELDS, ISO_DATE_REGEX } from "@propsec/core";
+import { FieldType, SchemaField, ISO_DATE_REGEX } from "@propsec/core";
 import "../obsidian-ex.d.ts";
 
 /**
@@ -97,8 +97,6 @@ export function extractSchemaFromTemplate(
     const fields: SchemaField[] = [];
 
     for (const [key, value] of Object.entries(frontmatter)) {
-        if (EXCLUDE_FIELDS.includes(key)) continue;
-
         fields.push({
             name: key,
             type: inferFieldTypeWithObsidian(app, key, value),

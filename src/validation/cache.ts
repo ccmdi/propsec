@@ -1,5 +1,6 @@
 import { App, TFile } from "obsidian";
-import { CustomType, PropsecSettings, SchemaField, SchemaMapping, Violation, ViolationSeverity, ViolationType } from "@propsec/core";
+import { CustomType, SchemaField, SchemaMapping, Violation, ViolationSeverity, ViolationType } from "@propsec/core";
+import type { PropsecSettings } from "../settings";
 import { debug } from "../debug";
 
 /**
@@ -35,7 +36,7 @@ interface ValidationCacheData {
     files: Record<string, CachedFileData>; // filePath → cache data
 }
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 /**
  * Simple string hash function (djb2)

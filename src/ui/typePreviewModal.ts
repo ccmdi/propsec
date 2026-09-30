@@ -1,8 +1,6 @@
-import { App, Modal, Notice, setIcon } from "obsidian";
-import { SchemaField, CustomType, SchemaMapping, formatTypeDisplay, groupFieldsByName, fileMatchesPropertyFilter } from "@propsec/core";
+import { App, Modal, Notice, setIcon, TFile } from "obsidian";
+import { SchemaField, CustomType, SchemaMapping, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
 import { getReferencedCustomTypes } from "../validation/cache";
-import { queryContext } from "../query/context";
-import { toFileMeta } from "../adapter";
 
 interface ResolvedField {
     name: string;
@@ -19,12 +17,20 @@ export class TypePreviewModal extends Modal {
     private customType: CustomType;
     private schemaMappings: SchemaMapping[];
     private customTypes: CustomType[];
+    private filesMatching: (mapping: SchemaMapping) => TFile[];
 
-    constructor(app: App, customType: CustomType, schemaMappings: SchemaMapping[], customTypes: CustomType[]) {
+    constructor(
+        app: App,
+        customType: CustomType,
+        schemaMappings: SchemaMapping[],
+        customTypes: CustomType[],
+        filesMatching: (mapping: SchemaMapping) => TFile[]
+    ) {
         super(app);
         this.customType = customType;
         this.schemaMappings = schemaMappings;
         this.customTypes = customTypes;
+        this.filesMatching = filesMatching;
     }
 
     onOpen(): void {
@@ -147,18 +153,8 @@ export class TypePreviewModal extends Modal {
 
         const uniqueFiles = new Set<string>();
         for (const schema of schemasUsingType) {
-            if (!schema.query) continue;
-            const files = queryContext.index.getFilesForQuery(schema.query);
-            if (schema.propertyFilter) {
-                for (const f of files) {
-                    if (fileMatchesPropertyFilter(toFileMeta(this.app, f), schema.propertyFilter)) {
-                        uniqueFiles.add(f.path);
-                    }
-                }
-            } else {
-                for (const f of files) {
-                    uniqueFiles.add(f.path);
-                }
+            for (const f of this.filesMatching(schema)) {
+                uniqueFiles.add(f.path);
             }
         }
 
