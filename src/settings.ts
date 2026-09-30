@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting, setIcon, Notice, Platform, TFile } from "obsidian";
-import { OBSIDIAN_NATIVE_PROPERTIES, Schema, TypeDef } from "@propsec/core";
+import { OBSIDIAN_NATIVE_PROPERTIES, Schema, TypeDef, describeRule } from "@propsec/core";
 import { PropsecSettings } from "./data";
 import { ruleInput } from "./ui/ruleInput";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
@@ -260,6 +260,19 @@ export class PropsecSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
+            .setName("Show rules in words")
+            .setDesc("Describe each schema's rule in plain words in the list above; hover to see the rule itself")
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.settings.rulesInWords)
+                    .onChange(async (value) => {
+                        this.settings.rulesInWords = value;
+                        await this.onSettingsChange();
+                        this.display();
+                    })
+            );
+
+        new Setting(containerEl)
             .setName("Exclude warnings from count")
             .setDesc("Don't include warnings in the status bar violation count (warnings still appear in the violations panel)")
             .addToggle((toggle) =>
@@ -469,9 +482,11 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "propsec-schema-info",
         });
 
+        const words = describeRule(mapping.where);
         infoRow.createSpan({
-            text: mapping.where || "(applies to no notes yet)",
+            text: (this.settings.rulesInWords ? words : mapping.where) || "(applies to no notes yet)",
             cls: "propsec-schema-query",
+            attr: { title: this.settings.rulesInWords ? mapping.where : words },
         });
 
         const requiredCount = mapping.fields.filter((f) => f.required).length;
