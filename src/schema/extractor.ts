@@ -102,6 +102,10 @@ export function extractSchemaFromTemplate(
             type: inferFieldTypeWithObsidian(app, key, value),
             required: true, // Default to required
         });
+        // A property left empty in the template may stay empty in notes
+        if (value === null || value === undefined) {
+            fields.push({ name: key, type: "null", required: true });
+        }
     }
 
     return fields;
