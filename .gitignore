@@ -27,3 +27,4 @@ benchmarks/
 CLAUDE.md
 tags-index.json
 validation-cache.json
+data.v1.json
