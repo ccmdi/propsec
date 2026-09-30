@@ -248,6 +248,18 @@ export class PropsecSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
+            .setName("Compact status bar")
+            .setDesc("Show an icon and a violation count instead of a sentence")
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.settings.compactStatusBar)
+                    .onChange(async (value) => {
+                        this.settings.compactStatusBar = value;
+                        await this.onSettingsChange();
+                    })
+            );
+
+        new Setting(containerEl)
             .setName("Exclude warnings from count")
             .setDesc("Don't include warnings in the status bar violation count (warnings still appear in the violations panel)")
             .addToggle((toggle) =>

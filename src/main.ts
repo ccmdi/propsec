@@ -63,6 +63,7 @@ export default class PropsecPlugin extends Plugin {
         this.updateStatusBarVisibility();
         this.updateStatusBarColoring();
         this.updateStatusBarWarnings();
+        this.statusBarItem?.setCompact(this.settings.compactStatusBar);
 
         this.addCommand({
             id: "validate-all-notes",
@@ -356,6 +357,7 @@ export default class PropsecPlugin extends Plugin {
         this.updateStatusBarVisibility();
         this.updateStatusBarColoring();
         this.updateStatusBarWarnings();
+        this.statusBarItem?.setCompact(this.settings.compactStatusBar);
     }
 
     /**

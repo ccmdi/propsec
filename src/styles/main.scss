@@ -128,6 +128,63 @@
     }
 }
 
+.propsec-status-icon {
+    display: flex;
+    align-items: center;
+    animation: propsec-settle 250ms ease-out;
+
+    svg {
+        height: var(--icon-s, 16px);
+        width: var(--icon-s, 16px);
+    }
+}
+
+.propsec-spinner.is-compact {
+    height: auto;
+    width: auto;
+
+    svg {
+        height: var(--icon-s, 16px);
+        width: var(--icon-s, 16px);
+        animation: propsec-pulse 1.2s ease-in-out infinite;
+    }
+}
+
+@keyframes propsec-pulse {
+    0%, 100% {
+        opacity: 0.35;
+        transform: translateY(0);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-1px);
+    }
+}
+
+.propsec-status-count {
+    margin-left: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.propsec-ok,
+.propsec-error {
+    &:has(.propsec-status-icon) {
+        display: flex;
+        align-items: center;
+    }
+}
+
+@keyframes propsec-settle {
+    from {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
 // ============================================
 // Modals
 // ============================================

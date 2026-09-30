@@ -10,6 +10,7 @@ export class StatusBarItem {
     private onClick: () => void;
     private colorErrors: boolean = true;
     private excludeWarnings: boolean = true;
+    private compact: boolean = true;
     private lastWidth: number = 0;
     private isLoading: boolean = false;
 
@@ -31,41 +32,36 @@ export class StatusBarItem {
         this.store.onBatchEnd(() => this.hideLoading());
 
         if (this.store.getLastFullValidation() === 0) {
-            this.showInitialLoading();
+            this.renderLoading();
         } else {
             this.update();
         }
     }
 
     /**
-     * Show initial loading state
+     * Show the checking state: a spinning icon in compact mode, a spinner otherwise
      */
-    private showInitialLoading(): void {
+    private renderLoading(): void {
         this.isLoading = true;
         this.statusBarEl.empty();
+        this.statusBarEl.removeClass("propsec-ok");
+        this.statusBarEl.removeClass("propsec-error");
         this.statusBarEl.addClass("propsec-loading");
+        this.setTooltip("Checking frontmatter…");
 
         const spinnerEl = this.statusBarEl.createSpan({ cls: "propsec-spinner" });
-        setIcon(spinnerEl, "loader-2");
+        setIcon(spinnerEl, this.compact ? "list-todo" : "loader-2");
+        spinnerEl.toggleClass("is-compact", this.compact);
     }
 
     /**
      * Show loading spinner, preserving current width
      */
     private showLoading(): void {
-        this.isLoading = true;
         this.lastWidth = this.statusBarEl.offsetWidth;
-
-        this.statusBarEl.empty();
-        this.statusBarEl.removeClass("propsec-ok");
-        this.statusBarEl.removeClass("propsec-error");
-        this.statusBarEl.addClass("propsec-loading");
-
         // Set fixed width via CSS custom property to prevent layout shift
         this.statusBarEl.style.setProperty("--loading-width", `${this.lastWidth}px`);
-
-        const spinnerEl = this.statusBarEl.createSpan({ cls: "propsec-spinner" });
-        setIcon(spinnerEl, "loader-2");
+        this.renderLoading();
     }
 
     /**
@@ -95,6 +91,23 @@ export class StatusBarItem {
     }
 
     /**
+     * Set whether to show an icon and count instead of a sentence
+     */
+    setCompact(compact: boolean): void {
+        this.compact = compact;
+        this.update();
+    }
+
+    private setTooltip(text: string | null): void {
+        if (this.compact && text) {
+            this.statusBarEl.setAttr("aria-label", text);
+            this.statusBarEl.setAttr("data-tooltip-position", "top");
+        } else {
+            this.statusBarEl.removeAttribute("aria-label");
+        }
+    }
+
+    /**
      * Update the status bar display
      */
     update(): void {
@@ -102,26 +115,24 @@ export class StatusBarItem {
 
         const totalViolations = this.store.getTotalViolationCount(this.excludeWarnings);
         const fileCount = this.store.getFileCount(this.excludeWarnings);
+        const violations = `${totalViolations} violation${totalViolations === 1 ? "" : "s"}`;
+        const text = totalViolations === 0 ? "Frontmatter OK"
+            : fileCount === 1 ? violations
+            : `${violations} in ${fileCount} files`;
 
-        // Clear existing content
         this.statusBarEl.empty();
+        this.statusBarEl.toggleClass("propsec-ok", totalViolations === 0);
+        this.statusBarEl.toggleClass("propsec-error", totalViolations > 0 && this.colorErrors);
+        this.setTooltip(text);
 
-        if (totalViolations === 0) {
-            this.statusBarEl.setText("Frontmatter OK");
-            this.statusBarEl.removeClass("propsec-error");
-            this.statusBarEl.addClass("propsec-ok");
-        } else {
-            const text =
-                fileCount === 1
-                    ? `${totalViolations} violation${totalViolations === 1 ? "" : "s"}`
-                    : `${totalViolations} violation${totalViolations === 1 ? "" : "s"} in ${fileCount} files`;
+        if (!this.compact) {
             this.statusBarEl.setText(text);
-            this.statusBarEl.removeClass("propsec-ok");
-            if (this.colorErrors) {
-                this.statusBarEl.addClass("propsec-error");
-            } else {
-                this.statusBarEl.removeClass("propsec-error");
-            }
+            return;
+        }
+        const iconEl = this.statusBarEl.createSpan({ cls: "propsec-status-icon" });
+        setIcon(iconEl, totalViolations === 0 ? "list-checks" : "list-x");
+        if (totalViolations > 0) {
+            this.statusBarEl.createSpan({ text: String(totalViolations), cls: "propsec-status-count" });
         }
     }
 

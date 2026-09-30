@@ -8,6 +8,7 @@ export interface PropsecSettings extends Config {
     colorStatusBarErrors: boolean;
     excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
     enablePropertySuggestions: boolean;  // Show property autocomplete in schema editor
+    compactStatusBar: boolean;
 }
 
 export const DEFAULT_SETTINGS: PropsecSettings = {
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: PropsecSettings = {
     colorStatusBarErrors: true,
     excludeWarningsFromCount: true,
     enablePropertySuggestions: true,
+    compactStatusBar: true,
 };
 
 const HOST_PREFERENCES = [
