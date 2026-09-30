@@ -28,27 +28,26 @@ Obsidian properties are freeform. Over time, things can break: you change the st
 
 1. Open plugin settings
 2. Create a schema: click **+ Add Schema**
-3. Set a query to target notes
-4. Add fields: name, type, required/optional
+3. Write a rule for which notes it applies to, e.g. `file.inFolder("Books")`
+4. Add fields: name, type, required/optional, and optional rules
 5. Violations appear in the status bar/sidebar
 
-## Schema definition
-The query field allows schema matching based on file paths and/or tags:
+## Rules
 
-| Query | Matches |
-|-------|---------|
-| `Journal` | Notes directly in Journal folder |
-| `Journal/*` | Notes in Journal and all subfolders |
-| `#book` | Notes with #book tag |
-| `Projects/* or #active` | Notes matching either condition |
+Everything that picks or checks something is a rule, written in a small expression language. Press Ctrl+Space in a rule box for helpers like "at most N characters" or "in folder". This will insert the rule for you.
 
-You can also narrow which notes a schema applies to with properties:
+| Where | Example | Meaning |
+|-------|---------|---------|
+| Schema: applies to | `file.inFolder("Books") \|\| file.hasTag("book")` | Notes in Books, or tagged #book |
+| Field: value must | `size(it) >= 1 && size(it) <= 5` | Between 1 and 5 items |
+| Field: value must | `it.exists(t, t.matches("^genre/"))` | Has a tag starting with `genre/` |
+| Field: value must | `it >= started` | On or after the `started` property |
+| Field: applies when | `status == "finished"` | Only check this field for finished notes |
+| Settings: excluded notes | `file.hasTag("archived")` | No schema checks archived notes |
 
-- `File name matches`: Filter by file name (regex)
-- `Modified after` / `Modified before`: Filter by modification date
-- `Created after` / `Created before`: Filter by creation date
-- `Has property` / `Missing property`: Filter by property existence
-- `Property conditions`: Filter by property values (property-operator-value list)
+A rule reads properties by name (`rating`, or `note["date created"]` when the name has spaces), the field's own value as `it`, and the file through `file`: `file.path`, `file.name`, `file.folder`, `file.tags`, `file.mtime`, `file.ctime`, `file.inFolder(...)`, `file.hasTag(...)`.
+
+The syntax follows [CEL](https://cel.dev), [adjusted for frontmatter](https://github.com/ccmdi/propsec-rules#rules).
 
 ## Field types
 ### Primitives
@@ -61,17 +60,4 @@ Define reusable types in settings. A custom type is a named group of fields. Use
 Add multiple field entries with the same name but different types. For example, two entries for `status` with types `string` and `null` creates `string | null`.
 
 ## Field flags
-Fields can be flagged to be **required** (key is required) xor **warn** (soft requirement). There is also a **unique** constraint that prevents duplicate values on that field.
-
-Finally, there are **cross-field constraints** (compare this field's value to another field) and **conditional validation** (only validate this field when another field matches a condition).
-
-## Constraints
-
-Each field type supports optional constraints:
-
-| Type | Constraints |
-|------|-------------|
-| string | `pattern` (regex), `minLength`, `maxLength` |
-| number | `min`, `max` |
-| array | `minItems`, `maxItems`, `contains` (required values) |
-| date  | `min`, `max` |
+Fields can be flagged to be **required** (key is required) xor **warn** (soft requirement). There is also a **unique** flag that prevents duplicate values on that field across notes.
