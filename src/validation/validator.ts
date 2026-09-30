@@ -345,6 +345,7 @@ export class Validator {
             schemaMapping: MALFORMED_SCHEMA,
             field: "frontmatter",
             type: "malformed_frontmatter",
+            severity: "error",
             message: "Malformed YAML frontmatter (unparseable)",
         };
         this.store.addFileViolations(file.path, [violation]);

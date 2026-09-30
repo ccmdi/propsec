@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { CustomType, PropsecSettings, SchemaField, SchemaMapping, Violation, ViolationType } from "@propsec/core";
+import { CustomType, PropsecSettings, SchemaField, SchemaMapping, Violation, ViolationSeverity, ViolationType } from "@propsec/core";
 import { debug } from "../debug";
 
 /**
@@ -10,6 +10,7 @@ interface CachedViolation {
     schemaId: string;
     field: string;
     type: ViolationType;
+    severity: ViolationSeverity;
     message: string;
     expected?: string;
     actual?: string;
@@ -34,7 +35,7 @@ interface ValidationCacheData {
     files: Record<string, CachedFileData>; // filePath → cache data
 }
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 /**
  * Simple string hash function (djb2)
@@ -126,6 +127,7 @@ function toCachedViolation(v: Violation): CachedViolation {
         schemaId: v.schemaMapping.id,
         field: v.field,
         type: v.type,
+        severity: v.severity,
         message: v.message,
         expected: v.expected,
         actual: v.actual,
@@ -147,6 +149,7 @@ function fromCachedViolation(
         schemaMapping: schema,
         field: cached.field,
         type: cached.type,
+        severity: cached.severity,
         message: cached.message,
         expected: cached.expected,
         actual: cached.actual,
