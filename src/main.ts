@@ -14,7 +14,6 @@ import { StatusBarItem } from "./ui/statusBar";
 import { ViolationsModal } from "./ui/violationsModal";
 import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./ui/violationsView";
 import { PropsecSettingTab, PropsecSettings, DEFAULT_SETTINGS } from "./settings";
-import { queryContext } from "./query/context";
 import { debug } from "./debug";
 
 export default class PropsecPlugin extends Plugin {
@@ -30,7 +29,6 @@ export default class PropsecPlugin extends Plugin {
     async onload(): Promise<void> {
         await this.loadSettings();
 
-        queryContext.initialize(this.app, this.manifest.id);
         this.store = new ViolationStore();
         this.cache = new ValidationCache(this.app, this.manifest.id, () => this.settings);
         this.validator = new Validator(this.app, this.store, () => this.settings);
@@ -70,14 +68,6 @@ export default class PropsecPlugin extends Plugin {
             name: "Validate all notes",
             callback: () => {
                 void this.validator.validateAll();
-            },
-        });
-
-        this.addCommand({
-            id: "rebuild-and-validate",
-            name: "Rebuild index and validate all",
-            callback: () => {
-                void this.rebuildAndValidate();
             },
         });
 
@@ -165,8 +155,6 @@ export default class PropsecPlugin extends Plugin {
     }
 
     private async initializeAndValidate(): Promise<void> {
-        await queryContext.index.initialize();
-
         const startTime = performance.now();
 
         // Now vault is ready - analyze what needs revalidation
@@ -219,21 +207,9 @@ export default class PropsecPlugin extends Plugin {
         }
     }
 
-    /**
-     * Force rebuild the tag index and re-validate everything
-     */
-    private async rebuildAndValidate(): Promise<void> {
-        await queryContext.index.buildFullIndex();
-        await this.validator.validateAll();
-    }
-
     onunload(): void {
         if (this.statusBarItem) {
             this.statusBarItem.destroy();
-        }
-        // Save tag index on unload
-        if (queryContext.isInitialized) {
-            void queryContext.index.saveToDisk();
         }
         // Flush validation cache
         void this.cache.flush();
@@ -283,13 +259,9 @@ export default class PropsecPlugin extends Plugin {
 
     private registerEvents(): void {
         // Validate on metadata cache changes (file save, frontmatter edit)
-        // Also update tag index
         this.registerEvent(
             this.app.metadataCache.on("changed", (file: TFile) => {
                 if (file.extension !== "md") return;
-
-                // Always update tag index
-                queryContext.index.updateFile(file);
 
                 // Queue changes during startup, process after
                 if (!this.startupComplete) {
@@ -306,8 +278,6 @@ export default class PropsecPlugin extends Plugin {
         this.registerEvent(
             this.app.vault.on("rename", (file: TAbstractFile, oldPath: string) => {
                 if (!(file instanceof TFile) || file.extension !== "md") return;
-
-                queryContext.index.renameFile(oldPath, file.path);
 
                 // Update violation store path
                 this.store.renameFile(oldPath, file.path);
@@ -339,8 +309,6 @@ export default class PropsecPlugin extends Plugin {
         this.registerEvent(
             this.app.vault.on("delete", (file: TAbstractFile) => {
                 if (!(file instanceof TFile)) return;
-                // Update tag index
-                queryContext.index.removeFile(file.path);
                 this.store.removeFile(file.path);
                 // Update validation cache
                 this.cache.removeFile(file.path);

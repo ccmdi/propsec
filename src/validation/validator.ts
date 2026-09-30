@@ -11,7 +11,6 @@ import {
     migrate,
 } from "@propsec/core";
 import { ViolationStore } from "./store";
-import { queryContext } from "../query/context";
 import { toFileMeta } from "../adapter";
 import { debug } from "../debug";
 import type { PropsecSettings } from "../settings";
@@ -73,7 +72,7 @@ export class Validator {
      */
     filesMatching(mapping: SchemaMapping): TFile[] {
         const [schema] = compile(migrate({ ...this.settings(), schemaMappings: [{ ...mapping, enabled: true }] })).schemas;
-        return queryContext.index.getFilesForQuery(mapping.query).filter(f => schema.matches(toFileMeta(this.app, f)));
+        return this.matchedFiles(schema).map(m => m.file);
     }
 
     /**
@@ -118,12 +117,10 @@ export class Validator {
     }
 
     /**
-     * Candidate files for a schema, paired with their metadata, keeping only real matches
+     * Markdown files a schema applies to, paired with their metadata
      */
     private matchedFiles(schema: CompiledSchema): { file: TFile; meta: FileMeta }[] {
-        const mapping = this.settings().schemaMappings.find(m => m.id === schema.schema.id);
-        if (!mapping) return [];
-        return queryContext.index.getFilesForQuery(mapping.query)
+        return this.app.vault.getMarkdownFiles()
             .map(file => ({ file, meta: toFileMeta(this.app, file) }))
             .filter(({ meta }) => schema.matches(meta));
     }
