@@ -134,10 +134,3 @@ export function getTypeDisplayName(type: FieldType): string {
             return type;
     }
 }
-
-/**
- * Get all available field types for dropdown selection
- */
-export function getAllFieldTypes(): FieldType[] {
-    return ["string", "number", "boolean", "date", "array", "object", "null", "unknown"];
-}

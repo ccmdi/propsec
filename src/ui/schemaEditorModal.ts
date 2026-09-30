@@ -9,8 +9,9 @@ import {
     PROPERTY_OPERATORS,
     PropertyOperator,
     validateQuery,
+    PRIMITIVE_TYPES,
 } from "@propsec/core";
-import { extractSchemaFromTemplate, getAllFieldTypes } from "../schema/extractor";
+import { extractSchemaFromTemplate } from "../schema/extractor";
 import { FieldEditorModal } from "./fieldEditorModal";
 
 export interface SchemaEditorResult {
@@ -55,7 +56,7 @@ export class SchemaEditorModal extends FieldEditorModal {
     }
 
     protected getAvailableTypes(): string[] {
-        const primitives = getAllFieldTypes();
+        const primitives = PRIMITIVE_TYPES;
         const customTypeNames = this.customTypes.map(t => t.name);
         return [...primitives, ...customTypeNames];
     }

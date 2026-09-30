@@ -1,6 +1,5 @@
 import { App, Notice, Setting } from "obsidian";
-import { SchemaField, CustomType, isPrimitiveType } from "@propsec/core";
-import { getAllFieldTypes } from "../schema/extractor";
+import { SchemaField, CustomType, isPrimitiveType, PRIMITIVE_TYPES } from "@propsec/core";
 import { generatePrefixedId } from "../utils/id";
 import { FieldEditorModal } from "./fieldEditorModal";
 
@@ -48,7 +47,7 @@ export class CustomTypeEditorModal extends FieldEditorModal {
     }
 
     protected getAvailableTypes(): string[] {
-        const primitives = getAllFieldTypes();
+        const primitives = PRIMITIVE_TYPES;
         // Exclude self to prevent direct self-reference
         const otherCustomTypes = this.existingTypes
             .filter(t => t.id !== this.customType.id)
