@@ -1,5 +1,5 @@
 import { App, Modal, TFile, TFolder } from "obsidian";
-import { SchemaMapping, SchemaField, CustomType } from "@propsec/core";
+import { Schema, Field, TypeDef } from "@propsec/core";
 import { extractSchemaFromTemplate } from "../schema/extractor";
 import { SchemaEditorModal } from "./schemaEditorModal";
 import { generateUUID } from "../utils/id";
@@ -9,8 +9,9 @@ import { generateUUID } from "../utils/id";
  */
 export class AddSchemaModal extends Modal {
     private templatesFolder: string;
-    private customTypes: CustomType[];
-    private onSave: (mapping: SchemaMapping) => void;
+    private types: TypeDef[];
+    private onSave: (schema: Schema) => void;
+    private countMatches: (schema: Schema) => number;
     private enablePropertySuggestions: boolean;
     private selectedTemplate: TFile | null = null;
     private mode: "template" | "scratch" = "template";
@@ -18,14 +19,16 @@ export class AddSchemaModal extends Modal {
     constructor(
         app: App,
         templatesFolder: string,
-        customTypes: CustomType[],
-        onSave: (mapping: SchemaMapping) => void,
+        types: TypeDef[],
+        onSave: (schema: Schema) => void,
+        countMatches: (schema: Schema) => number,
         enablePropertySuggestions: boolean = true
     ) {
         super(app);
         this.templatesFolder = templatesFolder;
-        this.customTypes = customTypes;
+        this.types = types;
         this.onSave = onSave;
+        this.countMatches = countMatches;
         this.enablePropertySuggestions = enablePropertySuggestions;
     }
 
@@ -175,8 +178,7 @@ export class AddSchemaModal extends Modal {
     }
 
     private proceedToEditor(): void {
-        let fields: SchemaField[] = [];
-        let sourceTemplatePath: string | null = null;
+        let fields: Field[] = [];
         let defaultName = "New Schema";
 
         if (this.mode === "template") {
@@ -185,16 +187,14 @@ export class AddSchemaModal extends Modal {
                 return;
             }
             fields = extractSchemaFromTemplate(this.app, this.selectedTemplate);
-            sourceTemplatePath = this.selectedTemplate.path;
             defaultName = this.selectedTemplate.basename;
         }
 
-        const newMapping: SchemaMapping = {
+        const newSchema: Schema = {
             id: generateUUID(),
             name: defaultName,
-            sourceTemplatePath,
-            query: "",
             enabled: true,
+            where: "",
             fields,
         };
 
@@ -202,12 +202,13 @@ export class AddSchemaModal extends Modal {
 
         const editorModal = new SchemaEditorModal(
             this.app,
-            newMapping,
+            newSchema,
             this.templatesFolder,
-            this.customTypes,
-            (mapping) => {
-                this.onSave(mapping);
+            this.types,
+            (schema) => {
+                this.onSave(schema);
             },
+            this.countMatches,
             this.enablePropertySuggestions
         );
         editorModal.open();

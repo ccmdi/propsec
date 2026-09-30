@@ -1,5 +1,5 @@
 import { App, Modal, Notice, setIcon, TFile } from "obsidian";
-import { SchemaField, CustomType, SchemaMapping, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
+import { Field, TypeDef, Schema, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
 import { getReferencedCustomTypes } from "../validation/cache";
 
 interface ResolvedField {
@@ -14,22 +14,22 @@ interface ResolvedField {
  * Groups union types and shows the effective field definitions
  */
 export class TypePreviewModal extends Modal {
-    private customType: CustomType;
-    private schemaMappings: SchemaMapping[];
-    private customTypes: CustomType[];
-    private filesMatching: (mapping: SchemaMapping) => TFile[];
+    private customType: TypeDef;
+    private schemas: Schema[];
+    private types: TypeDef[];
+    private filesMatching: (mapping: Schema) => TFile[];
 
     constructor(
         app: App,
-        customType: CustomType,
-        schemaMappings: SchemaMapping[],
-        customTypes: CustomType[],
-        filesMatching: (mapping: SchemaMapping) => TFile[]
+        customType: TypeDef,
+        schemas: Schema[],
+        types: TypeDef[],
+        filesMatching: (mapping: Schema) => TFile[]
     ) {
         super(app);
         this.customType = customType;
-        this.schemaMappings = schemaMappings;
-        this.customTypes = customTypes;
+        this.schemas = schemas;
+        this.types = types;
         this.filesMatching = filesMatching;
     }
 
@@ -124,7 +124,7 @@ export class TypePreviewModal extends Modal {
     /**
      * Group fields by name and compute the resolved union type
      */
-    private resolveFields(fields: SchemaField[]): ResolvedField[] {
+    private resolveFields(fields: Field[]): ResolvedField[] {
         const groups = groupFieldsByName(fields);
 
         const resolved: ResolvedField[] = [];
@@ -146,8 +146,8 @@ export class TypePreviewModal extends Modal {
     }
 
     private countUsage(): { schemaCount: number; noteCount: number } {
-        const schemasUsingType = this.schemaMappings.filter(schema => {
-            const referencedTypes = getReferencedCustomTypes(schema.fields, this.customTypes);
+        const schemasUsingType = this.schemas.filter(schema => {
+            const referencedTypes = getReferencedCustomTypes(schema.fields, this.types);
             return referencedTypes.some(t => t.name === this.customType.name);
         });
 

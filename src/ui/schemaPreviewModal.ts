@@ -1,5 +1,5 @@
 import { App, Modal, Notice, setIcon, TFile } from "obsidian";
-import { SchemaField, SchemaMapping, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
+import { Field, Schema, formatTypeDisplay, groupFieldsByName } from "@propsec/core";
 
 interface ResolvedField {
     name: string;
@@ -13,10 +13,10 @@ interface ResolvedField {
  * Groups union types and shows the effective field definitions
  */
 export class SchemaPreviewModal extends Modal {
-    private mapping: SchemaMapping;
-    private filesMatching: (mapping: SchemaMapping) => TFile[];
+    private mapping: Schema;
+    private filesMatching: (mapping: Schema) => TFile[];
 
-    constructor(app: App, mapping: SchemaMapping, filesMatching: (mapping: SchemaMapping) => TFile[]) {
+    constructor(app: App, mapping: Schema, filesMatching: (mapping: Schema) => TFile[]) {
         super(app);
         this.mapping = mapping;
         this.filesMatching = filesMatching;
@@ -42,7 +42,7 @@ export class SchemaPreviewModal extends Modal {
             void this.copySchemaToClipboard();
         });
 
-        if (this.mapping.query) {
+        if (this.mapping.where) {
             const matchCount = this.countMatchingNotes();
             queryRow.createSpan({
                 text: `matches ${matchCount} note${matchCount === 1 ? "" : "s"}`,
@@ -116,7 +116,7 @@ export class SchemaPreviewModal extends Modal {
     /**
      * Group fields by name and compute the resolved union type
      */
-    private resolveFields(fields: SchemaField[]): ResolvedField[] {
+    private resolveFields(fields: Field[]): ResolvedField[] {
         const groups = groupFieldsByName(fields);
 
         const resolved: ResolvedField[] = [];

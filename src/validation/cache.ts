@@ -1,6 +1,6 @@
 import { App, TFile } from "obsidian";
-import { CustomType, SchemaField, SchemaMapping, Violation, ViolationSeverity, ViolationType } from "@propsec/core";
-import type { PropsecSettings } from "../settings";
+import { Field, Schema, TypeDef, Violation, ViolationSeverity, ViolationType } from "@propsec/core";
+import type { PropsecSettings } from "../data";
 import { debug } from "../debug";
 
 /**
@@ -36,7 +36,7 @@ interface ValidationCacheData {
     files: Record<string, CachedFileData>; // filePath → cache data
 }
 
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 
 /**
  * Simple string hash function (djb2)
@@ -53,14 +53,14 @@ function hashString(str: string): string {
  * Get all custom types referenced by a schema's fields (recursively)
  */
 export function getReferencedCustomTypes(
-    fields: SchemaField[],
-    allCustomTypes: CustomType[],
+    fields: Field[],
+    allCustomTypes: TypeDef[],
     visited: Set<string> = new Set()
-): CustomType[] {
-    const result: CustomType[] = [];
+): TypeDef[] {
+    const result: TypeDef[] = [];
     const typeMap = new Map(allCustomTypes.map(t => [t.name, t]));
 
-    function collectTypes(fieldList: SchemaField[]): void {
+    function collectTypes(fieldList: Field[]): void {
         for (const field of fieldList) {
             // Check field type
             const customType = typeMap.get(field.type);
@@ -90,14 +90,13 @@ export function getReferencedCustomTypes(
 /**
  * Hash a schema including its referenced custom types
  */
-function hashSchema(schema: SchemaMapping, customTypes: CustomType[]): string {
+function hashSchema(schema: Schema, customTypes: TypeDef[]): string {
     const referencedTypes = getReferencedCustomTypes(schema.fields, customTypes);
 
     const toHash = {
         fields: schema.fields,
-        query: schema.query,
+        where: schema.where,
         enabled: schema.enabled,
-        propertyFilter: schema.propertyFilter,
         // Include full definitions of referenced custom types
         customTypes: referencedTypes.map(t => ({
             name: t.name,
@@ -113,8 +112,9 @@ function hashSchema(schema: SchemaMapping, customTypes: CustomType[]): string {
  */
 function hashSettings(settings: PropsecSettings): string {
     const toHash = {
-        warnOnUnknownFields: settings.warnOnUnknownFields,
-        allowObsidianProperties: settings.allowObsidianProperties,
+        unknownFields: settings.unknownFields,
+        openFields: settings.openFields,
+        exclude: settings.exclude,
     };
     return hashString(JSON.stringify(toHash));
 }
@@ -140,7 +140,7 @@ function toCachedViolation(v: Violation): CachedViolation {
  */
 function fromCachedViolation(
     cached: CachedViolation,
-    schemaMap: Map<string, SchemaMapping>
+    schemaMap: Map<string, Schema>
 ): Violation | null {
     const schema = schemaMap.get(cached.schemaId);
     if (!schema) return null; // Schema was deleted
@@ -260,7 +260,7 @@ export class ValidationCache {
      */
     loadCachedViolations(): Violation[] {
         const settings = this.settings();
-        const schemaMap = new Map(settings.schemaMappings.map(s => [s.id, s]));
+        const schemaMap = new Map(settings.schemas.map(s => [s.id, s]));
 
         const violations: Violation[] = [];
         for (const fileData of Object.values(this.data.files)) {
@@ -283,7 +283,7 @@ export class ValidationCache {
     } {
         const settings = this.settings();
         const currentSettingsHash = hashSettings(settings);
-        const schemaMap = new Map(settings.schemaMappings.map(s => [s.id, s]));
+        const schemaMap = new Map(settings.schemas.map(s => [s.id, s]));
 
         // Check if global settings changed
         if (this.data.settingsHash !== currentSettingsHash) {
@@ -301,8 +301,8 @@ export class ValidationCache {
         const invalidSchemaIds = new Set<string>();
         const currentSchemaHashes: Record<string, string> = {};
 
-        for (const schema of settings.schemaMappings) {
-            const currentHash = hashSchema(schema, settings.customTypes);
+        for (const schema of settings.schemas) {
+            const currentHash = hashSchema(schema, settings.types);
             currentSchemaHashes[schema.id] = currentHash;
 
             if (this.data.schemaHashes[schema.id] !== currentHash) {
@@ -377,7 +377,7 @@ export class ValidationCache {
     getFileViolations(
         filePath: string,
         currentMtime: number,
-        schemaMap: Map<string, SchemaMapping>
+        schemaMap: Map<string, Schema>
     ): Violation[] | null {
         const cached = this.data.files[filePath];
         if (!cached || cached.mtime !== currentMtime) {
@@ -460,8 +460,8 @@ export class ValidationCache {
     /**
      * Update the hash for a schema (after revalidation)
      */
-    updateSchemaHash(schema: SchemaMapping): void {
-        this.data.schemaHashes[schema.id] = hashSchema(schema, this.settings().customTypes);
+    updateSchemaHash(schema: Schema): void {
+        this.data.schemaHashes[schema.id] = hashSchema(schema, this.settings().types);
         this.scheduleSave();
     }
 

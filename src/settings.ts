@@ -1,5 +1,7 @@
 import { App, PluginSettingTab, Setting, setIcon, Notice, Platform, TFile } from "obsidian";
-import { SchemaMapping, CustomType, describePropertyFilter } from "@propsec/core";
+import { OBSIDIAN_NATIVE_PROPERTIES, Schema, TypeDef } from "@propsec/core";
+import { PropsecSettings } from "./data";
+import { ruleInput } from "./ui/ruleInput";
 import { SchemaEditorModal } from "./ui/schemaEditorModal";
 import { AddSchemaModal } from "./ui/addSchemaModal";
 import { CustomTypeEditorModal } from "./ui/customTypeEditorModal";
@@ -10,39 +12,11 @@ import { makeDraggable } from "./ui/draggable";
 import { getReferencedCustomTypes } from "./validation/cache";
 import PropsecPlugin from "./main";
 
-export interface PropsecSettings {
-    templatesFolder: string;
-    schemaMappings: SchemaMapping[];
-    customTypes: CustomType[];  // User-defined reusable types
-    warnOnUnknownFields: boolean;
-    allowObsidianProperties: boolean;  // Don't warn about aliases, tags, cssclasses
-    validateOnFileOpen: boolean;
-    showInStatusBar: boolean;
-    colorStatusBarErrors: boolean;
-    excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
-    enablePropertySuggestions: boolean;  // Show property autocomplete in schema editor
-    globalExclusions: string;  // Query to exclude files from all schemas (e.g., "#status/archived")
-}
-
-export const DEFAULT_SETTINGS: PropsecSettings = {
-    templatesFolder: "",
-    schemaMappings: [],
-    customTypes: [],
-    warnOnUnknownFields: true,
-    allowObsidianProperties: true,
-    validateOnFileOpen: true,
-    showInStatusBar: true,
-    colorStatusBarErrors: true,
-    excludeWarningsFromCount: true,
-    enablePropertySuggestions: true,
-    globalExclusions: "",
-};
-
 export class PropsecSettingTab extends PluginSettingTab {
     private settings: PropsecSettings;
     private onSettingsChange: () => Promise<void>;
     private onSchemaChange: (mappingId?: string) => void;
-    private filesMatching: (mapping: SchemaMapping) => TFile[];
+    private filesMatching: (schema: Schema) => TFile[];
     private customTypesContainer: HTMLElement | null = null;
     private schemaListContainer: HTMLElement | null = null;
 
@@ -53,7 +27,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         settings: PropsecSettings,
         onSettingsChange: () => Promise<void>,
         onSchemaChange: (mappingId?: string) => void,
-        filesMatching: (mapping: SchemaMapping) => TFile[]
+        filesMatching: (schema: Schema) => TFile[]
     ) {
         super(app, plugin);
         this.containerEl = containerEl;
@@ -94,13 +68,13 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "propsec-custom-types-list",
         });
 
-        if (this.settings.customTypes.length === 0) {
+        if (this.settings.types.length === 0) {
             this.customTypesContainer.createEl("p", {
                 text: "No types defined. Click the button below to add one.",
                 cls: "propsec-no-types",
             });
         } else {
-            this.settings.customTypes.forEach((customType, index) => {
+            this.settings.types.forEach((customType, index) => {
                 this.renderCustomTypeItem(this.customTypesContainer!, customType, index);
             });
         }
@@ -114,15 +88,15 @@ export class PropsecSettingTab extends PluginSettingTab {
                     const modal = new CustomTypeEditorModal(
                         this.app,
                         null,
-                        this.settings.customTypes,
+                        this.settings.types,
                         //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                         async (newType) => {
-                            this.settings.customTypes.push(newType);
+                            this.settings.types.push(newType);
                             await this.onSettingsChange();
                             if (this.customTypesContainer) {
                                 // Remove "no types" placeholder if present
                                 this.customTypesContainer.querySelector(".propsec-no-types")?.remove();
-                                const newIndex = this.settings.customTypes.length - 1;
+                                const newIndex = this.settings.types.length - 1;
                                 this.renderCustomTypeItem(this.customTypesContainer, newType, newIndex);
                             }
                         }
@@ -142,13 +116,13 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "propsec-schema-list",
         });
 
-        if (this.settings.schemaMappings.length === 0) {
+        if (this.settings.schemas.length === 0) {
             this.schemaListContainer.createEl("p", {
                 text: "No schemas defined. Click the button below to add one.",
                 cls: "propsec-no-schemas",
             });
         } else {
-            this.settings.schemaMappings.forEach((mapping, index) => {
+            this.settings.schemas.forEach((mapping, index) => {
                 this.renderSchemaMappingItem(this.schemaListContainer!, mapping, index);
             });
         }
@@ -162,19 +136,20 @@ export class PropsecSettingTab extends PluginSettingTab {
                     const modal = new AddSchemaModal(
                         this.app,
                         this.settings.templatesFolder,
-                        this.settings.customTypes,
+                        this.settings.types,
                         //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                         async (mapping) => {
-                            this.settings.schemaMappings.push(mapping);
+                            this.settings.schemas.push(mapping);
                             await this.onSettingsChange();
                             this.onSchemaChange(mapping.id);
                             if (this.schemaListContainer) {
                                 // Remove "no schemas" placeholder if present
                                 this.schemaListContainer.querySelector(".propsec-no-schemas")?.remove();
-                                const newIndex = this.settings.schemaMappings.length - 1;
+                                const newIndex = this.settings.schemas.length - 1;
                                 this.renderSchemaMappingItem(this.schemaListContainer, mapping, newIndex);
                             }
                         },
+                        (schema) => this.filesMatching(schema).length,
                         this.settings.enablePropertySuggestions
                     );
                     modal.open();
@@ -188,18 +163,23 @@ export class PropsecSettingTab extends PluginSettingTab {
         new Setting(containerEl).setName("Validation preferences").setHeading();
 
         new Setting(containerEl)
-            .setName("Global exclusions")
-            .setDesc("Notes matching this query are excluded from all schemas. Uses same syntax as schema queries (e.g., #status/archived, Templates/*)")
-            .addText((text) =>
-                text
-                    .setPlaceholder("e.g., #status/archived")
-                    .setValue(this.settings.globalExclusions)
-                    .onChange(async (value) => {
-                        this.settings.globalExclusions = value;
-                        await this.onSettingsChange();
-                        this.onSchemaChange();
-                    })
-            );
+            .setName("Excluded notes")
+            .setDesc("A rule for notes that no schema checks, e.g. archived notes or templates. Applied when you leave the box.");
+        let exclude = this.settings.exclude ?? "";
+        const excludeInput = ruleInput(this.app, containerEl, {
+            context: { slot: "exclude", properties: Object.keys(this.app.metadataTypeManager.properties) },
+            value: exclude,
+            onChange: (value) => {
+                exclude = value;
+            },
+        });
+        //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
+        excludeInput.addEventListener("change", async () => {
+            if (exclude.trim()) this.settings.exclude = exclude;
+            else delete this.settings.exclude;
+            await this.onSettingsChange();
+            this.onSchemaChange();
+        });
 
         new Setting(containerEl)
             .setName("Warn on unknown fields")
@@ -208,9 +188,9 @@ export class PropsecSettingTab extends PluginSettingTab {
             )
             .addToggle((toggle) =>
                 toggle
-                    .setValue(this.settings.warnOnUnknownFields)
+                    .setValue(this.settings.unknownFields)
                     .onChange(async (value) => {
-                        this.settings.warnOnUnknownFields = value;
+                        this.settings.unknownFields = value;
                         await this.onSettingsChange();
                         this.onSchemaChange();
                     })
@@ -223,9 +203,9 @@ export class PropsecSettingTab extends PluginSettingTab {
             )
             .addToggle((toggle) =>
                 toggle
-                    .setValue(this.settings.allowObsidianProperties)
+                    .setValue(this.settings.openFields.length > 0)
                     .onChange(async (value) => {
-                        this.settings.allowObsidianProperties = value;
+                        this.settings.openFields = value ? [...OBSIDIAN_NATIVE_PROPERTIES] : [];
                         await this.onSettingsChange();
                         this.onSchemaChange();
                     })
@@ -312,8 +292,8 @@ export class PropsecSettingTab extends PluginSettingTab {
 
     private async exportSchemas(): Promise<void> {
         const exportData = {
-            customTypes: this.settings.customTypes,
-            schemaMappings: this.settings.schemaMappings,
+            schemas: this.settings.schemas,
+            types: this.settings.types,
         };
         const json = JSON.stringify(exportData, null, 2);
 
@@ -346,7 +326,7 @@ export class PropsecSettingTab extends PluginSettingTab {
 
     private renderSchemaMappingItem(
         container: HTMLElement,
-        mapping: SchemaMapping,
+        mapping: Schema,
         index: number
     ): void {
         const itemEl = container.createDiv({
@@ -355,8 +335,8 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
-            const [moved] = this.settings.schemaMappings.splice(fromIndex, 1);
-            this.settings.schemaMappings.splice(toIndex, 0, moved);
+            const [moved] = this.settings.schemas.splice(fromIndex, 1);
+            this.settings.schemas.splice(toIndex, 0, moved);
             await this.onSettingsChange();
             this.onSchemaChange();
             void this.display();
@@ -417,15 +397,15 @@ export class PropsecSettingTab extends PluginSettingTab {
                 this.app,
                 mapping,
                 this.settings.templatesFolder,
-                this.settings.customTypes,
+                this.settings.types,
                 //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async (updatedMapping) => {
                     // Update the mapping in place
-                    const idx = this.settings.schemaMappings.findIndex(
+                    const idx = this.settings.schemas.findIndex(
                         (m) => m.id === mapping.id
                     );
                     if (idx >= 0) {
-                        this.settings.schemaMappings[idx] = updatedMapping;
+                        this.settings.schemas[idx] = updatedMapping;
                         await this.onSettingsChange();
                         this.onSchemaChange(updatedMapping.id);
                         // Replace item instead of re-rendering everything TODO function
@@ -434,6 +414,7 @@ export class PropsecSettingTab extends PluginSettingTab {
                         itemEl.replaceWith(temp.firstChild!);
                     }
                 },
+                (schema) => this.filesMatching(schema).length,
                 this.settings.enablePropertySuggestions
             );
             modal.open();
@@ -451,15 +432,15 @@ export class PropsecSettingTab extends PluginSettingTab {
                 `Are you sure you want to delete "${mapping.name}"?`,
                 //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async () => {
-                    const idx = this.settings.schemaMappings.findIndex(
+                    const idx = this.settings.schemas.findIndex(
                         (m) => m.id === mapping.id
                     );
                     if (idx >= 0) {
-                        this.settings.schemaMappings.splice(idx, 1);
+                        this.settings.schemas.splice(idx, 1);
                         await this.onSettingsChange();
                         this.onSchemaChange();
                         itemEl.remove();
-                        if (this.settings.schemaMappings.length === 0) {
+                        if (this.settings.schemas.length === 0) {
                             container.createEl("p", {
                                 text: "No schemas defined. Click the button below to add one.",
                                 cls: "propsec-no-schemas",
@@ -476,16 +457,8 @@ export class PropsecSettingTab extends PluginSettingTab {
             cls: "propsec-schema-info",
         });
 
-        // Query info
-        let queryText = mapping.query || "(no query)";
-        if (mapping.propertyFilter) {
-            const filterDesc = describePropertyFilter(mapping.propertyFilter);
-            if (filterDesc) {
-                queryText += ` [${filterDesc}]`;
-            }
-        }
         infoRow.createSpan({
-            text: queryText,
+            text: mapping.where || "(applies to no notes yet)",
             cls: "propsec-schema-query",
         });
 
@@ -498,7 +471,7 @@ export class PropsecSettingTab extends PluginSettingTab {
 
     private renderCustomTypeItem(
         container: HTMLElement,
-        customType: CustomType,
+        customType: TypeDef,
         index: number
     ): void {
         const itemEl = container.createDiv({
@@ -507,8 +480,8 @@ export class PropsecSettingTab extends PluginSettingTab {
 
         //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
         makeDraggable(itemEl, container, index, async (fromIndex, toIndex) => {
-            const [moved] = this.settings.customTypes.splice(fromIndex, 1);
-            this.settings.customTypes.splice(toIndex, 0, moved);
+            const [moved] = this.settings.types.splice(fromIndex, 1);
+            this.settings.types.splice(toIndex, 0, moved);
             await this.onSettingsChange();
             void this.display();
         });
@@ -541,7 +514,7 @@ export class PropsecSettingTab extends PluginSettingTab {
         });
         setIcon(previewBtn, "eye");
         previewBtn.addEventListener("click", () => {
-            new TypePreviewModal(this.app, customType, this.settings.schemaMappings, this.settings.customTypes, this.filesMatching).open();
+            new TypePreviewModal(this.app, customType, this.settings.schemas, this.settings.types, this.filesMatching).open();
         });
 
         // Edit button
@@ -551,15 +524,15 @@ export class PropsecSettingTab extends PluginSettingTab {
             const modal = new CustomTypeEditorModal(
                 this.app,
                 customType,
-                this.settings.customTypes,
+                this.settings.types,
                 //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async (updatedType) => {
                     // Update the custom type in place
-                    const idx = this.settings.customTypes.findIndex(
+                    const idx = this.settings.types.findIndex(
                         (t) => t.id === customType.id
                     );
                     if (idx >= 0) {
-                        this.settings.customTypes[idx] = updatedType;
+                        this.settings.types[idx] = updatedType;
                         await this.onSettingsChange();
                         // Replace item instead of re-rendering everything TODO function
                         const temp = activeDocument.createElement("div");
@@ -567,8 +540,8 @@ export class PropsecSettingTab extends PluginSettingTab {
                         itemEl.replaceWith(temp.firstChild!);
 
                         // Revalidate schemas using this custom type
-                        for (const schema of this.settings.schemaMappings) {
-                            const referencedTypes = getReferencedCustomTypes(schema.fields, this.settings.customTypes);
+                        for (const schema of this.settings.schemas) {
+                            const referencedTypes = getReferencedCustomTypes(schema.fields, this.settings.types);
                             if (referencedTypes.some((t) => t.name === updatedType.name)) {
                                 this.onSchemaChange(schema.id);
                             }
@@ -586,8 +559,8 @@ export class PropsecSettingTab extends PluginSettingTab {
         setIcon(deleteBtn, "x");
         deleteBtn.addEventListener("click", () => {
             // Check if any schema is using this type
-            const usedInSchemas = this.settings.schemaMappings.filter((mapping) => {
-                const referencedTypes = getReferencedCustomTypes(mapping.fields, this.settings.customTypes);
+            const usedInSchemas = this.settings.schemas.filter((mapping) => {
+                const referencedTypes = getReferencedCustomTypes(mapping.fields, this.settings.types);
                 return referencedTypes.some((t) => t.name === customType.name);
             });
 
@@ -605,14 +578,14 @@ export class PropsecSettingTab extends PluginSettingTab {
                 `Are you sure you want to delete "${customType.name}"?`,
                 //eslint-disable-next-line @typescript-eslint/no-misused-promises -- Async callback in event handler
                 async () => {
-                    const index = this.settings.customTypes.findIndex(
+                    const index = this.settings.types.findIndex(
                         (t) => t.id === customType.id
                     );
                     if (index >= 0) {
-                        this.settings.customTypes.splice(index, 1);
+                        this.settings.types.splice(index, 1);
                         await this.onSettingsChange();
                         itemEl.remove();
-                        if (this.settings.customTypes.length === 0) {
+                        if (this.settings.types.length === 0) {
                             container.createEl("p", {
                                 text: "No types defined. Click the button below to add one.",
                                 cls: "propsec-no-types",

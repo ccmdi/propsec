@@ -1,6 +1,6 @@
 import { App, TFile } from "obsidian";
 import {
-    SchemaMapping,
+    Schema,
     Violation,
     CompiledSchema,
     FileMeta,
@@ -8,12 +8,11 @@ import {
     MALFORMED_SCHEMA,
     compile,
     malformedViolation,
-    migrate,
 } from "@propsec/core";
 import { ViolationStore } from "./store";
 import { toFileMeta } from "../adapter";
 import { debug } from "../debug";
-import type { PropsecSettings } from "../settings";
+import type { PropsecSettings } from "../data";
 
 const BATCH_SIZE = 50;
 
@@ -26,7 +25,7 @@ function yieldToMain(): Promise<void> {
  */
 export interface ValidatorHooks {
     onFileValidated?: (file: TFile, schemaIds: string[], violations: Violation[]) => void;
-    onSchemaValidated?: (schema: SchemaMapping) => void;
+    onSchemaValidated?: (schema: Schema) => void;
     onCleared?: () => void;
 }
 
@@ -49,14 +48,14 @@ export class Validator {
         this.app = app;
         this.store = store;
         this.settings = settings;
-        this.program = compile(migrate(settings()));
+        this.program = compile(settings());
     }
 
     /**
      * Recompile the rule program from the current settings
      */
     recompile(): void {
-        this.program = compile(migrate(this.settings()));
+        this.program = compile(this.settings());
     }
 
     /**
@@ -70,8 +69,8 @@ export class Validator {
     /**
      * Files that a schema would apply to, whether or not it is enabled
      */
-    filesMatching(mapping: SchemaMapping): TFile[] {
-        const [schema] = compile(migrate({ ...this.settings(), schemaMappings: [{ ...mapping, enabled: true }] })).schemas;
+    filesMatching(candidate: Schema): TFile[] {
+        const [schema] = compile({ ...this.settings(), schemas: [{ ...candidate, enabled: true }] }).schemas;
         return this.matchedFiles(schema).map(m => m.file);
     }
 
@@ -178,8 +177,7 @@ export class Validator {
             );
         }
 
-        const mapping = this.settings().schemaMappings.find(m => m.id === mappingId);
-        if (mapping) this.hooks.onSchemaValidated?.(mapping);
+        this.hooks.onSchemaValidated?.(schema.schema);
     }
 
     /**

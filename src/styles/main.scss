@@ -462,61 +462,58 @@
     }
 }
 
-// Condition Section
-.propsec-condition-section {
-    margin-bottom: 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--background-modifier-border);
+// Rule boxes
+.propsec-rule {
+    @include flex-col(4px);
+    margin-bottom: 10px;
 }
 
-.propsec-condition-header {
+.propsec-rule-input {
+    @include input-primary;
+    width: 100%;
+    font-family: var(--font-monospace);
+    font-size: 0.9em;
+}
+
+.propsec-rule-status:empty {
+    display: none;
+}
+
+.propsec-rule-status {
+    font-size: 0.8em;
+    @include flex-col(2px);
+}
+
+.propsec-rule-error {
+    color: var(--text-error);
+}
+
+.propsec-rule-warning {
+    color: var(--text-warning);
+}
+
+.propsec-rule-preview {
+    color: var(--text-muted);
+}
+
+.propsec-rule-suggestion {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
+    flex-direction: column;
+    gap: 2px;
 }
 
-.propsec-condition-desc {
+.propsec-rule-suggestion-label {
+    font-family: var(--font-monospace);
+
+    &.is-helper {
+        font-family: inherit;
+        font-weight: 500;
+    }
+}
+
+.propsec-rule-suggestion-detail {
     font-size: 0.8em;
     color: var(--text-muted);
-    margin-bottom: 6px;
-}
-
-.propsec-condition-logic {
-    @include input-base;
-    padding: 1px 4px;
-    font-size: inherit;
-    margin: 0 2px;
-}
-
-.propsec-conditions-list {
-    @include flex-col;
-}
-
-.propsec-condition-row,
-.propsec-field-condition-row {
-    @include flex-row;
-
-    input, select {
-        @include input-base;
-    }
-}
-
-.propsec-condition-field { flex: 1; min-width: 80px; }
-.propsec-condition-operator { width: 90px; flex-shrink: 0; }
-.propsec-condition-value { flex: 1; min-width: 60px; }
-.propsec-condition-property { flex: 1; min-width: 80px; }
-
-.propsec-add-condition-btn {
-    @include small-btn;
-}
-
-.propsec-condition-delete {
-    @include small-btn;
-
-    &:hover {
-        color: var(--text-error);
-    }
 }
 
 // Button rows
@@ -803,97 +800,6 @@
 
 .propsec-error-item .propsec-violation-icon {
     color: var(--text-error);
-}
-
-// ============================================
-// Property Filter
-// ============================================
-
-.propsec-filter-section {
-    margin-top: 12px;
-}
-
-.propsec-filter-header {
-    @include flex-row;
-    cursor: pointer;
-    padding: 6px 8px;
-    border-radius: 4px;
-    font-size: 0.9em;
-    color: var(--text-muted);
-
-    &:hover {
-        background: var(--background-secondary);
-    }
-}
-
-.propsec-filter-toggle {
-    display: flex;
-    align-items: center;
-
-    svg {
-        width: 14px;
-        height: 14px;
-    }
-}
-
-.propsec-filter-content {
-    padding: 12px;
-    margin-top: 4px;
-    background: var(--background-secondary);
-    border-radius: 6px;
-    border: 1px solid var(--background-modifier-border);
-}
-
-.propsec-filter-grid {
-    @include flex-col(8px);
-}
-
-.propsec-filter-row {
-    @include flex-row(8px);
-
-    label {
-        flex: 0 0 120px;
-        font-size: 0.85em;
-        color: var(--text-muted);
-    }
-
-    input {
-        @include input-primary;
-        flex: 1;
-    }
-}
-
-.propsec-filter-equals {
-    @include flex-row;
-    flex: 1;
-
-    input {
-        @include input-primary;
-        flex: 1;
-    }
-
-    span {
-        color: var(--text-muted);
-    }
-}
-
-.propsec-conditions-section {
-    margin-top: 12px;
-    border-top: 1px solid var(--background-modifier-border);
-    padding-top: 12px;
-}
-
-.propsec-conditions-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-
-    span {
-        font-weight: 500;
-        font-size: 0.9em;
-        color: var(--text-muted);
-    }
 }
 
 // ============================================

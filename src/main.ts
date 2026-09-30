@@ -13,7 +13,8 @@ import { ValidationCache } from "./validation/cache";
 import { StatusBarItem } from "./ui/statusBar";
 import { ViolationsModal } from "./ui/violationsModal";
 import { ViolationsView, VIOLATIONS_VIEW_TYPE } from "./ui/violationsView";
-import { PropsecSettingTab, PropsecSettings, DEFAULT_SETTINGS } from "./settings";
+import { PropsecSettingTab } from "./settings";
+import { PropsecSettings, readSettings } from "./data";
 import { debug } from "./debug";
 
 export default class PropsecPlugin extends Plugin {
@@ -216,7 +217,15 @@ export default class PropsecPlugin extends Plugin {
     }
 
     async loadSettings(): Promise<void> {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<PropsecSettings>);
+        const data: unknown = await this.loadData();
+        const { settings, upgraded } = readSettings(data);
+        this.settings = settings;
+        if (upgraded) {
+            const backup = `${this.manifest.dir ?? ""}/data.v1.json`;
+            await this.app.vault.adapter.write(backup, JSON.stringify(data, null, 2));
+            await this.saveData(this.settings);
+            new Notice(`Propsec converted your schemas to rules. Your previous settings are saved in ${backup}.`, 10000);
+        }
     }
 
     async saveSettings(): Promise<void> {

@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { FieldType, SchemaField, ISO_DATE_REGEX } from "@propsec/core";
+import { FieldType, Field, ISO_DATE_REGEX } from "@propsec/core";
 import "../obsidian-ex.d.ts";
 
 /**
@@ -87,14 +87,14 @@ export function inferFieldTypeWithObsidian(app: App, key: string, value: unknown
 export function extractSchemaFromTemplate(
     app: App,
     templateFile: TFile
-): SchemaField[] {
+): Field[] {
     const frontmatter = app.metadataCache.getFileCache(templateFile)?.frontmatter;
 
     if (!frontmatter) {
         return [];
     }
 
-    const fields: SchemaField[] = [];
+    const fields: Field[] = [];
 
     for (const [key, value] of Object.entries(frontmatter)) {
         fields.push({

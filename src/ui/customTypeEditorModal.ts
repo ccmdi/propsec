@@ -1,5 +1,5 @@
 import { App, Notice, Setting } from "obsidian";
-import { SchemaField, CustomType, isPrimitiveType, PRIMITIVE_TYPES } from "@propsec/core";
+import { Field, TypeDef, isPrimitiveType, PRIMITIVE_TYPES } from "@propsec/core";
 import { generatePrefixedId } from "../utils/id";
 import { FieldEditorModal } from "./fieldEditorModal";
 
@@ -7,23 +7,23 @@ import { FieldEditorModal } from "./fieldEditorModal";
  * Modal for editing a custom type definition
  */
 export class CustomTypeEditorModal extends FieldEditorModal {
-    private customType: CustomType;
-    private existingTypes: CustomType[];
-    private onSave: (customType: CustomType) => void;
+    private customType: TypeDef;
+    private existingTypes: TypeDef[];
+    private onSave: (customType: TypeDef) => void;
     private isNew: boolean;
 
     constructor(
         app: App,
-        customType: CustomType | null,
-        existingTypes: CustomType[],
-        onSave: (customType: CustomType) => void
+        customType: TypeDef | null,
+        existingTypes: TypeDef[],
+        onSave: (customType: TypeDef) => void
     ) {
         super(app);
         this.isNew = customType === null;
 
         // Deep copy or create new
         if (customType) {
-            this.customType = JSON.parse(JSON.stringify(customType)) as unknown as CustomType;
+            this.customType = JSON.parse(JSON.stringify(customType)) as unknown as TypeDef;
         } else {
             this.customType = {
                 id: generatePrefixedId("ct"),
@@ -38,11 +38,11 @@ export class CustomTypeEditorModal extends FieldEditorModal {
 
     // ========== Abstract Method Implementations ==========
 
-    protected getFields(): SchemaField[] {
+    protected getFields(): Field[] {
         return this.customType.fields;
     }
 
-    protected setFields(fields: SchemaField[]): void {
+    protected setFields(fields: Field[]): void {
         this.customType.fields = fields;
     }
 

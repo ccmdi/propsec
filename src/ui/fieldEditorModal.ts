@@ -1,11 +1,12 @@
 import { App, Menu, Modal, setIcon } from "obsidian";
-import { SchemaField, clearFieldConstraints, groupFieldsByName, ComparisonOperator, getComparisonOperatorOptions, CONSTRAINT_GROUPS, ConstraintFieldMeta } from "@propsec/core";
+import { Field, groupFieldsByName } from "@propsec/core";
 import { getTypeDisplayName } from "../schema/extractor";
+import { ruleInput } from "./ruleInput";
 
 /** A field name and every flat-array entry (variant) declared under it. */
 interface FieldGroup {
     name: string;
-    variants: SchemaField[];
+    variants: Field[];
 }
 
 /**
@@ -16,9 +17,9 @@ export abstract class FieldEditorModal extends Modal {
     protected fieldsContainer: HTMLElement | null = null;
     protected activeConstraintsSection: HTMLElement | null = null;
 
-    private expandedKey: SchemaField | null = null;
+    private expandedKey: Field | null = null;
     private expandedCard: HTMLElement | null = null;
-    private activeVariants: Map<SchemaField, SchemaField> = new Map();
+    private activeVariants: Map<Field, Field> = new Map();
     private emptyMessage = "No fields defined.";
     private onNameInputCreated?: (input: HTMLInputElement) => void;
 
@@ -29,10 +30,10 @@ export abstract class FieldEditorModal extends Modal {
     // ========== Abstract Methods ==========
 
     /** Get the fields array being edited */
-    protected abstract getFields(): SchemaField[];
+    protected abstract getFields(): Field[];
 
     /** Set the fields array */
-    protected abstract setFields(fields: SchemaField[]): void;
+    protected abstract setFields(fields: Field[]): void;
 
     /** Get available types for the type menus (primitives + custom types) */
     protected abstract getAvailableTypes(): string[];
@@ -78,7 +79,7 @@ export abstract class FieldEditorModal extends Modal {
         }
     }
 
-    private buildGroups(fields: SchemaField[]): FieldGroup[] {
+    private buildGroups(fields: Field[]): FieldGroup[] {
         const named = groupFieldsByName(fields.filter((f) => f.name !== ""));
         const groups: FieldGroup[] = [];
         const seen = new Set<string>();
@@ -130,10 +131,10 @@ export abstract class FieldEditorModal extends Modal {
         this.renderTypeChips(mainRow, group, card, expandBtn);
         this.renderGroupToggles(mainRow, group);
 
-        if (group.variants.some((v) => v.conditions && v.conditions.length > 0)) {
+        if (group.variants.some((v) => v.when)) {
             const badge = mainRow.createSpan({
                 cls: "propsec-condition-badge",
-                attr: { title: "Has conditions" },
+                attr: { title: "Applies only when a rule holds" },
             });
             setIcon(badge, "filter");
         }
@@ -195,25 +196,25 @@ export abstract class FieldEditorModal extends Modal {
         addChip.addEventListener("click", (evt) => this.showTypeMenu(evt, group));
     }
 
-    private visibleVariants(group: FieldGroup): SchemaField[] {
+    private visibleVariants(group: FieldGroup): Field[] {
         return group.variants;
     }
 
-    private getActiveVariant(group: FieldGroup): SchemaField {
+    private getActiveVariant(group: FieldGroup): Field {
         const visible = this.visibleVariants(group);
         const stored = this.activeVariants.get(group.variants[0]);
         if (stored && visible.includes(stored)) return stored;
         return visible[0] ?? group.variants[0];
     }
 
-    private variantLabel(field: SchemaField): string {
+    private variantLabel(field: Field): string {
         if (field.type === "array" && field.arrayElementType) {
             return `array<${field.arrayElementType}>`;
         }
         return field.type;
     }
 
-    private unusedTypes(group: FieldGroup, ignore?: SchemaField): string[] {
+    private unusedTypes(group: FieldGroup, ignore?: Field): string[] {
         const present = new Set(
             this.visibleVariants(group).filter((v) => v !== ignore).map((v) => v.type)
         );
@@ -231,14 +232,17 @@ export abstract class FieldEditorModal extends Modal {
         menu.showAtMouseEvent(evt);
     }
 
-    private showVariantMenu(evt: MouseEvent, group: FieldGroup, variant: SchemaField): void {
+    private showVariantMenu(evt: MouseEvent, group: FieldGroup, variant: Field): void {
         const menu = new Menu();
 
         for (const type of this.unusedTypes(group, variant)) {
             menu.addItem((item) =>
                 item.setTitle(`Change type to ${type}`).onClick(() => {
                     variant.type = type;
-                    clearFieldConstraints(variant);
+                    delete variant.must;
+                    delete variant.arrayElementType;
+                    delete variant.objectKeyType;
+                    delete variant.objectValueType;
                     this.activeVariants.set(group.variants[0], variant);
                     this.draw();
                 })
@@ -259,7 +263,7 @@ export abstract class FieldEditorModal extends Modal {
     }
 
     private addVariant(group: FieldGroup, type: string): void {
-        const variant: SchemaField = {
+        const variant: Field = {
             name: group.name,
             type,
             required: type !== "null" && group.variants.some((v) => v.required),
@@ -273,7 +277,7 @@ export abstract class FieldEditorModal extends Modal {
         this.draw();
     }
 
-    private removeVariants(group: FieldGroup, variants: SchemaField[]): void {
+    private removeVariants(group: FieldGroup, variants: Field[]): void {
         const removed = new Set(variants);
         const remaining = group.variants.filter((v) => !removed.has(v));
 
@@ -359,7 +363,7 @@ export abstract class FieldEditorModal extends Modal {
 
         const section = card.createDiv({ cls: "propsec-constraints-section" });
         this.activeConstraintsSection = section;
-        this.renderConstraints(section, this.getActiveVariant(group), group.variants);
+        this.renderConstraints(section, this.getActiveVariant(group));
     }
 
     private collapse(card: HTMLElement, expandBtn: HTMLElement): void {
@@ -380,48 +384,21 @@ export abstract class FieldEditorModal extends Modal {
         }
     }
 
-    // ========== Constraints Rendering ==========
+    // ========== Rules Rendering ==========
 
-    protected renderConstraints(container: HTMLElement, field: SchemaField, variants: SchemaField[]): void {
-        const group = CONSTRAINT_GROUPS.find((g) => g.appliesTo === field.type);
-
-        if (group) {
-            const record = field as unknown as Record<string, Record<string, unknown>>;
-            if (!record[group.key]) {
-                record[group.key] = {};
-            }
-            const constraints = record[group.key];
-
-            container.createDiv({
-                text: group.title,
-                cls: "propsec-constraints-title",
-            });
-
-            const grid = container.createDiv({ cls: "propsec-constraints-grid" });
-
-            if (field.type === "array") {
-                this.renderElementTypeRow(grid, field);
-            }
-
-            for (const meta of group.fields) {
-                this.renderConstraintRow(grid, constraints, meta);
-            }
-        }
-
-        this.renderFieldOptions(container, field, variants);
-
-        if (field.type !== "array") {
-            this.renderCrossFieldConstraint(container, field);
-        }
+    /** Property names offered while writing rules: this editor's fields plus every property in the vault */
+    protected ruleProperties(): string[] {
+        const names = new Set(this.getFields().map((f) => f.name).filter((n) => n !== ""));
+        for (const name of Object.keys(this.app.metadataTypeManager.properties)) names.add(name);
+        return [...names];
     }
 
-    private renderFieldOptions(container: HTMLElement, field: SchemaField, variants: SchemaField[]): void {
-        container.createDiv({
-            text: "Field options",
-            cls: "propsec-constraints-title",
-        });
-
+    private renderConstraints(container: HTMLElement, field: Field): void {
         const grid = container.createDiv({ cls: "propsec-constraints-grid" });
+
+        if (field.type === "array") {
+            this.renderElementTypeRow(grid, field);
+        }
 
         const uniqueRow = grid.createDiv({ cls: "propsec-constraint-row" });
         uniqueRow.createEl("label", { text: "Unique across files:" });
@@ -434,57 +411,31 @@ export abstract class FieldEditorModal extends Modal {
                 delete field.unique;
             }
         });
-    }
 
-    private renderConstraintRow(grid: HTMLElement, constraints: Record<string, unknown>, meta: ConstraintFieldMeta): void {
-        const row = grid.createDiv({ cls: "propsec-constraint-row" });
-        row.createEl("label", { text: meta.label });
+        const properties = this.ruleProperties();
 
-        if (meta.input === "boolean") {
-            const input = row.createEl("input", { type: "checkbox" });
-            input.checked = (constraints[meta.key] as boolean | undefined) ?? false;
-            input.addEventListener("change", () => {
-                constraints[meta.key] = input.checked || undefined;
-            });
-            return;
-        }
-
-        const inputType = meta.input === "integer" || meta.input === "number" ? "number"
-            : meta.input === "date" ? "date"
-            : "text";
-        const input = row.createEl("input", {
-            type: inputType,
-            ...(meta.placeholder ? { placeholder: meta.placeholder } : {}),
-            ...(meta.input === "integer" ? { attr: { min: "0" } } : {}),
+        container.createDiv({ text: "Value must", cls: "propsec-constraints-title" });
+        ruleInput(this.app, container, {
+            context: { slot: "must", type: field.type, properties },
+            value: field.must ?? "",
+            onChange: (value) => {
+                if (value.trim()) field.must = value;
+                else delete field.must;
+            },
         });
-        input.value = this.formatConstraintValue(constraints[meta.key], meta);
-        input.addEventListener("input", () => {
-            constraints[meta.key] = this.parseConstraintValue(input.value, meta);
+
+        container.createDiv({ text: "Applies when", cls: "propsec-constraints-title" });
+        ruleInput(this.app, container, {
+            context: { slot: "when", properties },
+            value: field.when ?? "",
+            onChange: (value) => {
+                if (value.trim()) field.when = value;
+                else delete field.when;
+            },
         });
     }
 
-    private formatConstraintValue(value: unknown, meta: ConstraintFieldMeta): string {
-        if (value === undefined || value === null) return "";
-        if (meta.input === "string-list") return (value as string[]).join(", ");
-        return String(value);
-    }
-
-    private parseConstraintValue(raw: string, meta: ConstraintFieldMeta): unknown {
-        switch (meta.input) {
-            case "integer":
-                return raw ? parseInt(raw, 10) : undefined;
-            case "number":
-                return raw ? parseFloat(raw) : undefined;
-            case "string-list": {
-                const items = raw.split(",").map((v) => v.trim()).filter((v) => v !== "");
-                return items.length > 0 ? items : undefined;
-            }
-            default:
-                return raw || undefined;
-        }
-    }
-
-    private renderElementTypeRow(grid: HTMLElement, field: SchemaField): void {
+    private renderElementTypeRow(grid: HTMLElement, field: Field): void {
         const elementTypeRow = grid.createDiv({ cls: "propsec-constraint-row" });
         elementTypeRow.createEl("label", { text: "Element type:" });
         const elementTypeSelect = elementTypeRow.createEl("select");
@@ -513,67 +464,4 @@ export abstract class FieldEditorModal extends Modal {
             if (chip) (chip as HTMLElement).setText(this.variantLabel(field));
         });
     }
-
-    protected renderCrossFieldConstraint(container: HTMLElement, field: SchemaField): void {
-        container.createDiv({
-            text: "Compare to another field",
-            cls: "propsec-constraints-title",
-        });
-
-        const grid = container.createDiv({
-            cls: "propsec-constraints-grid",
-        });
-
-        // Operator select
-        const operatorRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        operatorRow.createEl("label", { text: "Must be:" });
-        const operatorSelect = operatorRow.createEl("select");
-
-        // Add empty option
-        const emptyOption = operatorSelect.createEl("option", {
-            value: "",
-            text: "(none)",
-        });
-        if (!field.crossFieldConstraint) {
-            emptyOption.selected = true;
-        }
-
-        for (const op of getComparisonOperatorOptions()) {
-            const option = operatorSelect.createEl("option", {
-                value: op.value,
-                text: op.label,
-            });
-            if (field.crossFieldConstraint?.operator === op.value) {
-                option.selected = true;
-            }
-        }
-
-        // Field name input
-        const fieldRow = grid.createDiv({ cls: "propsec-constraint-row" });
-        fieldRow.createEl("label", { text: "Field:" });
-        const fieldInput = fieldRow.createEl("input", {
-            type: "text",
-            placeholder: "other field name",
-        });
-        fieldInput.value = field.crossFieldConstraint?.field || "";
-
-        // Update handlers
-        const updateConstraint = () => {
-            const operator = operatorSelect.value as ComparisonOperator | "";
-            const fieldName = fieldInput.value.trim();
-
-            if (operator && fieldName) {
-                field.crossFieldConstraint = {
-                    operator: operator,
-                    field: fieldName,
-                };
-            } else {
-                delete field.crossFieldConstraint;
-            }
-        };
-
-        operatorSelect.addEventListener("change", updateConstraint);
-        fieldInput.addEventListener("input", updateConstraint);
-    }
-
 }
