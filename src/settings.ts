@@ -17,7 +17,6 @@ export interface PropsecSettings {
     warnOnUnknownFields: boolean;
     allowObsidianProperties: boolean;  // Don't warn about aliases, tags, cssclasses
     validateOnFileOpen: boolean;
-    validateOnFileSave: boolean;
     showInStatusBar: boolean;
     colorStatusBarErrors: boolean;
     excludeWarningsFromCount: boolean;  // Don't count warnings in status bar violation count
@@ -32,7 +31,6 @@ export const DEFAULT_SETTINGS: PropsecSettings = {
     warnOnUnknownFields: true,
     allowObsidianProperties: true,
     validateOnFileOpen: true,
-    validateOnFileSave: true,
     showInStatusBar: true,
     colorStatusBarErrors: true,
     excludeWarningsFromCount: true,
@@ -241,18 +239,6 @@ export class PropsecSettingTab extends PluginSettingTab {
                     .setValue(this.settings.validateOnFileOpen)
                     .onChange(async (value) => {
                         this.settings.validateOnFileOpen = value;
-                        await this.onSettingsChange();
-                    })
-            );
-
-        new Setting(containerEl)
-            .setName("Validate on file save")
-            .setDesc("Automatically validate notes when they are saved")
-            .addToggle((toggle) =>
-                toggle
-                    .setValue(this.settings.validateOnFileSave)
-                    .onChange(async (value) => {
-                        this.settings.validateOnFileSave = value;
                         await this.onSettingsChange();
                     })
             );
