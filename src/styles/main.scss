@@ -706,6 +706,19 @@
     padding-left: 26px;
 }
 
+.propsec-schema-query {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.propsec-schema-field-count {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .propsec-notice {
     padding: 10px 12px;
     margin: 8px 0;
