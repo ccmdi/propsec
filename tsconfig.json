@@ -1,9 +1,6 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": {
-      "@propsec/core": ["lib/mdlsp/packages/core/src/index.ts"]
-    },
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",
@@ -26,7 +23,6 @@
   ],
   "exclude": [
     "node_modules",
-    "lib",
     "benchmarks"
   ]
 }

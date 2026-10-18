@@ -7,7 +7,6 @@ export default defineConfig([
       "node_modules/**",
       "main.js",
       "benchmarks/**",
-      "lib/**",
       ".claude/**",
     ],
   },
@@ -35,7 +34,7 @@ export default defineConfig([
   },
 
   {
-    files: ["*.mjs", "vitest.config.ts"],
+    files: ["*.mjs"],
     rules: {
       "obsidianmd/no-nodejs-modules": "off",
     },

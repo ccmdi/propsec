@@ -27,5 +27,8 @@
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.50.0",
 		"vitest": "^3.2.4"
+	},
+	"dependencies": {
+		"@propsec/core": "0.1.0"
 	}
 }

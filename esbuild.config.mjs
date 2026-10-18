@@ -1,7 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules as builtins } from "node:module";
-import { fileURLToPath } from "node:url";
 import { sassPlugin } from "esbuild-sass-plugin";
 
 const banner =
@@ -20,9 +19,6 @@ const jsContext = await esbuild.context({
 	},
 	entryPoints: ["src/main.ts"],
 	bundle: true,
-	alias: {
-		"@propsec/core": fileURLToPath(new URL("./lib/mdlsp/packages/core/src/index.ts", import.meta.url)),
-	},
 	external: [
 		"obsidian",
 		"electron",
