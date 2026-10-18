@@ -1,12 +1,14 @@
+import { defineConfig } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
-import tseslint from "typescript-eslint";
 
-export default tseslint.config(
+export default defineConfig([
   {
     ignores: [
       "node_modules/**",
       "main.js",
       "benchmarks/**",
+      "lib/**",
+      ".claude/**",
     ],
   },
 
@@ -20,15 +22,22 @@ export default tseslint.config(
   },
 
   ...obsidianmd.configs.recommended,
-  ...tseslint.configs.recommended,
 
   {
-    files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ["*.mjs"],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
-    }
+    },
   },
-);
+
+  {
+    files: ["*.mjs", "vitest.config.ts"],
+    rules: {
+      "obsidianmd/no-nodejs-modules": "off",
+    },
+  },
+]);
